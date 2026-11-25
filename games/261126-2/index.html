@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
+<meta name="robots" content="noindex,nofollow">
 <meta name="gf-meta" content="format:fr-261029-7; style_id:mosaic; subject:free">
 <title>ぴきぽろん！たまごのあとの水あそび</title>
 <style>
@@ -17,6 +18,7 @@ canvas{position:fixed;left:0;top:0;width:100%;height:100%;display:block;touch-ac
   padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);
   padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)}
 </style>
+<script src="../../gf-playlog.js" defer></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -77,9 +79,9 @@ var LAYS={
    panel:[96,760,584,976],falls:[[470,704],[492,744],[474,788],[496,830],[482,874]],bowY:748,
    frameW:0.26},
  land:{name:'land',W:1200,H:800,sky:205,sea:322,beach:598,low:712,bed:772,
-   D:[425,440],T:[692,440],P:[885,610],chick:[1010,158],tEggDx:24,homeDx:-178,
+   D:[540,440],T:[807,440],P:[885,610],chick:[1010,158],tEggDx:24,homeDx:-178,
    sun:[600,90],clouds:[[1010,208,104,26],[330,150,90,22],[770,66,60,15],[120,80,50,13],[560,180,60,12]],
-   panel:[598,600,1172,708],falls:[[692,556],[714,572],[702,588],[726,600],[716,614]],bowY:592,
+   panel:[598,600,1172,708],falls:[[807,556],[829,572],[817,588],[841,600],[831,614]],bowY:592,
    frameW:0.17}
 };
 var L=LAYS.port,CW=0,CH=0,DPR=1,S=1,OX=0,OY=0,GW=1,SA={t:0,r:0,b:0,l:0};
@@ -780,7 +782,9 @@ function updateGuide(dt){
 function targetPoint(id){var c=CR[id];if(!c||!c.pts.length)return null;return crackPt(c,c.len/2);}
 
 /* ---------- input ---------- */
-var act=null,pointerW=null;
+var act=null,pointerW=null,rips=[],ripLast=null;
+function addRip(w,big){if(rips.length>24)rips.shift();rips.push({x:w[0],y:w[1],t:0,big:big?1:0});ripLast=w;
+  var n=big?6:2;for(var i=0;i<n;i++){var a=rnd()*TAU,v=(big?70:40)*(.6+rnd())/Math.max(.35,S);spawn({x:w[0],y:w[1],vx:Math.cos(a)*v,vy:Math.sin(a)*v,sz:(big?5:4)/Math.max(.35,S),c:['ivo','tealL','sand'][i%3],life:.45+rnd()*.25,g:0});}}
 function toWorld(cx,cy){return [(cx-OX)/S,(cy-OY)/S];}
 function tolW(){return Math.max(18,32/S);}
 function eggRegion(egg,x,y){var lx=x-egg.ax,ly=y-egg.ay;return pip(egg.upper,lx,ly)||pip(egg.lower,lx,ly);}
@@ -847,12 +851,13 @@ function onDown(e){
   act={id:e.pointerId,crack:null,lastS:null,done:false,dirAcc:0};
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
   lastInput=T;demo=null;demoShown=false;
-  if(ending)return;strokePoint(toWorld(e.clientX,e.clientY),true);
+  var w0=toWorld(e.clientX,e.clientY);addRip(w0,true);
+  if(ending)return;strokePoint(w0,true);if(!act.crack)SFX.tick(.5,523,true);
 }
 function onMove(e){
   if(!act||e.pointerId!==act.id)return;if(e.cancelable)e.preventDefault();lastInput=T;if(ending)return;
   var list=(e.getCoalescedEvents&&e.getCoalescedEvents())||[];if(!list.length)list=[e];
-  for(var i=0;i<list.length;i++)strokePoint(toWorld(list[i].clientX,list[i].clientY),false);
+  for(var i=0;i<list.length;i++){var wm=toWorld(list[i].clientX,list[i].clientY);if(!ripLast||Math.hypot(wm[0]-ripLast[0],wm[1]-ripLast[1])*S>22)addRip(wm,false);strokePoint(wm,false);}
 }
 function onUp(e){if(!act||e.pointerId!==act.id)return;auInit();act=null;pointerW=null;lastInput=T;}
 cv.addEventListener('pointerdown',onDown,{passive:false});
@@ -876,6 +881,7 @@ function update(dt){
   updateReveal(dt);
   ['D','T','C'].forEach(function(k){updateEgg(eggs[k],dt);});
   updateDino(dt);updateTurtle(dt);updateChick(dt);updateBoat(dt);updateWaves(dt);
+  for(var r=rips.length-1;r>=0;r--){rips[r].t+=dt/(rips[r].big?.6:.4);if(rips[r].t>=1)rips.splice(r,1);}
   for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.life-=dt;if(p.life<=0){parts.splice(i,1);continue;}p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.vr*dt;}
   if(!ending){
     if(eggs.D.opened&&PO.T.depth>12)disc('d1shallow',PO.T.cx,surfY(PO.T)-20);
@@ -1058,6 +1064,9 @@ function drawFlying(){
 }
 function drawParticles(){for(var i=0;i<parts.length;i++){var p=parts[i],a=clamp(p.life/p.max*1.6,0,1),s=p.sz;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);
   ctx.globalAlpha=a;ctx.fillStyle=PAL.grout;ctx.fillRect(-s/2-1,-s/2-1,s+2,s+2);ctx.fillStyle=col(p.c);ctx.fillRect(-s/2,-s/2,s,s);ctx.restore();}}
+function drawRips(){var k=1/Math.max(.35,S);ctx.save();ctx.lineCap='round';for(var i=0;i<rips.length;i++){var r=rips[i],e=1-Math.pow(1-r.t,2),a=1-r.t,R=(r.big?14+46*e:8+20*e)*k;
+  ctx.beginPath();ctx.arc(r.x,r.y,R,0,TAU);ctx.lineWidth=(r.big?6:4)*k*a+1*k;ctx.strokeStyle=col('ivo',1,.85*a);ctx.stroke();
+  if(r.big){ctx.beginPath();ctx.arc(r.x,r.y,R*.55,0,TAU);ctx.lineWidth=3*k*a+.5*k;ctx.strokeStyle=col('tealL',1,.8*a);ctx.stroke();}}ctx.restore();}
 function drawWind(){
   if(!wind||ending)return;var x0=-OX/S-60,x1=(CW-OX)/S+60,span=x1-x0,yA=L.sky-60,yB=PO.D.rim-10;
   ctx.lineCap='round';
@@ -1112,7 +1121,7 @@ function render(){
   if(turtle.st!=='egg'&&turtle.st!=='form')drawChar('turtle',turtle,eggs.T);
   if(dino.st==='aboard'||dino.st==='board')drawChar('dino',dino,eggs.D);
   drawChar('chick',chick,eggs.C);
-  drawFlying();drawParticles();drawWind();
+  drawFlying();drawParticles();drawRips();drawWind();
   drawHand();
   drawFrame();
 }
