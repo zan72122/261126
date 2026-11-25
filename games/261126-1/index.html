@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a1633">
+<meta name="robots" content="noindex,nofollow">
 <title>ずるっ！あわゆき消防楽団</title>
 <style>
 html,body{margin:0;padding:0;width:100%;height:100%;background:#0a1633;overflow:hidden;overscroll-behavior:none;
@@ -15,6 +16,7 @@ canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;height:100dvh;displa
   padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);
   padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)}
 </style>
+<script src="../../gf-playlog.js"></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -96,11 +98,11 @@ var LAYOUTS={
           eave:[[320,1010],[332,925],[362,820],[362,540]],
           roof:[[520,1010],[560,950],[634,870],[634,345]]},
     ret:[[280,738],[255,764],[150,786],[96,808],[90,834]]},
-  L:{W:1290,H:800,town:[650,0],ctrl:[0,420],
-    hose:{bucket:[[120,757],[142,774],[700,774],[846,706]],
-          eave:[[320,757],[342,786],[1006,786],[1012,548]],
-          roof:[[520,757],[542,797],[1284,797],[1284,345]]},
-    ret:[[930,738],[700,752],[645,742],[645,432],[400,428],[90,432],[90,484]]}
+  L:{W:1290,H:800,town:[650,0],ctrl:[0,290],
+    hose:{bucket:[[120,627],[126,712],[142,774],[700,774],[846,706]],
+          eave:[[320,627],[326,720],[342,786],[1006,786],[1012,548]],
+          roof:[[520,627],[526,728],[542,797],[1284,797],[1284,345]]},
+    ret:[[930,738],[700,752],[645,742],[645,302],[400,298],[90,302],[90,354]]}
 };
 var LY=LAYOUTS.P, TOX=0,TOY=0,COX=0,COY=0;
 function twx(x){return x+TOX;} function twy(y){return y+TOY;}
@@ -542,6 +544,7 @@ function step(dt){
   for(var k in grips){var g=grips[k];
     var tgt=g.held?1:(demo&&demo.grip===k?demo.press*0.6:0);
     g.sv+=((tgt-g.sq)*(g.held?900:260)-g.sv*(g.held?40:13))*dt;g.sq+=g.sv*dt;
+    if(g.held&&g.pid===-1&&g.holdT>=0.45){g.held=false;g.pid=null;g.sv-=6;logEv('release-'+k);}
     if(g.held){g.holdT+=dt;spawnWater(g,dt);g.recoil=Math.min(1,g.recoil+dt*8);}else{g.recoil=Math.max(0,g.recoil-dt*5);}
     g.pulseT+=dt;
   }
@@ -588,7 +591,7 @@ function step(dt){
   }
   // 手のお手本・誘導
   hintStep(dt);
-  for(var r=ripples.length-1;r>=0;r--){ripples[r].t+=dt;if(ripples[r].t>0.45)ripples.splice(r,1);}
+  for(var r=ripples.length-1;r>=0;r--){ripples[r].t+=dt;if(ripples[r].t>0.75)ripples.splice(r,1);}
   if(S.lookT>0)S.lookT-=dt;
   for(var w=0;w<windows.length;w++){var on=(S.phase==='snow'||S.phase==='bow')?1:0;if(S.phase==='return')on=S.pt<2.6?1:0;
     if(on&&windows[w]<1){if(S.phase!=='snow'||S.pt>1.3+w*0.18)windows[w]=Math.min(1,windows[w]+dt*4);}else if(!on)windows[w]=Math.max(0,windows[w]-dt*2);}
@@ -708,17 +711,35 @@ function gripAt(wx,wy){
     var dx=Math.abs(wx-gx),dy=Math.abs(wy-gy);if(dx<=80&&dy<=78){var dd=dx+dy;if(dd<bd){bd=dd;best=k;}}}
   return best;
 }
-function press(k,pid){var g=grips[k];if(g.held)return false;g.held=true;g.pid=pid;g.holdT=0;g.emitAcc=0.024;g.sv+=30;g.pulseT=0;g.count++;
+var downs={};
+function farGrip(wx,wy){
+  var best=null,bd=1e9;
+  if(S.hl&&(!grips[S.hl].held||grips[S.hl].pid===-1))return S.hl;
+  for(var k in GRIPS_X){if(grips[k].held&&grips[k].pid!==-1)continue;var dx=wx-(COX+GRIPS_X[k]),dy=wy-(COY+GRIP_Y-30),dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=k;}}
+  return best;
+}
+function tapFx(x,y,big){
+  ripples.push({x:x,y:y,t:0,b:big});if(ripples.length>10)ripples.shift();
+  var n=big?14:5;for(var i=0;i<n;i++){var a=rnd()*Math.PI*2,v=(big?90:50)+rnd()*120;
+    decor(x,y,Math.cos(a)*v,Math.sin(a)*v-(big?120:60),380,0.55+rnd()*0.35,(big?4:3)+rnd()*2.5,rnd()<0.5?W:A);}
+}
+function press(k,pid){var g=grips[k];if(g.held&&g.pid!==-1)return false;g.held=true;g.pid=pid;g.holdT=0;g.emitAcc=0.024;g.sv+=30;g.pulseT=0;g.count++;
   S.lastGrip=k;S.idleT=0;S.nextDemo=4;demo=null;logEv('press-'+k);return true;}
-function releasePid(pid){for(var k in grips){var g=grips[k];if(g.held&&g.pid===pid){g.held=false;g.pid=null;g.sv-=6;logEv('release-'+k);}}}
+function releasePid(pid){for(var k in grips){var g=grips[k];if(g.held&&g.pid===pid){if(g.holdT<0.45){g.pid=-1;continue;}g.held=false;g.pid=null;g.sv-=6;logEv('release-'+k);}}}
 function releaseAll(){for(var k in grips){grips[k].held=false;grips[k].pid=null;}sprayUpdate();}
 cv.addEventListener('pointerdown',function(e){
   e.preventDefault();audioInit();S.started=true;
   var w=toWorld(e.clientX,e.clientY),k=gripAt(w[0],w[1]);
   S.idleT=0;S.nextDemo=4;demo=null;
+  if(!k){k=farGrip(w[0],w[1]);tapFx(w[0],w[1],1);}
   if(k&&press(k,e.pointerId)){try{cv.setPointerCapture(e.pointerId);}catch(_){}}
-  else if(!k){ripples.push({x:w[0],y:w[1],t:0});if(ripples.length>6)ripples.shift();}
+  downs[e.pointerId]={x:w[0],y:w[1]};
 },{passive:false});
+cv.addEventListener('pointermove',function(e){
+  var d=downs[e.pointerId];if(!d)return;var w=toWorld(e.clientX,e.clientY);
+  if(Math.abs(w[0]-d.x)+Math.abs(w[1]-d.y)>34){d.x=w[0];d.y=w[1];tapFx(w[0],w[1],0);}
+},{passive:true});
+['pointerup','pointercancel'].forEach(function(n){cv.addEventListener(n,function(e){delete downs[e.pointerId];},{passive:true});});
 ['pointerup','pointercancel','lostpointercapture'].forEach(function(n){cv.addEventListener(n,function(e){releasePid(e.pointerId);},{passive:true});});
 window.addEventListener('blur',releaseAll);
 window.addEventListener('pagehide',releaseAll);
@@ -919,7 +940,9 @@ function render(){
   for(var d in dolls)drawDoll(dolls[d]);
   drawHand();
   ['bucket','eave','roof'].forEach(drawHosePulse);
-  for(var j=0;j<ripples.length;j++){var rp=ripples[j],rr=6+rp.t*40;for(var m=0;m<8;m++){var a=m/8*Math.PI*2;dot(rp.x+Math.cos(a)*rr,rp.y+Math.sin(a)*rr*0.6,1.6*(1-rp.t/0.45)+0.3,W);}}
+  for(var j=0;j<ripples.length;j++){var rp=ripples[j],q=rp.t/0.75,rr=(rp.b?14:8)+easeO(q)*(rp.b?120:60),nn=rp.b?18:10;
+    for(var m=0;m<nn;m++){var a=m/nn*Math.PI*2;dot(rp.x+Math.cos(a)*rr,rp.y+Math.sin(a)*rr*0.7,(rp.b?5:3.5)*(1-q)+0.4,m&1?A:W);}
+    if(rp.b&&q<0.5){var r2=rr*0.55;for(var m2=0;m2<10;m2++){var a2=m2/10*Math.PI*2+0.3;dot(rp.x+Math.cos(a2)*r2,rp.y+Math.sin(a2)*r2*0.7,3*(1-q*2)+0.4,W);}}}
   for(var i=0;i<PMAX;i++){var p=P[i];if(!p.on||p.fake)continue;var r=p.mode===2?p.r*Math.max(0.2,p.life/p.life0):p.r;dot(p.x,p.y,r,p.c);}
   if(nDraw>maxDraw)maxDraw=nDraw;
 }
