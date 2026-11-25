@@ -569,6 +569,7 @@ function updateTurtle(dt){
    case 'bowWalk':case 'bow':endingChar(t,dt,[PO.T.cx+30,L.bowY],1);return;
   }
   var p2=PO[t.pool],ld=localDepth(p2,t.u),swim=ld>=22;
+  if(t.st==='walk'&&eggs.T.hatched&&!swim)disc('d2walk',t.x,t.y-30);
   if(swim&&t.st==='walk'){t.st='swim';SFX.bloop();drops(t.x,t.y,3,100);logEv('turtleSwim');if(f.d2walk)disc('d2swim',t.x,t.y-30);}
   else if(!swim&&t.st==='swim'){t.st='walk';logEv('turtleWalk');if(eggs.T.hatched)disc('d2walk',t.x,t.y-30);}
   var half=surfW(p2,p2.depth)/2,lim=t.st==='swim'?Math.max(0,half-62):p2.rx*.3;
@@ -713,6 +714,7 @@ function computeTarget(){
   if(!eggs.T.opened)return 'hatchT';
   if(!eggs.T.hatched)return null;
   var b=boat,E=ED,Tp=PO.T,Dp=PO.D,W=(dino.st==='home'||dino.st==='aboard')?'stomp':null;
+  if(W&&dino.st==='home'&&E.Dlo.open&&Dp.depth<10)W='Dlo';
   if(b.st==='transit'||b.st==='lift'||b.st==='waitLift'||chick.st==='goCarry'||chick.st==='carry'||dino.st==='board'||dino.st==='off'||dino.st==='walk'||turtle.st==='drop')return W;
   function refill(){if(b.st!=='beach')return null;if(b.pool==='T'){if(E.Tlo.open)return 'Tlo';if(E.Thi.open)return 'Thi';}if(b.pool==='D'&&E.Dlo.open)return 'Dlo';return null;}
   function toDinoShore(){var r=refill();if(r)return r;
@@ -723,9 +725,10 @@ function computeTarget(){
     if(b.pool==='T'){if(!E.Tlo.open)return 'Tlo';return W;}
     if(b.pool==='D'){var r=refill();if(r)return r;if(E.Dlo.open)return 'Dlo';if(!E.Tlo.open)return 'Tlo';if(!E.DT.open)return 'DT';if(wind<0)return 'wind';return W;}
     return W;}
+  if(!f.reveal){
   /* 2: water height and the turtle */
-  if(!f.thiTried&&!f.d2hi)return 'Thi';
-  if(!f.d2walk){if(!E.Tlo.open)return 'Tlo';if(!eggs.C.opened)return 'hatchC';return W;}
+  if(!f.thiTried&&!f.d2hi&&!f.d4sail0&&!f.d6board)return 'Thi';
+  if(!f.d2walk&&!f.d4sail0&&!f.d6board){if(!E.Tlo.open)return 'Tlo';if(!eggs.C.opened)return 'hatchC';return W;}
   if(!eggs.C.opened)return 'hatchC';
   if(!eggs.C.hatched)return null;
   /* 4: wind on a beached boat, then water makes it run */
@@ -755,8 +758,10 @@ function computeTarget(){
     if(b.pool==='D'){if(rf)return rf;if(E.DT.open&&Tp.depth>12&&wind<=0)return 'DT';if(wind<=0)return 'wind';
       if(!E.DT.open&&!E.Tlo.open&&Tp.depth>12)return 'Tlo';if(!E.DT.open)return 'DT';return W;}
     return W;}
+  }
   /* falls pond */
   if(!f.visitP)return toP();
+  if(drainShown)return 'drain';
   if(b.pool==='P'){
     if(dino.st==='aboard')return 'wind';
     if(!f.d5far&&dino.st==='home'){if(!E.DT.open)return 'DT';if(!E.Tlo.open)return 'Tlo';if(E.Dlo.open)return 'Dlo';return W;}
