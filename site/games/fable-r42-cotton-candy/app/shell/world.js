@@ -1,5 +1,5 @@
 // 周辺の場面：屋台・背景・釜・瓶・棚・提灯。低ポリ＋写真風テクスチャ。
-import { COUNTER, PAN, PAN_ORIGIN, JARS, RACK, BACKDROP, CAMERA } from './layout.js';
+import { COUNTER, PAN, PAN_ORIGIN, JARS, RACK, BACKDROP, SHOTS } from './layout.js';
 
 export function createWorld(THREE, tex, tier) {
   const root = new THREE.Group(); root.name = 'world';
@@ -18,7 +18,17 @@ export function createWorld(THREE, tex, tier) {
   // 動かない疑似影（釜・瓶・棚）は全部を1つの形にまとめる（濃さは頂点色のα、1 draw call）
   const shadowMat = keep(new THREE.MeshBasicMaterial({ color: 0x2a1a10, alphaMap: tex.blob, vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
   const shadowSpecs = [];
-  function blobShadow(x, y, z, sx, sz, op = 0.55) { shadowSpecs.push([x, y + 0.004, z, sx, sz, op]); }
+  let shadowGeo = null;
+  function blobShadow(x, y, z, sx, sz, op = 0.55) { shadowSpecs.push([x, y + 0.004, z, sx, sz, op]); return shadowSpecs.length - 1; }
+  // 1つの疑似影の位置を動かす（瓶を置き直した時）
+  function moveShadow(i, x, z) {
+    const sp = shadowSpecs[i]; sp[0] = x; sp[2] = z;
+    if (!shadowGeo) return;
+    const pos = shadowGeo.attributes.position;
+    [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].forEach(([dx, dz], k) => pos.setXYZ(i * 4 + k, x + dx * sp[3], sp[1], z - dz * sp[4]));
+    pos.needsUpdate = true;
+    shadowGeo.computeBoundingSphere();
+  }
   function buildShadows() {
     const n = shadowSpecs.length, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), col = new Float32Array(n * 16), idx = new Uint16Array(n * 6);
     shadowSpecs.forEach(([x, y, z, sx, sz, op], i) => {
@@ -36,6 +46,7 @@ export function createWorld(THREE, tex, tier) {
     g.setAttribute('color', new THREE.BufferAttribute(col, 4));
     g.setIndex(new THREE.BufferAttribute(idx, 1));
     g.computeBoundingSphere();
+    shadowGeo = g;
     const m = new THREE.Mesh(g, shadowMat); m.name = 'shadows'; m.renderOrder = 1;
     root.add(m);
   }
@@ -87,10 +98,11 @@ export function createWorld(THREE, tex, tier) {
     lanBase.push([x, y, z, Math.random() * 6.28]);
   }
   lanterns.name = 'lanterns'; root.add(lanterns);
-  // 提灯の光：固定カメラに正対する板を1つの形にまとめる（Sprite 10 個と同じ見た目、1 draw call）
+  // 提灯の光：カメラにほぼ正対する板を1つの形にまとめる（Sprite 10 個と同じ見た目、1 draw call）。
+  // カメラは寄ったり引いたりするが、見下ろす角はおよそ work〜give の間なので、その中ほどの向きに合わせる
   {
-    const eye = new THREE.Vector3(...CAMERA.pos), look = new THREE.Vector3(...CAMERA.look);
-    const cm = new THREE.Matrix4().lookAt(eye, look, new THREE.Vector3(0, 1, 0));
+    const pitch = THREE.MathUtils.degToRad((SHOTS.work.pitch + SHOTS.give.pitch) / 2);
+    const cm = new THREE.Matrix4().lookAt(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -Math.sin(pitch), -Math.cos(pitch)), new THREE.Vector3(0, 1, 0));
     const rx = new THREE.Vector3().setFromMatrixColumn(cm, 0), ry = new THREE.Vector3().setFromMatrixColumn(cm, 1);
     const n = lanBase.length, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), idx = new Uint16Array(n * 6), h = 0.55 / 2;
     lanBase.forEach(([x, y, z], i) => {
@@ -138,7 +150,7 @@ export function createWorld(THREE, tex, tier) {
   // 熱のほのかな光
   const heat = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: tex.glow, color: 0xff9a5a, transparent: true, opacity: 0.35, depthWrite: false })));
   heat.position.y = 0.01; heat.scale.setScalar(0.18); pan.add(heat);
-  blobShadow(0, COUNTER.top, 0, 0.85, 0.75, 0.5);
+  blobShadow(0, COUNTER.top, 0.02, 1.4, 1.2, 0.5);    // 縁がなめらかに消える濃淡なので、釜より一回り大きく
 
   // ---- 瓶（ざらめ）。ガラスは半透明（屈折なし）、中のざらめは不透明
   const jarGlassGeo = keep(new THREE.LatheGeometry([
@@ -165,8 +177,8 @@ export function createWorld(THREE, tex, tier) {
     pivot.add(sugar);
     const hit = new THREE.Mesh(hitGeo, hitMat); hit.userData.jarIndex = i; g.add(hit);
     root.add(g);
-    blobShadow(j.pos[0], COUNTER.top, j.pos[2], 0.2, 0.2, 0.45);
-    return { group: g, pivot, mat: sm, hit, index: i, color: j.color, anim: -1, wiggle: 0, used: i === 0 };
+    const shadow = blobShadow(j.pos[0], COUNTER.top, j.pos[2], 0.2, 0.2, 0.45);
+    return { group: g, pivot, mat: sm, hit, index: i, color: j.color, anim: -1, wiggle: 0, used: i === 0, shadow };
   });
 
   // 選ばれている瓶の下の光る輪
@@ -194,13 +206,20 @@ export function createWorld(THREE, tex, tier) {
   const slotPos = [];
   for (let i = 0; i < nSlots; i++) slotPos.push(new THREE.Vector3(RACK.pos[0] + i * RACK.slotStep, COUNTER.top + 0.06, RACK.pos[2]));
 
-  // ---- 背景を視界いっぱいに合わせる
-  const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
+  // ---- 背景を視界いっぱいに合わせる（毎フレーム。カメラは寄ったり引いたりし、レンズのずらしもある）
+  const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpR = new THREE.Vector3(), tmpU = new THREE.Vector3();
   function fitBackdrop(camera) {
     camera.getWorldDirection(tmpV);
-    backdrop.position.copy(camera.position).addScaledVector(tmpV, BACKDROP.dist);
     camera.getWorldQuaternion(tmpQ); backdrop.quaternion.copy(tmpQ);
-    const h = 2 * BACKDROP.dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.04;
+    const ty = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), tx = ty * camera.aspect;
+    // setViewOffset で画面の中心は元の NDC で (-sx, -sy) の向きにずれている → 板の中心もそこへ
+    let sx = 0, sy = 0;
+    const vw = camera.view;
+    if (vw && vw.enabled) { sx = -2 * vw.offsetX / vw.width; sy = 2 * vw.offsetY / vw.height; }
+    tmpR.set(1, 0, 0).applyQuaternion(tmpQ); tmpU.set(0, 1, 0).applyQuaternion(tmpQ);
+    backdrop.position.copy(camera.position).addScaledVector(tmpV, BACKDROP.dist)
+      .addScaledVector(tmpR, -sx * tx * BACKDROP.dist).addScaledVector(tmpU, -sy * ty * BACKDROP.dist);
+    const h = 2 * BACKDROP.dist * ty * 1.04;
     const w = h * camera.aspect;
     const s = Math.max(w, h);
     backdrop.scale.set(w, h, 1);
@@ -232,8 +251,8 @@ export function createWorld(THREE, tex, tier) {
         const k = j.anim;
         // 0-0.25 持ち上げ・傾け、0.25-0.75 注ぐ、0.75-1.0 戻す
         const up = k < 0.25 ? ease(k / 0.25) : k < 0.75 ? 1 : 1 - ease((k - 0.75) / 0.25);
-        pv.position.set(0.12 * up, 0.2 * up, 0);
-        pv.rotation.set(0, 0, -1.05 * up);
+        pv.position.set(POUR.dx * up, POUR.lift * up, 0);
+        pv.rotation.set(0, 0, -POUR.tilt * up);
         if (k > 1.0) { j.anim = -1; pv.position.set(0, 0, 0); pv.rotation.set(0, 0, 0); }
       } else {
         j.wiggle = Math.max(0, j.wiggle - dt);
@@ -270,7 +289,7 @@ export function createWorld(THREE, tex, tier) {
     j.anim = 0;
     grainMat.color.setHex(j.color);
     // 粒を時間差で出す：持ち上がった瓶の口からボウルの中心へ放物線
-    const mouth = new THREE.Vector3(j.group.position.x + 0.25, COUNTER.top + 0.31, j.group.position.z);
+    const mouth = new THREE.Vector3(j.group.position.x + POUR.dx + 0.17 * Math.sin(POUR.tilt), COUNTER.top + POUR.lift + 0.17 * Math.cos(POUR.tilt) + 0.02, j.group.position.z);
     grainState.forEach((g, i) => {
       g.wait = 0.2 + (i / nG) * 0.5; g.t = -1;
       g.p0.set(mouth.x + (Math.random() - 0.5) * 0.02, mouth.y, mouth.z + (Math.random() - 0.5) * 0.02);
@@ -288,6 +307,15 @@ export function createWorld(THREE, tex, tier) {
 
   function wiggleJar(i) { if (jars[i].anim < 0) jars[i].wiggle = 1.0; }
 
+  // 瓶の x を置き直す（画面比に合わせて、寄った構図の左端に見えるように。main.js の placeJars）
+  function setJarX(xs) {
+    jars.forEach((j, i) => {
+      const x = xs[i]; if (!(x === x)) return;
+      j.group.position.x = x;
+      moveShadow(j.shadow, x, j.group.position.z);
+    });
+  }
+
   buildShadows();
 
   function dispose() {
@@ -298,11 +326,14 @@ export function createWorld(THREE, tex, tier) {
   return {
     root, pan, jars, slotPos, fitBackdrop, dispose,
     update(dt, t, spinAngle) { updateGrainWaits(dt); update(dt, t, spinAngle); },
-    pour, wiggleJar,
+    pour, wiggleJar, setJarX,
     get selected() { return selected; },
     jarHits: jars.map(j => j.hit),
   };
 }
+
+// 注ぐ動き：持ち上げる高さ・右へ寄せる量・傾ける角（瓶が釜の近くにあっても縁に当たらないように、高く持ち上げる）
+const POUR = { lift: 0.30, dx: 0.06, tilt: 1.05 };
 
 function ease(x) { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); }
 

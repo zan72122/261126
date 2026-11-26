@@ -59,10 +59,10 @@ export function countTriangles(root) {
   return { tris: Math.round(tris), calls };
 }
 
-export function createDebug(THREE, { renderer, scene, tierRef, heroRoot, getState, boot }) {
+export function createDebug(THREE, { renderer, scene, tierRef, heroRoot, getState, boot, cam, scale }) {
   const el = document.createElement('div');
   el.id = 'debug';
-  el.style.cssText = 'position:fixed;left:6px;top:6px;z-index:10;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw';
+  el.style.cssText = 'position:fixed;left:calc(6px + env(safe-area-inset-left));top:calc(6px + env(safe-area-inset-top));z-index:10;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw';
   document.body.appendChild(el);
   const dts = [];
   const errors = [];
@@ -81,7 +81,8 @@ export function createDebug(THREE, { renderer, scene, tierRef, heroRoot, getStat
       const cv = renderer.domElement;
       const s = getState();
       el.textContent =
-        `tier ${tierRef().name}  canvas ${cv.width}x${cv.height} (pr ${renderer.getPixelRatio().toFixed(2)})  ready ${boot ? boot() : '-'}ms\n` +
+        `tier ${tierRef().name}  canvas ${cv.width}x${cv.height} of ${cv.clientWidth}x${cv.clientHeight} (pr ${renderer.getPixelRatio().toFixed(2)}, scale ${scale ? scale() : 1})  ready ${boot ? boot() : '-'}ms\n` +
+        (cam ? camLine(cam()) : '') +
         `fps ${(1 / avg).toFixed(0)} avg / ${(1 / p95).toFixed(0)} p95\n` +
         `draw ${info.calls}  tris ${info.triangles}  (hero≈${h.tris} / ${h.calls} calls)\n` +
         `tex ${g.textures} img (${g.texObjects} obj) ${g.texMiB.toFixed(1)}MiB  geo ${g.geoMiB.toFixed(1)}MiB  fb ${g.fbMiB.toFixed(1)}MiB\n` +
@@ -91,4 +92,9 @@ export function createDebug(THREE, { renderer, scene, tierRef, heroRoot, getStat
     },
   };
   return api;
+}
+
+// カメラ：構図の名前・主役（釜＋わたあめ）が短い辺に占める割合・わたあめだけの割合・距離・画角
+function camLine(c) {
+  return `cam ${c.shot}  hero ${(c.heroFrac * 100).toFixed(0)}% of short side  candy ${((c.candyFrac || 0) * 100).toFixed(0)}%  d ${c.dist.x.toFixed(2)}m  ${c.portrait ? 'portrait' : 'landscape'}\n`;
 }

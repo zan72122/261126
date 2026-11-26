@@ -1,6 +1,6 @@
 // 起動：renderer・カメラ・場面・hero・流れ・ループ・コンテキスト喪失の処理
 import * as THREE from '../vendor/three.module.js';
-import { CAMERA, PAN, PAN_ORIGIN, PALETTE } from './layout.js';
+import { LENS, PAN, PAN_ORIGIN, PALETTE, JARS, COUNTER, JAR_EDGE } from './layout.js';
 import { TIERS, pickTier, refineTierWithGL, pixelRatioFor } from './tier.js';
 import { loadTextures } from './textures.js';
 import { createWorld } from './world.js';
@@ -8,6 +8,7 @@ import { createCustomerFactory } from './customer.js';
 import { createAudio } from './audio.js';
 import { createInput } from './input.js';
 import { createGame } from './game.js';
+import { createCameraRig } from './camera.js';
 import { createDebug, estimateGpu, countTriangles } from './debug.js';
 
 const params = new URLSearchParams(location.search);
@@ -40,10 +41,8 @@ async function boot() {
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x3a2d4a, 6, 14);
-  const camera = new THREE.PerspectiveCamera(CAMERA.minVFov, 1, 0.05, 30);
-  camera.position.set(...CAMERA.pos);
-  const look = new THREE.Vector3(...CAMERA.look);
-  camera.lookAt(look);
+  const camera = new THREE.PerspectiveCamera(LENS.landShortFov, 1, 0.05, 30);
+  const rig = createCameraRig(THREE, camera);
 
   const steps = { script: Math.round(t0) };          // 起動の内訳（ms）：?debug=1 と __game.bootSteps
   let tm = t0;
@@ -78,25 +77,74 @@ async function boot() {
   game = createGame(THREE, { scene, world, hero, customers, audio, input });
   lap('game');
 
-  // ---- 画面サイズとカメラの画角
-  function resize() {
-    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
-    renderer.setPixelRatio(pixelRatioFor(tier, w, h));
-    renderer.setSize(w, h, true);
-    camera.aspect = w / h;
-    const d = camera.position.distanceTo(look);
-    const halfH = Math.atan(CAMERA.halfWidth / d);
-    const needV = 2 * Math.atan(Math.tan(halfH) / camera.aspect) * 180 / Math.PI;
-    camera.fov = Math.min(95, Math.max(CAMERA.minVFov, needV));
-    camera.updateProjectionMatrix();
+  // ---- 画面サイズ：canvas の見えている大きさ（CSS は 100dvh、予備に 100vh）に合わせる。黒い帯は作らない
+  // 重い時は表示の大きさはそのままで、内部の描画解像度だけを下げる（RENDER_SCALES の順、最後は low ティア）
+  const RENDER_SCALES = [1, 0.85, 0.75];
+  let scaleIdx = 0;
+  let lastW = 0, lastH = 0, lastPr = 0;
+  function viewSize() {
+    const r = canvas.getBoundingClientRect();
+    let w = r.width, h = r.height;
+    if (!(w > 1 && h > 1)) { w = window.innerWidth; h = window.innerHeight; }
+    return [Math.max(1, Math.round(w)), Math.max(1, Math.round(h))];
+  }
+  // 瓶：寄った構図で左の端に半分ほど見える x に置く（釜との隙間は守る）。画面比が変わった時だけ
+  function placeJars() {
+    const ndc = rig.state.portrait ? JAR_EDGE.port : JAR_EDGE.land;
+    rig.setCandy(new THREE.Vector3(), 0);
+    const xs = JARS.map(j => {
+      const z = j.pos[2];
+      let x = rig.solveX('work', ndc, COUNTER.top + 0.09, z);
+      const clear = PAN.outerRadius + JAR_EDGE.jarGap + 0.07;          // 釜の外側＋隙間＋瓶の半径
+      const xMax = -Math.sqrt(Math.max(0, clear * clear - z * z));
+      if (!(x === x)) x = j.pos[0];
+      return Math.max(JAR_EDGE.xMin, Math.min(xMax, x));
+    });
+    world.setJarX(xs);
+  }
+  function resize(force) {
+    const [w, h] = viewSize();
+    const pr = pixelRatioFor(tier, w, h) * RENDER_SCALES[scaleIdx];
+    if (!force && w === lastW && h === lastH && pr === lastPr) return;
+    lastW = w; lastH = h; lastPr = pr;
+    renderer.setPixelRatio(Math.max(0.5, pr));
+    renderer.setSize(w, h, false);                    // 表示の大きさは CSS（100%）に任せる
+    rig.resize(w, h);
+    placeJars();
+    rig.setCandy(hero.getState().center, hero.getState().radius);
+    rig.update(0, game ? game.cameraShot() : 'work');
     world.fitBackdrop(camera);
   }
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-  resize();
+  let resizeQueued = false;
+  const queueResize = () => { if (resizeQueued) return; resizeQueued = true; requestAnimationFrame(() => { resizeQueued = false; resize(); }); };
+  window.addEventListener('resize', queueResize);
+  window.addEventListener('orientationchange', () => { queueResize(); setTimeout(queueResize, 250); setTimeout(queueResize, 700); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', queueResize);
+  if (window.ResizeObserver) new ResizeObserver(queueResize).observe(canvas);
+  document.addEventListener('fullscreenchange', queueResize);
+  document.addEventListener('webkitfullscreenchange', queueResize);
+  resize(true);
+
+  // ---- 全画面ボタン（Fullscreen API がある時だけ。全画面になったら隠す）。safe-area の内側に置く（index.html の CSS）
+  const fsBtn = document.getElementById('fs');
+  if (fsBtn) {
+    const de = document.documentElement;
+    const req = de.requestFullscreen || de.webkitRequestFullscreen;
+    const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const standalone = (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) || navigator.standalone;
+    const sync = () => { fsBtn.hidden = !req || standalone || isFs(); };
+    fsBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    fsBtn.addEventListener('click', e => {
+      e.preventDefault(); audio.unlock();
+      try { const p = req.call(de, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); } catch (_) { /* ignore */ }
+    });
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    sync();
+  }
 
   // ---- デバッグ
-  const dbg = DEBUG ? createDebug(THREE, { renderer, scene, tierRef: () => tier, heroRoot: () => hero.root, getState: () => game.state, boot: () => G.readyAt }) : null;
+  const dbg = DEBUG ? createDebug(THREE, { renderer, scene, tierRef: () => tier, heroRoot: () => hero.root, getState: () => game.state, boot: () => G.readyAt, cam: () => rig.state, scale: () => RENDER_SCALES[scaleIdx] }) : null;
   G.debug = dbg;
   if (dbg) for (const e of errors) dbg.error(e);
 
@@ -118,7 +166,7 @@ async function boot() {
     });
     for (const k in tex) tex[k].needsUpdate = true;
     if (hero.onContextRestored) hero.onContextRestored();
-    resize();
+    resize(true);
     contextLost = false; audio.resume();
     G.contextRestored = (G.contextRestored || 0) + 1;
   }, false);
@@ -127,6 +175,14 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) audio.suspend(); else audio.resume(); });
 
   // ---- ループ
+  // 1歩：カメラ → 指の位置の当て直し（カメラが動いても、止めた指の下の点を正しく拾う）→ 遊び
+  function step(dt) {
+    const hs = hero.getState();
+    rig.setCandy(hs.center, hs.radius);
+    rig.update(dt, game.cameraShot());
+    input.refresh();
+    game.update(dt);
+  }
   let last = performance.now();
   let slowT = 0, slowAcc = 0, slowN = 0, downgraded = false;
   function frame(now) {
@@ -136,23 +192,28 @@ async function boot() {
     dt = Math.min(dt, 0.1);
     if (contextLost) return;
     try {
-      game.update(dt);
+      step(dt);
+      world.fitBackdrop(camera);
       renderer.render(scene, camera);
     } catch (err) {
       report(err && err.stack ? err.stack.split('\n')[0] : err);
     }
     if (dbg) dbg.frame(dt, renderer.info.render);
-    // 遅い端末は1回だけ low に落とす（最初の3秒は見ない）
+    // 遅い端末：表示の大きさはそのままで、内部の描画解像度を 0.85 → 0.75 倍に下げる。それでも遅ければ1回だけ low ティアへ。
+    // 最初の3秒（と、下げた直後の2秒）は見ない。5秒の平均 fps < 40 で1段下げる
     slowT += dt;
     if (!downgraded && slowT > 3) {
       slowAcc += dt; slowN++;
       if (slowAcc > 5) {
         const fps = slowN / slowAcc;
-        if (AUTO_LOW && fps < 40 && tier.name !== 'low') {
-          tier = { ...TIERS.low, antialias: tier.antialias };
-          hero.setQuality({ ...tier.hero });
-          resize();
-          downgraded = true;
+        if (AUTO_LOW && fps < 40) {
+          if (scaleIdx < RENDER_SCALES.length - 1) { scaleIdx++; resize(true); slowT = 1; }
+          else if (tier.name !== 'low') {
+            tier = { ...TIERS.low, antialias: tier.antialias };
+            hero.setQuality({ ...tier.hero });
+            resize(true);
+            downgraded = true;
+          } else downgraded = true;
         }
         slowAcc = 0; slowN = 0;
       }
@@ -162,6 +223,8 @@ async function boot() {
 
   // 最初の1枚を描いてから見せる（シェーダーのコンパイルもここ）
   lap('resize+debug');
+  rig.update(0, game.cameraShot());
+  world.fitBackdrop(camera);
   game.update(1 / 60);
   renderer.render(scene, camera);
   lap('firstFrame');
@@ -173,18 +236,22 @@ async function boot() {
     // 計測・煙テスト用：ゲームの時間を sec 秒だけ進める（1/30 秒刻み、描画は最後の1回）。指の状態はそのまま使う
     advance(sec) {
       const n = Math.max(1, Math.round(sec * 30));
-      for (let i = 0; i < n; i++) game.update(1 / 30);
+      for (let i = 0; i < n; i++) step(1 / 30);
+      world.fitBackdrop(camera);
       renderer.render(scene, camera);
       return game.state;
     },
     state: () => game.state,
+    cam: () => ({ shot: rig.state.shot, heroFrac: rig.state.heroFrac, candyFrac: rig.state.candyFrac, dist: rig.state.dist.x, scale: RENDER_SCALES[scaleIdx], canvas: [canvas.width, canvas.height] }),
+    setRenderScale(i) { scaleIdx = Math.max(0, Math.min(RENDER_SCALES.length - 1, i)); resize(true); return RENDER_SCALES[scaleIdx]; },
     stats: () => ({ ...renderer.info.render, gpu: estimateGpu(THREE, renderer, scene, tier), hero: countTriangles(hero.root), world: countTriangles(scene) }),
     loseContext() { const ext = renderer.getContext().getExtension('WEBGL_lose_context'); G._lc = ext; ext && ext.loseContext(); },
     restoreContext() { G._lc && G._lc.restoreContext(); },
     camera, scene, renderer, hero,
     // 煙テスト用：主な物の画面上の位置（CSS px）
     targets() {
-      const P = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; };
+      const r = canvas.getBoundingClientRect();
+      const P = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height }; };
       const wp = o => { const v = new THREE.Vector3(); o.getWorldPosition(v); return v; };
       const jars = world.jars.map(j => { const v = wp(j.group); return P(v.x, v.y + 0.09, v.z); });
       const cu = scene.getObjectByName ? scene.children.find(o => o.name && o.name.startsWith('customer-')) : null;

@@ -10,6 +10,7 @@ export function createGame(THREE, { scene, world, hero, customers, audio, input 
     newStickIn: -1, firstTouch: false, lastHintJar: 0, hintJarT: 0, gives: 0, lastGiveTry: -9,
     stats: { gives: 0, colors: 0, taps: 0, happy: 0, served: 0 },
   };
+  const cam = { giveHold: 0 };                    // 渡した直後は、指で持っても少しの間は引いた構図のまま
   const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), q1 = new THREE.Quaternion(), qUp = new THREE.Quaternion();
   const BITE_DIR = new THREE.Vector3(0, 0, -1);   // 顔の向き（わたあめの奥側）。食べ終わったら、かじった側をこちらへ回して見せる
   const SHOW_BITE = Math.PI * 0.85;                // 喜ぶ時・棚に並ぶ時に、割り箸の軸まわりに回す角度
@@ -64,6 +65,7 @@ export function createGame(THREE, { scene, world, hero, customers, audio, input 
     sfx.whoosh();
     g.newStickIn = 0.6;
     g.stats.gives++;
+    cam.giveHold = 2.4;
   }
 
   // ---- 棚
@@ -81,8 +83,23 @@ export function createGame(THREE, { scene, world, hero, customers, audio, input 
   }
 
   // ---- 毎フレーム
+  // カメラの構図：作業中は寄る（work）、大きく育った（complete）・手を止めてお客さんが待つ（ready）は少し引く、
+  // 渡す→食べる→喜ぶ→次のお客さんが来るまで（give）はゆっくり引く
+  function cameraShot() {
+    const ist = input.state, s = hero.getState();
+    const giving = g.flights.length > 0 || g.eaters.some(e => e.phase === 'eat' || e.phase === 'happy') ||
+      (g.eaters.length > 0 && !(g.current && g.current.ready));
+    if (giving && (!ist.holding || cam.giveHold > 0)) return 'give';
+    if (ist.holding) return s.stage >= 3 ? 'complete' : 'work';
+    const idle = (performance.now() - ist.lastActivity) / 1000;
+    if (s.hasStick && s.stage >= 1 && idle > 1.6) return 'ready';
+    if (s.hasStick && s.stage >= 3) return 'complete';
+    return 'work';
+  }
+
   function update(dt) {
     g.t += dt;
+    cam.giveHold = Math.max(0, cam.giveHold - dt);
     const ist = input.state;
     heroInput.t = g.t;
     heroInput.holding = ist.holding;
@@ -187,7 +204,7 @@ export function createGame(THREE, { scene, world, hero, customers, audio, input 
   }
 
   return {
-    handlers, onHeroEvent, update,
+    handlers, onHeroEvent, update, cameraShot,
     get state() {
       const s = hero.getState();
       return {

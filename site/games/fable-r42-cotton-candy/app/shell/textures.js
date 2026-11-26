@@ -41,14 +41,20 @@ export async function loadTextures(THREE, renderer) {
 
 function canvas(n) { const c = document.createElement('canvas'); c.width = c.height = n; return c; }
 
-// 疑似影のぼかし円（白→透明。色は material で黒にする）
+// 疑似影のぼかし円。alphaMap は緑の値を読むので、不透明な濃淡（白→黒）で描く
+// （白＋透明度で描くと、薄い所で色が崩れて縁がギザギザになり、寄った構図で目立った）
 function blobTexture(THREE) {
-  const c = canvas(128), g = c.getContext('2d');
-  const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62);
-  gr.addColorStop(0, 'rgba(255,255,255,0.85)');
-  gr.addColorStop(0.55, 'rgba(255,255,255,0.35)');
-  gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const n = 128, c = canvas(n), g = c.getContext('2d');
+  const img = g.createImageData(n, n), d = img.data;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const r = Math.hypot(x + 0.5 - n / 2, y + 0.5 - n / 2) / (n / 2 - 2);
+    // 中心 0.85 のまま半ばまで、そこから縁 0 へなめらかに（smoothstep）
+    const t = Math.min(1, Math.max(0, r)), u = Math.min(1, Math.max(0, (t - 0.5) / 0.5));
+    const a = 0.85 * (1 - u * u * (3 - 2 * u));
+    const v = Math.round(Math.max(0, a) * 255), i = (y * n + x) * 4;
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c); t.name = 'blob';
   return t;
 }
