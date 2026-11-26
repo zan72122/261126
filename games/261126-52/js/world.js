@@ -75,13 +75,13 @@ export function buildWorld() {
   treeTex.wrapS = THREE.RepeatWrapping; treeTex.repeat.set(5, 1);
   const treeMat = new THREE.MeshStandardMaterial({ map: treeTex, transparent: true, alphaTest: 0.35, roughness: 1, fog: true, color: 0x8a95a8 });
   setMap(treeMat, 'map', treeTex);
-  const trees = new THREE.Mesh(new THREE.CylinderGeometry(330, 330, 34, 96, 1, true), treeMat);
-  trees.position.y = 16.5; trees.material.side = THREE.BackSide;
+  const trees = new THREE.Mesh(new THREE.CylinderGeometry(330, 330, 24, 96, 1, true), treeMat);
+  trees.position.y = 11.5; trees.material.side = THREE.BackSide;
   s.add(trees);
-  const trees2 = new THREE.Mesh(new THREE.CylinderGeometry(250, 250, 26, 96, 1, true), treeMat.clone());
+  const trees2 = new THREE.Mesh(new THREE.CylinderGeometry(250, 250, 17, 96, 1, true), treeMat.clone());
   trees2.material.map = treeTex.clone(); trees2.material.map.repeat.set(4, 1); trees2.material.map.offset.x = 0.37;
   setMap(trees2.material, 'map', trees2.material.map);
-  trees2.position.y = 12.5; trees2.material.side = THREE.BackSide; trees2.rotation.y = 1.3;
+  trees2.position.y = 8.2; trees2.material.side = THREE.BackSide; trees2.rotation.y = 1.3;
   s.add(trees2);
   // terminal + hangar (simple masses, far, lit windows)
   const bldMat = pbr('paint', { color: 0x6d7580, repeat: [20, 4], roughness: 1 });
@@ -93,11 +93,11 @@ export function buildWorld() {
     stripe.position.set(0, h * 0.1, d / 2 + 0.05); b.add(stripe);
     return b;
   };
-  mk(90, 12, 22, -60, 110, 0.1);
-  mk(40, 18, 30, 70, 120, -0.15);
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.2, 30, 16), bldMat); tower.position.set(10, 15, 150); s.add(tower);
+  mk(90, 12, 22, -70, -120, 0.1 + Math.PI);
+  mk(40, 18, 30, 60, -130, -0.15 + Math.PI);
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.2, 30, 16), bldMat); tower.position.set(-10, 15, -160); s.add(tower);
   const cab = new THREE.Mesh(new THREE.CylinderGeometry(5, 4, 5, 12), new THREE.MeshStandardMaterial({ color: 0x0a0f18, emissive: 0x7aa2d6, emissiveIntensity: 0.8, roughness: 0.2 }));
-  cab.position.set(10, 32, 150); s.add(cab);
+  cab.position.set(-10, 32, -160); s.add(cab);
   // light masts (glowing lamp heads -> bloom)
   const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.9, 0.75).multiplyScalar(30) });
   const poleMat = pbr('metal', { color: 0x666b70, metalness: 1, roughness: 1, metalMap: true });
@@ -130,8 +130,9 @@ export function buildWorld() {
   // ---- props
   const metal = pbr('metal', { color: 0xc5cacf, metalness: 1, roughness: 1, metalMap: true });
   const yellow = pbr('paint', { color: 0xb88a2a, repeat: [2, 2], roughness: 1 });
-  addSnowCap(yellow, 0.05); addSnowCap(metal, 0.04);
-  W.mats = { metal, yellow };
+  const metalCap = pbr('metal', { color: 0xc5cacf, metalness: 1, roughness: 1, metalMap: true });
+  addSnowCap(yellow, 0.05); addSnowCap(metalCap, 0.04);
+  W.mats = { metal, yellow, metalCap };
   // maintenance step stand (2 steps + rails) — the girl stands on it in scene 1
   {
     const g = new THREE.Group();
@@ -172,18 +173,19 @@ export function buildWorld() {
   // hot / cold spray cart with two tanks, lances and hoses
   {
     const cart = new THREE.Group();
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.6), metal); frame.position.y = 0.28; cart.add(frame);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.6), metal); frame.position.y = 0.6; cart.add(frame);
+    for (const [x, z] of [[-0.46, -0.26], [0.46, -0.26], [-0.46, 0.26], [0.46, 0.26]]) { const lg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.04), metal); lg.position.set(x, 0.35, z); cart.add(lg); }
     const tire = pbr('rubber', { color: 0x1a1a1a, repeat: [3, 1], roughness: 1 });
     for (const [x, z] of [[-0.42, -0.3], [0.42, -0.3], [-0.42, 0.3], [0.42, 0.3]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 18).rotateX(Math.PI / 2), tire); w.position.set(x, 0.12, z); cart.add(w); }
     const tanks = [];
-    for (const [x, col, hot] of [[-0.24, 0xa03a2c, true], [0.24, 0x2f5f8f, false]]) {
+    for (const [x, col, hot] of [[-0.24, 0x7c3428, true], [0.24, 0x3a5672, false]]) {
       const tm = pbr('paint', { color: col, repeat: [2, 2], physical: true, clearcoat: 0.6, roughness: 1 });
       addSnowCap(tm, 0.03);
-      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.62, 28), tm); tank.position.set(x, 0.62, 0); tank.castShadow = true; cart.add(tank);
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), tm); dome.position.set(x, 0.93, 0); cart.add(dome);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 14), metal); cap.position.set(x, 1.13, 0); cart.add(cap);
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.62, 28), tm); tank.position.set(x, 0.94, 0); tank.castShadow = true; cart.add(tank);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), tm); dome.position.set(x, 1.25, 0); cart.add(dome);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 14), metal); cap.position.set(x, 1.45, 0); cart.add(cap);
       const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 20).rotateX(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xf0f0f0, roughness: 0.1, clearcoat: 1 }));
-      gauge.position.set(x, 0.8, 0.205); cart.add(gauge);
+      gauge.position.set(x, 1.12, 0.205); cart.add(gauge);
       // pictogram plate: flame (hot) or snowflake (cold), no text
       const pc = document.createElement('canvas'); pc.width = pc.height = 128; const g = pc.getContext('2d');
       g.fillStyle = '#f2efe8'; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill();
@@ -195,8 +197,8 @@ export function buildWorld() {
       }
       const pt = new THREE.CanvasTexture(pc); pt.colorSpace = THREE.SRGBColorSpace;
       const plate = new THREE.Mesh(new THREE.CircleGeometry(0.09, 24), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5 }));
-      plate.position.set(x, 0.58, 0.203); cart.add(plate);
-      tanks.push({ mesh: tank, hot, x, top: new V3(x, 1.16, 0) });
+      plate.position.set(x, 0.9, 0.203); cart.add(plate);
+      tanks.push({ mesh: tank, hot, x, top: new V3(x, 1.48, 0) });
     }
     cart.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.0).rotateX(-Math.PI / 2), blobMaterial()); blob.position.y = 0.13; cart.add(blob);

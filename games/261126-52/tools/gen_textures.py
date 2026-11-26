@@ -431,13 +431,13 @@ def gen_people():
     yy, xx = (np.mgrid[0:N, 0:N] - N / 2 + .5) / (N / 2)
     rr = np.sqrt(xx * xx + yy * yy); aa = np.arctan2(yy, xx)
     fib = (np.sin(aa * 90 + np.sin(aa * 13) * 3) * 0.5 + 0.5) * 0.5 + np.random.default_rng(77).random((N, N)) * 0.2
-    base = np.array([0.33, 0.20, 0.11]); inner = np.array([0.55, 0.38, 0.18])
+    base = np.array([0.20, 0.11, 0.06]); inner = np.array([0.42, 0.26, 0.12])
     t = np.clip((rr - 0.3) / 0.6, 0, 1)[..., None]
     col = inner * (1 - t) + base * t
     col = col * (0.75 + fib[..., None] * 0.5)
     limbal = np.clip((rr - 0.82) / 0.12, 0, 1)[..., None]
     col *= 1 - limbal * 0.75
-    pupil = np.clip((0.3 - rr) / 0.02, 0, 1)[..., None]
+    pupil = np.clip((0.36 - rr) / 0.02, 0, 1)[..., None]
     col = col * (1 - pupil) + 0.01 * pupil
     sclera = np.clip((rr - 0.97) / 0.03, 0, 1)[..., None]
     col = col * (1 - sclera) + np.array([0.93, 0.91, 0.89]) * sclera
@@ -446,43 +446,42 @@ def gen_people():
 
 # ---------------------------------------------------------------- tree line (RGBA)
 def gen_trees():
+    """distant snowy spruce forest: each tree = trunk + many drooping branch strokes, snow on top faces"""
     W, H = 2048, 384
     img = Image.new('RGBA', (W * 3, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     r = np.random.default_rng(81)
     trees = []
     for layer in range(3):
-        for _ in range(170 + layer * 60):
+        for _ in range(260 + layer * 80):
             trees.append((layer, r.uniform(0, W)))
     trees.sort(key=lambda t: t[0])
     for layer, x in trees:
-        hgt = r.uniform(150, 330) * (0.75 + 0.15 * layer)
-        base = H - 4 - layer * 6
-        wid = hgt * r.uniform(0.28, 0.36)
-        shade = 18 - layer * 4 + int(r.uniform(-4, 4))
+        hgt = r.uniform(130, 320) * (0.7 + 0.15 * layer)
+        base = H - 2 - layer * 5
+        wid = hgt * r.uniform(0.2, 0.28)
+        dark = int(14 + layer * 4 + r.uniform(-4, 4))
+        lean = r.uniform(-0.03, 0.03)
         for ox in (0, W, 2 * W):
             cx = x + ox
-            tiers = int(hgt / 14)
-            for k in range(tiers):
-                ty = base - hgt * k / tiers
-                tw = wid * (1 - k / tiers) ** 0.9 * r.uniform(0.85, 1.15) + 3
-                jag = [(cx - tw, ty + r.uniform(-3, 3)), (cx, ty - hgt / tiers * 2.2), (cx + tw, ty + r.uniform(-3, 3)),
-                       (cx + tw * 0.4, ty + 6), (cx - tw * 0.4, ty + 6)]
-                d.polygon(jag, fill=(shade, shade + 10, shade + 8, 255))
-                # snow resting on the upper face of each tier
-                if r.random() < 0.8:
-                    sw = tw * r.uniform(0.5, 0.9); sl = r.uniform(-0.3, 0.3) * tw
-                    top = ty - hgt / tiers * 1.5
-                    sc = int(150 + layer * 18 + r.uniform(-15, 15))
-                    d.polygon([(cx + sl - sw, ty - 1), (cx, top), (cx + sl + sw * 0.8, ty - 2),
-                               (cx + sl + sw * 0.3, ty - hgt / tiers * 0.6), (cx + sl - sw * 0.4, ty - hgt / tiers * 0.5)],
-                              fill=(sc, sc + 12, sc + 26, 255))
-            d.line([(cx, base), (cx, base - hgt * 0.1)], fill=(20, 16, 14, 255), width=3)
+            n = int(hgt / 2.2)
+            for k in range(n):
+                t = k / n
+                y = base - hgt * t
+                bw = wid * (1 - t) ** 1.1 * r.uniform(0.6, 1.15) + 1.5
+                bx = cx + lean * hgt * t
+                for side in (-1, 1):
+                    ex = bx + side * bw
+                    ey = y + bw * r.uniform(0.15, 0.45)  # drooping
+                    d.line([(bx, y), ((bx + ex) / 2, y + (ey - y) * 0.3), (ex, ey)], fill=(dark, dark + 9, dark + 8, 255), width=2)
+                    if r.random() < 0.55 - 0.1 * layer:
+                        sc = int(150 + 30 * layer + r.uniform(-20, 20))
+                        d.line([(bx + side * bw * 0.2, y - 1), (bx + side * bw * r.uniform(0.5, 0.9), y + bw * 0.1 - 1)], fill=(sc, sc + 10, sc + 22, 255), width=1)
+            d.line([(cx, base), (cx + lean * hgt, base - hgt)], fill=(dark, dark + 6, dark + 6, 255), width=2)
     arr = np.asarray(img).astype(float) / 255
     a = arr[:, W:2 * W]
-    # ground snow strip at base
-    a[-6:, :, :3] = np.array([0.75, 0.8, 0.88]); a[-6:, :, 3] = 1
-    im = Image.fromarray((a * 255).astype(np.uint8), 'RGBA').filter(ImageFilter.GaussianBlur(0.8))
+    a[-4:, :, :3] = np.array([0.75, 0.8, 0.88]); a[-4:, :, 3] = 1
+    im = Image.fromarray((a * 255).astype(np.uint8), 'RGBA').filter(ImageFilter.GaussianBlur(0.6)).resize((1024, 192), Image.LANCZOS)
     im.save(os.path.join(OUT, 'trees.png'), optimize=True)
     print('wrote trees.png')
 

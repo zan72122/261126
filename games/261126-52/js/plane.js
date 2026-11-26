@@ -18,7 +18,7 @@ export function fusH(x) {
 // u in [0,1] along x, v = 1 - theta/2pi ; theta 0 = top, +z starboard
 export function fusPoint(u, v, out = new THREE.Vector3()) {
   const x = u * L, th = (1 - v) * Math.PI * 2, r = fusR(x);
-  return out.set(x, fusH(x) + r * 1.05 * Math.cos(th), r * Math.sin(th));
+  return out.set(x, AXIS_Y + fusH(x) + r * 1.05 * Math.cos(th), r * Math.sin(th));
 }
 // wing param: s span 0..1, v around airfoil (0 TE bottom, .5 LE, 1 TE top)
 export function makeWingFn(o) {
@@ -102,7 +102,8 @@ export function snowShellMaterial(field, maxDepth, repeat, extra = {}) {
         float d0 = texture2D(depthMap, uv).r;
         float gu = (texture2D(depthMap, uv+vec2(texel.x,0.)).r - texture2D(depthMap, uv-vec2(texel.x,0.)).r) * maxDepth / (2.0*texel.x*max(length(tangU),1e-3));
         float gv = (texture2D(depthMap, uv+vec2(0.,texel.y)).r - texture2D(depthMap, uv-vec2(0.,texel.y)).r) * maxDepth / (2.0*texel.y*max(length(tangV),1e-3));
-        vec3 objectNormal = normalize(normal - normalize(tangU)*gu - normalize(tangV)*gv);
+        vec3 objectNormal = normal - tangU / max(length(tangU), 1e-4) * gu - tangV / max(length(tangV), 1e-4) * gv;
+        objectNormal = dot(objectNormal, objectNormal) > 1e-8 ? normalize(objectNormal) : normal;
         vD = d0; vUv0 = uv;`,
       begin_vertex: `vec3 transformed = position + normal * (d0 * maxDepth + 0.004) + vec3(0.0, -slide, 0.0);`,
     },
@@ -126,12 +127,14 @@ export function addSnowCap(mat, thick = 0.08) {
   patch(mat, {
     key: 'cap',
     uniforms: capU,
-    vertexPre: `uniform float capSnow; varying float vCap; varying vec3 vWPos;`,
+    vertexPre: `uniform float capSnow; varying float vCap; varying vec3 vWPos; ${NOISE_GLSL}`,
     vertex: {
       begin_vertex: `$
         vec3 wn = normalize(mat3(modelMatrix) * objectNormal);
         float capW = smoothstep(0.25, 0.75, wn.y) * capSnow;
-        transformed += objectNormal * capW * ${thick.toFixed(3)};
+        vec3 cwp = (modelMatrix * vec4(position, 1.0)).xyz;
+        float lump = 0.55 + 0.9 * vnx(cwp.xz * 2.3 + cwp.y) * vnx(cwp.xz * 0.9 - 3.0);
+        transformed += objectNormal * capW * ${thick.toFixed(3)} * lump;
         vCap = capW; vWPos = (modelMatrix * vec4(position,1.0)).xyz;`,
     },
     fragmentPre: `varying float vCap; varying vec3 vWPos; ${NOISE_GLSL}`,
@@ -188,7 +191,7 @@ export function buildPlane() {
   body.add(fus);
   // tail cap
   const tailCap = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 10), fm);
-  tailCap.position.set(0.0, fusH(0) , 0); tailCap.scale.set(0.6, 1.05, 1);
+  tailCap.position.set(0.0, AXIS_Y + fusH(0), 0); tailCap.scale.set(0.6, 1.05, 1);
   body.add(tailCap);
 
   // wings
@@ -210,9 +213,12 @@ export function buildPlane() {
         float sd2 = texture2D(snowMap, vUv0).r;
         vec3 sc2 = texture2D(snowTex, vUv0 * vec2(6.0, 3.0)).rgb;
         float dust2 = smoothstep(0.004, 0.05, sd2 + (sc2.r - 0.9) * 0.25);
-        diffuseColor.rgb *= mix(1.0, 0.72, wet);
+        vec3 beadM = texture2D(snowTex, vUv0 * vec2(40.0, 14.0)).rgb;
+        float bead = smoothstep(0.93, 0.99, beadM.r) * wet;
+        diffuseColor.rgb *= mix(1.0, 0.6, wet);
         diffuseColor.rgb = mix(diffuseColor.rgb, sc2, dust2);`,
-      roughnessmap_fragment: `$ roughnessFactor = mix(roughnessFactor, 0.06, wet); roughnessFactor = mix(roughnessFactor, 0.8, dust2);`,
+      roughnessmap_fragment: `$ roughnessFactor = mix(roughnessFactor, 0.05, wet); roughnessFactor = mix(roughnessFactor, 0.8, dust2);`,
+      normal_fragment_maps: `$ normal = normalize(normal + (beadM - 0.9) * 2.5 * wet * vec3(1.0, 1.0, 0.0));`,
     },
   });
   const wingMatS = wingMat.clone();
@@ -367,7 +373,7 @@ export function buildPlane() {
     d *= 0.75 + 0.5 * fbm(u * 18, v * 9, 3);
     d += (fbm(u * 6, v * 3, 7) - 0.5) * 0.35 * smoothstep(-0.3, 0.6, up);
     if (up < -0.55) d *= Math.max(0, (up + 0.8) / 0.25);
-    if (x > 14.4) d *= Math.max(0, (15 - x) / 0.6);
+    if (x > 14.75) d *= Math.max(0, (15.05 - x) / 0.3);
     if (x < 0.6) d *= x / 0.6;
     return Math.max(0, Math.min(1, d));
   });
@@ -395,7 +401,7 @@ export function buildPlane() {
   body.add(iceMesh);
   // icicles along the trailing edge + leading edge of the port wing
   const icicles = [];
-  const icicleMat = new THREE.MeshPhysicalMaterial({ color: 0xdfeefa, roughness: 0.08, transparent: true, opacity: 0.55, clearcoat: 1, envMapIntensity: 1.6 });
+  const icicleMat = new THREE.MeshPhysicalMaterial({ color: 0xb8d0e2, roughness: 0.05, transparent: true, opacity: 0.38, clearcoat: 1, envMapIntensity: 2.2, specularIntensity: 1 });
   setMap(icicleMat, 'normalMap', tex('ice_nrm.jpg'));
   for (let i = 0; i < 46; i++) {
     const s = 0.33 + Math.random() * 0.6;
@@ -466,7 +472,7 @@ export function iceMaterial(field) {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, transparent: true, envMapIntensity: 1.5 });
   const mask = tex('ice_mask.jpg', { repeat: [1, 1] });
   setMap(m, 'normalMap', tex('ice_nrm.jpg', { repeat: [9, 3] }));
-  m.normalScale.set(0.8, 0.8);
+  m.normalScale.set(1.4, 1.4);
   m.blending = THREE.CustomBlending; m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneMinusSrcAlphaFactor;
   m.depthWrite = false;
   const U = { iceMap: { value: field.tex }, iceMask: { value: mask }, maxIce: { value: 0.035 }, texel: { value: new THREE.Vector2(1 / field.w, 1 / field.h) }, frostBoost: { value: 0 } };
@@ -479,7 +485,8 @@ export function iceMaterial(field) {
         float i0 = texture2D(iceMap, uv).r;
         float gu = (texture2D(iceMap, uv+vec2(texel.x,0.)).r - texture2D(iceMap, uv-vec2(texel.x,0.)).r) * maxIce / (2.0*texel.x*max(length(tangU),1e-3));
         float gv = (texture2D(iceMap, uv+vec2(0.,texel.y)).r - texture2D(iceMap, uv-vec2(0.,texel.y)).r) * maxIce / (2.0*texel.y*max(length(tangV),1e-3));
-        vec3 objectNormal = normalize(normal - normalize(tangU)*gu*3.0 - normalize(tangV)*gv*3.0);
+        vec3 objectNormal = normal - tangU / max(length(tangU), 1e-4) * gu * 3.0 - tangV / max(length(tangV), 1e-4) * gv * 3.0;
+        objectNormal = dot(objectNormal, objectNormal) > 1e-8 ? normalize(objectNormal) : normal;
         vUv0 = uv;`,
       begin_vertex: `vec3 transformed = position + normal * (i0 * maxIce + 0.002);`,
     },
@@ -493,13 +500,15 @@ export function iceMaterial(field) {
         float clarity = clamp(iv.g - frostBoost, 0.0, 1.0);
         float frost = (1.0 - clarity) * clamp(0.45 + 0.75 * im.r, 0.0, 1.0);`,
       map_fragment: `
-        vec3 clearCol = vec3(0.62, 0.74, 0.82);
-        vec3 frostCol = vec3(0.90, 0.94, 0.98);
+        vec3 clearCol = vec3(0.5, 0.63, 0.74);
+        vec3 frostCol = mix(vec3(0.70, 0.78, 0.88), vec3(0.93, 0.96, 1.0), im.r);
         diffuseColor.rgb = mix(clearCol, frostCol, frost);
         float bub = im2.g * (0.4 + 0.6 * clarity);
-        diffuseColor.rgb += bub * 0.35;
-        diffuseColor.a = mix(0.1 + bub * 0.45 + im.b * 0.25, 0.96, frost) * smoothstep(0.025, 0.12, iv.r);`,
-      roughnessmap_fragment: `$ roughnessFactor = mix(0.03 + im.b * 0.2, 0.8, frost);`,
+        diffuseColor.rgb += bub * 0.3 + im.r * frost * 0.12;
+        // frost is translucent rime: thicker = whiter, thin = see-through to the panels below
+        float thickA = mix(0.35, 0.82, smoothstep(0.1, 0.9, iv.r));
+        diffuseColor.a = mix(0.08 + bub * 0.4 + im.b * 0.25, thickA * (0.75 + 0.25 * im.r), frost) * smoothstep(0.025, 0.12, iv.r);`,
+      roughnessmap_fragment: `$ roughnessFactor = mix(0.03 + im.b * 0.2, 0.45 + 0.35 * im.r, frost);`,
       opaque_fragment: `
         float aA = diffuseColor.a;
         gl_FragColor = vec4(totalDiffuse * aA + totalSpecular * mix(1.0, 0.7, frost) * smoothstep(0.025, 0.08, iv.r) + totalEmissiveRadiance * aA, aA);`,

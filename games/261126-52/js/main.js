@@ -40,7 +40,7 @@ function updateHint(dt) {
   else if (G.hintKind === 'drag') { ox = Math.sin(t * 3) * 50; oy = Math.cos(t * 6) * 8; }
   else if (G.hintKind === 'swipe') { oy = Math.sin(t * 4) * 60; }
   hand.style.opacity = Math.min(1, (idle - 4) * 2) * 0.95;
-  hand.style.transform = `translate(${x + ox - 18}px, ${y + oy - 4}px) scale(${sc})`;
+  hand.style.transform = `translate(${x + ox - 24}px, ${y + oy - 2}px) scale(${sc})`;
 }
 
 // ---- loop with adaptive resolution (keeps >= 30 fps on phones)
@@ -48,7 +48,7 @@ const HQ = /hq=1/.test(location.search);
 let last = performance.now(), acc = 0, frames = 0, slow = 0, fast = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  let dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
   C.time += dt; C.dt = dt;
   updateGame(dt);
   updateCamera(dt);
@@ -68,3 +68,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 allTexturesLoaded().then(() => { window.__texReady = true; });
 window.__G = G; window.__C = C; window.__setShot = setShot;
+window.__probe = (x, y) => {
+  const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x / C.w * 2 - 1, -y / C.h * 2 + 1), C.camera);
+  return r.intersectObjects(C.scene.children, true).slice(0, 4).map((h) => { let n = [], o = h.object; while (o) { n.push((o.name || o.type) + (o.geometry ? ':' + o.geometry.type : '')); o = o.parent; } return n.join('<') + ' d=' + h.distance.toFixed(2) + ' mat=' + (h.object.material && h.object.material.type); });
+};

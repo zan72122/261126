@@ -77,9 +77,9 @@ S.title = {
   enter() {
     setTodLighting(0.08); updateEnv(true);
     // girl stands by the rack near the snow-covered nose
-    place(girl.root, 9.6, -3.3, -2.3);
-    girl.root.rotation.y = -0.6;
-    place(rack.g, 10.4, -4.3, -0.5);
+    place(girl.root, 9.55, -3.3, 0);
+    girl.root.rotation.y = Math.PI - 0.45;
+    place(rack.g, 10.75, -3.2, -0.25);
     place(W.step, 3.6, -2.15, 0.0);
     place(W.cart.g, -2.2, -3.0, 0.4);
     place(W.worklight.g, 10.6, -2.2, -2.2);
@@ -92,7 +92,7 @@ S.title = {
     girl.setBase('cold');
     L.work.position.set(10.6, 1.75, -2.2); L.work.target.position.set(9.4, 1.0, -3.6);
     aimKey(new V3(6, 0, -3), new V3(-0.6, 0.8, -0.5), 12);
-    setShot({ target: [9.95, 0.95, -3.7], targetP: [9.85, 0.95, -3.7], dir: [0.15, 0.08, -1], fit: [1.25, 0.72], fitP: [0.6, 0.95], mm: 45 }, 0);
+    setShot({ target: [10.15, 0.95, -3.4], targetP: [10.05, 0.95, -3.4], dir: [0.12, 0.08, -1], fit: [1.3, 0.75], fitP: [0.75, 1.05], mm: 45 }, 0);
     C.aperture = 0.14; C.exposure = 1.0;
     G.titleStep = 0;
   },
@@ -150,34 +150,51 @@ function wearMuffs() {
 }
 
 // ------------------------------------------------------------ S1: brush the snow off the buried plane
-const S1REG = { u0: 9.3 / FL, u1: 14.9 / FL, v0: 0.52, v1: 0.98 }; // port side + top, nose->front cabin
-function s1Coverage() {
-  // fraction of region (port side above belly) with snow removed
+const S1REG = { u0: 10.0 / FL, u1: 14.9 / FL, v0: 0.005, v1: 0.42 }; // port side + top, nose->front cabin
+const _sp = new V3();
+function onScreen(p, m = 0.92) { _sp.copy(p).project(C.camera); return _sp.z < 1 && Math.abs(_sp.x) < m && Math.abs(_sp.y) < m; }
+// texels of the fuselage snow that are visible in the current framing (aspect-dependent)
+let s1Vis = null, s1VisT = -9;
+function s1Visible() {
+  if (s1Vis && G.t - s1VisT < 2) return s1Vis;
+  s1VisT = G.t; s1Vis = [];
   const f = plane.fusSnow, w = f.w, h = f.h;
-  let n = 0, clear = 0;
-  for (let y = Math.floor(S1REG.v0 * h); y < Math.floor(S1REG.v1 * h); y++) {
+  for (let y = Math.floor(S1REG.v0 * h); y < Math.floor(S1REG.v1 * h); y += 3) {
     const v = (y + 0.5) / h, th = (1 - v) * Math.PI * 2;
     if (Math.cos(th) < -0.45) continue;
-    for (let x = Math.floor(S1REG.u0 * w); x < Math.floor(S1REG.u1 * w); x++) { n++; if (f.c[0][y * w + x] < 0.06) clear++; }
+    for (let x = Math.floor(S1REG.u0 * w); x < Math.floor(S1REG.u1 * w); x += 3) {
+      const p = plane.body.localToWorld(fusPoint((x + 0.5) / w, v));
+      if (onScreen(p, 0.9)) s1Vis.push(y * w + x);
+    }
   }
-  return clear / n;
+  return s1Vis;
+}
+function s1Coverage() {
+  const f = plane.fusSnow, vis = s1Visible();
+  if (!vis.length) return 0;
+  let clear = 0;
+  for (const i of vis) if (f.c[0][i] < 0.06) clear++;
+  return clear / vis.length;
 }
 S.s1 = {
   enter() {
     rack.g.visible = false;
-    place(girl.root, 3.45, -2.25, 0, 0.44);
-    girl.root.position.y = W.groundY(3.45, -2.25) + 0.45;
-    place(W.step, 3.45, -2.1, 0);
-    W.step.position.y = W.groundY(3.45, -2.1) - 0.12;
-    place(W.worklight.g, 6.2, -4.0, -0.4);
-    L.work.position.set(6.2, 1.75, -4.0); L.work.target.position.set(4.2, 1.4, -1.3);
+    // girl on the step in front of the nose, facing the plane in profile toward the camera side
+    W.step.scale.y = 1;
+    place(W.step, 8.8, 0.35, -2.1);
+    W.step.position.y = W.groundY(8.8, 0.35) - 0.12;
+    place(girl.root, 8.75, 0.35, 0);
+    girl.root.position.y = W.step.position.y + 0.455;
+    girl.root.rotation.y = -2.1;
+    place(W.worklight.g, 5.6, -4.4, -0.6);
+    L.work.position.set(5.6, 1.75, -4.4); L.work.target.position.set(6.6, 1.5, -1.4);
     W.brush.g.visible = true;
     girl.setBase('focus');
     aimKey(new V3(4, 0, -2), new V3(-0.5, 0.75, -0.6), 11);
-    setShot({ target: [5.0, 1.45, -1.45], targetP: [4.6, 1.5, -1.5], dir: [0.85, 0.05, -0.55], fit: [2.6, 1.3], fitP: [1.45, 2.3], mm: 40 }, 0);
+    setShot({ target: [7.0, 2.0, -0.6], targetP: [7.55, 1.95, -0.4], dir: [0.8, 0.06, -1], fit: [2.3, 1.25], fitP: [1.25, 1.95], mm: 40 }, 0);
     C.aperture = 0.12; C.exposure = 1.0;
     G.brushPrev = null; G.brushing = false; G.s1cov = 0; G.revealed = new Set();
-    G.brushHead = new V3(5.2, 2.0, -1.2);
+    G.brushHead = plane.body.localToWorld(fusPoint(13.6 / FL, 0.12)).add(new V3(0, 0.55, -0.35));
   },
   update(dt) {
     const tod = 0.08 + G.s1cov * 0.25;
@@ -195,14 +212,14 @@ S.s1 = {
     // brush head faces the surface
     girl.arms[1].target = hands.clone().addScaledVector(dir, 0.02); girl.arms[1].pole = hands.clone().add(new V3(0.3, -0.5, -0.2)); girl.arms[1].w = 1;
     girl.arms[0].target = hands.clone().addScaledVector(dir, 0.2); girl.arms[0].pole = hands.clone().add(new V3(-0.3, -0.5, -0.2)); girl.arms[0].w = 1;
-    girl.root.rotation.y = damp(girl.root.rotation.y, clamp(Math.atan2(head.x - girl.root.position.x, head.z - girl.root.position.z), 0.4, 1.9), 3, dt);
+    girl.root.rotation.y = damp(girl.root.rotation.y, clamp(Math.atan2(head.x - girl.root.position.x, head.z - girl.root.position.z), -2.6, -0.9), 3, dt);
     girl.st.lean = damp(girl.st.lean, G.brushing ? 0.12 : 0.03, 4, dt);
     if (!G.lookAtCam) girl.lookAt(head);
     // progress
     if ((G.t * 4 | 0) !== ((G.t - dt) * 4 | 0)) {
       G.s1cov = s1Coverage();
       // reveal moments: cockpit, door, windows
-      for (const [key, u, v] of [['cockpit', 13.35 / FL, 0.97], ['w1', 10.96 / FL, 0.774], ['w2', 10.24 / FL, 0.774], ['door', 11.75 / FL, 0.76]]) {
+      for (const [key, u, v] of [['cockpit', 13.35 / FL, 0.04], ['w1', 10.96 / FL, 0.226], ['w2', 10.24 / FL, 0.226], ['door', 11.75 / FL, 0.25]]) {
         if (!G.revealed.has(key) && plane.fusSnow.get(0, u, v) < 0.05) {
           G.revealed.add(key); girl.say('wow', 1.2, 'focus'); sfx.ping(G.revealed.size + 2);
           G.lookAtCam = true; after(1.0, () => { G.lookAtCam = false; });
@@ -260,17 +277,11 @@ function brushSnow(u, v, amount, n, surf) {
 }
 function plane_r(x) { return x > 12.6 ? Math.max(0.2, Math.pow(Math.max(0, 1 - Math.pow((x - 12.6) / 2.4, 2.3)), 0.5)) : 1; }
 function thickestSnow() {
-  const f = plane.fusSnow; let best = 0, bu = 0, bv = 0;
-  for (let k = 0; k < 220; k++) {
-    const u = rand(S1REG.u0, S1REG.u1), v = rand(0.6, 0.95);
-    const th = (1 - v) * Math.PI * 2; if (Math.cos(th) < -0.3) continue;
-    const d = f.get(0, u, v);
-    if (d > best) { best = d; bu = u; bv = v; }
-  }
+  const f = plane.fusSnow, vis = s1Visible(); let best = 0, bi = -1;
+  for (let k = 0; k < 160 && vis.length; k++) { const i = vis[(Math.random() * vis.length) | 0]; if (f.c[0][i] > best) { best = f.c[0][i]; bi = i; } }
   if (best < 0.06) return null;
-  const p = fusPoint(bu, bv); p.add(new V3(0, 0, 0));
-  const pt = plane.body.localToWorld(p);
-  return pt;
+  const x = bi % f.w, y = (bi / f.w) | 0;
+  return plane.body.localToWorld(fusPoint((x + 0.5) / f.w, (y + 0.5) / f.h));
 }
 function avalanche() {
   // the remaining snow loosens and slides off every surface; reveals the iced wing
@@ -303,12 +314,21 @@ function avalanche() {
 
 // ------------------------------------------------------------ S2: hot water on the wing ice; dad freezes himself
 const ICE_U0 = 0.36, ICE_U1 = 0.93; // outboard of the engine
-function iceCoverage() {
-  const f = plane.iceField; let n = 0, gone = 0;
-  for (let y = Math.floor(0.53 * f.h); y < Math.floor(0.97 * f.h); y++) for (let x = Math.floor(ICE_U0 * f.w); x < Math.floor(ICE_U1 * f.w); x++) {
-    n++; const i = y * f.w + x; if (f.c[0][i] < 0.05) gone++;
+let iceVis = null, iceVisT = -9;
+function iceVisible() {
+  if (iceVis && G.t - iceVisT < 2) return iceVis;
+  iceVisT = G.t; iceVis = [];
+  const f = plane.iceField;
+  for (let y = Math.floor(0.53 * f.h); y < Math.floor(0.97 * f.h); y += 2) for (let x = Math.floor(ICE_U0 * f.w); x < Math.floor(ICE_U1 * f.w); x += 2) {
+    if (onScreen(plane.body.localToWorld(plane.wingP((x + 0.5) / f.w, (y + 0.5) / f.h)), 0.9)) iceVis.push(y * f.w + x);
   }
-  return gone / n;
+  return iceVis;
+}
+function iceCoverage() {
+  const f = plane.iceField, vis = iceVisible();
+  if (!vis.length) return 0;
+  let gone = 0; for (const i of vis) if (f.c[0][i] < 0.05) gone++;
+  return gone / vis.length;
 }
 S.s2 = {
   enter() {
@@ -318,17 +338,23 @@ S.s2 = {
     W.brush.g.visible = false;
     for (const a of girl.arms) a.w = 0;
     setTodLighting(0.38); updateEnv(true);
-    place(W.cart.g, -2.1, -3.1, 0.5);
-    place(girl.root, -1.55, -4.15, 0.6);
-    place(dad.root, -1.25, -7.25, 0.7);
+    // the girl stands on the step beyond the leading edge and sprays toward us across the wing;
+    // dad further outboard; the hot/cold rig beside her
+    place(W.step, 2.45, -5.0, Math.PI / 2);
+    W.step.scale.y = 1.55;
+    W.step.position.y = W.groundY(2.45, -5.0) - 0.12;
+    place(girl.root, 2.5, -5.0, 0);
+    girl.root.position.y = W.step.position.y + 0.455 * 1.55;
+    girl.root.rotation.y = -Math.PI / 2;
+    place(dad.root, 2.15, -7.6, 0); dad.root.rotation.y = -Math.PI / 2 - 0.3;
     dad.root.visible = true; dad.say('smile', 1, 'smile');
-    place(W.sign, -2.7, -6.0, 0.9);
-    place(W.step, 12, 6, 0);
-    place(W.worklight.g, -3.2, -5.0, 1.2);
-    L.work.position.set(-3.2, 1.75, -5.0); L.work.target.position.set(-0.6, 1.2, -5.6);
+    place(W.cart.g, 3.3, -3.55, Math.PI / 2 + 0.35);
+    place(W.sign, 1.6, -9.3, -Math.PI / 2 + 0.35);
+    place(W.worklight.g, -2.8, -3.6, 1.0);
+    L.work.position.set(-2.8, 1.75, -3.6); L.work.target.position.set(1.8, 1.3, -6.0);
     aimKey(new V3(0, 0, -5), new V3(-0.55, 0.7, -0.45), 10);
-    setShot({ target: [-0.1, 1.15, -5.6], targetP: [-0.4, 1.15, -5.5], dir: [-0.62, 0.42, -0.66], fit: [2.4, 1.25], fitP: [1.35, 2.2], mm: 40 }, 0);
-    C.aperture = 0.12; C.exposure = 1.0;
+    setShot({ target: [1.5, 1.45, -5.6], targetP: [1.75, 1.5, -5.25], dir: [-1, 0.3, -0.12], fit: [1.5, 0.75], fitP: [1.0, 1.55], mm: 40 }, 0);
+    C.aperture = 0.035; C.exposure = 0.85; C.focusTarget = 3.0;
     G.tool = null; G.spraying = false; G.sprayTarget = null; G.dadState = 'ok'; G.wrongTries = 0;
     G.runnels = [];
     girl.setBase('smile');
@@ -358,7 +384,7 @@ S.s2 = {
     if (G.dadState === 'ok') dad.lookAt(G.spraying && G.sprayTarget ? G.sprayTarget : girl.joints.head.getWorldPosition(new V3()));
     // hints
     if ((G.t * 2 | 0) !== ((G.t - dt) * 2 | 0)) {
-      if (G.tool !== 'hot') G.hint = W.cart.g.localToWorld(new V3(-0.24, 1.0, 0.2));
+      if (G.tool !== 'hot') G.hint = W.cart.g.localToWorld(new V3(-0.24, 1.3, 0.2));
       else if (G.dadState === 'frozen') G.hint = dad.joints.chest.getWorldPosition(new V3());
       else G.hint = thickestIce();
       G.hintKind = G.tool !== 'hot' ? 'tap' : 'hold';
@@ -408,7 +434,7 @@ function updateLance(dt) {
   girl.arms[0].target = l.localToWorld(new V3(0, 0.3, 0)); girl.arms[0].pole = hands.clone().add(new V3(-0.3, -0.5, 0)); girl.arms[0].w = 1;
   girl.root.rotation.y = damp(girl.root.rotation.y, Math.atan2(aim.x - girl.root.position.x, aim.z - girl.root.position.z), 3, dt);
   // hose: sag curve from tank to the lance grip
-  const a = W.cart.g.localToWorld(new V3(G.lanceTank.x, 0.4, 0.2));
+  const a = W.cart.g.localToWorld(new V3(G.lanceTank.x, 0.75, 0.2));
   const b = l.localToWorld(new V3(0, 0, 0));
   const mid = a.clone().lerp(b, 0.5); mid.y = Math.max(W.groundY(mid.x, mid.z) + 0.04, Math.min(a.y, b.y) - 0.5);
   const crv = new THREE.CatmullRomCurve3([a, a.clone().lerp(mid, 0.6).setY(mid.y + 0.05), mid, mid.clone().lerp(b, 0.5).setY(mid.y + 0.1), b]);
@@ -427,9 +453,9 @@ function spray(dt) {
     const sp = rand(5.5, 7.0);
     const t = d.length() / sp;
     const v = d.clone().divideScalar(t); v.y += 0.5 * 9.8 * t * 0.35;
-    FX.drops.emit({ p: tip, v: [v.x + rand(-.15, .15), v.y + rand(-.15, .15), v.z + rand(-.15, .15)], size: rand(0.008, 0.02), life: t * 1.05, alpha: rand(0.4, 0.8), drag: 0.05, grav: 9.8 * 0.35, tint: hot ? [0.85, 0.9, 1] : [0.8, 0.9, 1] });
+    FX.drops.emit({ p: tip, v: [v.x + rand(-.15, .15), v.y + rand(-.15, .15), v.z + rand(-.15, .15)], size: rand(0.012, 0.03), life: t * 1.05, alpha: rand(0.5, 0.9), drag: 0.05, grav: 9.8 * 0.35, tint: hot ? [0.85, 0.9, 1] : [0.8, 0.9, 1] });
   }
-  if (hot) steam(tgt, 2, 1); else puff(tgt, 1, 0.4, [0.9, 0.95, 1]);
+  if (hot) { if (Math.random() < 0.6) steam(tgt, 1, 1); } else if (Math.random() < 0.5) puff(tgt, 1, 0.3, [0.9, 0.95, 1]);
   if (hot && Math.random() < 0.08) steam(tip, 1, 1);
   if (G.sprayOnDad) { thawDad(dt); return; }
   const h = G.sprayHit; if (!h || !h.uv) return;
@@ -438,17 +464,20 @@ function spray(dt) {
   const chord = 2.15 - 1.1 * u, span = 7.65;
   const ru = 0.16 / span, rv = 0.16 / (chord * 2);
   let melted = 0;
-  f.brush(u, v, ru, rv, (i, k) => {
-    if (hot) {
+  if (hot) {
+    // heat spreads wider than the jet: a ring of clear, bubbly ice forms around the melted core
+    f.brush(u, v, ru * 2.0, rv * 2.0, (i, k) => { f.c[1][i] = Math.min(1, f.c[1][i] + dt * 1.6 * k); });
+    f.brush(u, v, ru, rv, (i, k) => {
       const cl = f.c[1][i];
-      f.c[1][i] = Math.min(1, cl + dt * 2.2 * k);                   // frosty -> clear first
-      if (cl > 0.55) { const o = f.c[0][i]; f.c[0][i] = Math.max(0, o - dt * 0.9 * k * (0.5 + cl)); melted += o - f.c[0][i]; }
+      if (cl > 0.6) { const o = f.c[0][i]; f.c[0][i] = Math.max(0, o - dt * 0.8 * k * cl); melted += o - f.c[0][i]; }
       f.c[2][i] = Math.min(1, f.c[2][i] + dt * 3 * k);
-    } else {
+    });
+  } else {
+    f.brush(u, v, ru * 1.5, rv * 1.5, (i, k) => {
       f.c[1][i] = Math.max(0, f.c[1][i] - dt * 2 * k);
       f.c[0][i] = Math.min(1, f.c[0][i] + dt * 0.25 * k);
-    }
-  });
+    });
+  }
   if (hot) {
     if (Math.random() < 0.25) sfx.sizzle();
     if (melted > 0.002 && G.runnels.length < 40 && Math.random() < 0.35) G.runnels.push({ u: u + rand(-ru, ru) * 0.5, v: v, speed: rand(0.06, 0.14), wob: rand(0, 6), life: 0 });
@@ -494,14 +523,10 @@ function dripAt(p) {
   if (Math.random() < 0.3) sfx.drip();
 }
 function thickestIce() {
-  const f = plane.iceField; let best = 0, bu = 0.6, bv = 0.75;
-  for (let k = 0; k < 160; k++) {
-    const u = rand(ICE_U0, ICE_U1), v = rand(0.56, 0.95);
-    const d = f.get(0, u, v) * (1.2 - f.get(1, u, v));
-    if (d > best) { best = d; bu = u; bv = v; }
-  }
+  const f = plane.iceField, vis = iceVisible(); let best = 0, bi = -1;
+  for (let k = 0; k < 160 && vis.length; k++) { const i = vis[(Math.random() * vis.length) | 0]; const d = f.c[0][i] * (1.2 - f.c[1][i]); if (d > best) { best = d; bi = i; } }
   if (best < 0.05) return null;
-  return plane.body.localToWorld(plane.wingP(bu, bv));
+  return plane.body.localToWorld(plane.wingP((bi % f.w + 0.5) / f.w, ((bi / f.w | 0) + 0.5) / f.h));
 }
 // dad picks the cold lance, nozzle backwards -> frosted
 function dadGag() {
@@ -578,15 +603,15 @@ S.s3w = {
     G.dadAnim = null;
     // finish the ice so later shots are clean except where she left a few spots
     setTodLighting(0.62); updateEnv(true);
-    place(girl.root, 1.6, -3.0, 0);
-    girl.root.rotation.y = -0.6;
+    place(girl.root, 3.7, -3.5, 0);
+    girl.root.rotation.y = 2.75;
     place(dad.root, -1.4, -3.4, 0.4);
     place(W.cart.g, -4.0, -4.6, 0.5);
     place(W.sign, -9, -12, 0.5);
-    place(W.worklight.g, 4.5, -4.5, -0.6);
-    L.work.position.set(4.5, 1.75, -4.5); L.work.target.position.set(1.0, 1.4, -1.2);
+    place(W.worklight.g, 7.5, -5.5, -0.6);
+    L.work.position.set(7.5, 1.75, -5.5); L.work.target.position.set(1.0, 1.4, -1.2);
     aimKey(new V3(1, 0, -2), new V3(-0.55, 0.7, -0.5), 11);
-    setShot({ target: [0.9, 1.55, -1.6], targetP: [1.4, 1.4, -1.9], dir: [0.18, 0.05, -1], fit: [3.6, 1.35], fitP: [1.8, 2.4], mm: 40 }, 0);
+    setShot({ target: [1.6, 1.6, -1.6], targetP: [2.0, 1.5, -1.9], dir: [0.55, 0.02, -1], fit: [3.2, 1.3], fitP: [1.7, 2.3], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.portWins = plane.windows.filter((w) => w.side < 0);
     G.litCount = 0;
@@ -632,13 +657,13 @@ S.s3m = {
   enter() {
     setTodLighting(0.8); updateEnv(true);
     place(girl.root, 13.2, 0.4, 0); girl.root.rotation.y = -Math.PI / 2;
-    place(dad.root, 11.5, -3.6, 0); dad.root.rotation.y = -0.4;
-    place(W.worklight.g, 12.8, -2.5, -1.0);
-    L.work.position.set(12.8, 1.75, -2.5); L.work.target.position.set(10, 1.2, 0);
+    place(dad.root, 14.3, -1.4, 0); dad.root.rotation.y = -1.9;
+    place(W.worklight.g, 15.5, -3.5, -1.0);
+    L.work.position.set(15.5, 1.75, -3.5); L.work.target.position.set(12.5, 1.2, 0);
     for (const w of W.wands) w.visible = true;
     W.wandLight.intensity = 2.5;
     aimKey(new V3(8, 0, 0), new V3(-0.4, 0.6, -0.7), 12);
-    setShot({ target: [10.0, 1.25, -0.2], targetP: [11.2, 1.25, -0.4], dir: [0.3, 0.06, -1], fit: [4.4, 1.6], fitP: [2.2, 2.5], mm: 40 }, 0);
+    setShot({ target: [9.9, 1.5, -0.2], targetP: [11.2, 1.45, 0.0], dir: [-0.3, 0.05, -1], fit: [3.6, 1.6], fitP: [1.8, 2.4], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.wave = 0; G.waveV = 0; G.waves = 0; G.planeX = 0; G.dragY = null; G.armPhase = 0;
     plane.propSpeed = 40; setEngine(0.6);
@@ -710,10 +735,11 @@ S.s3t = {
     setTodLighting(0.9); updateEnv(true);
     // runway far north; plane starts left, rolls right toward the sun
     plane.root.rotation.set(0, 0, 0);
-    plane.root.position.set(-160, 0, 280);
-    aimKey(new V3(0, 0, 280), SUN_DIR.clone().setY(0.15), 30);
-    setShot({ target: [-10, 6, 280], dir: [-0.3, -0.05, -1], fit: [45, 16], fitP: [22, 32], mm: 45 }, 0);
-    C.aperture = 0.08; C.exposure = 1.0; C.focusTarget = 70;
+    plane.root.position.set(-110, 0, 70);
+    C.scene.fog.density = 0.0012;
+    aimKey(new V3(0, 0, 70), SUN_DIR.clone().setY(0.15), 30);
+    setShot({ target: [-10, 5, 70], dir: [-0.3, 0.02, -1], fit: [16, 7], fitP: [10, 16], mm: 45 }, 0);
+    C.aperture = 0.03; C.exposure = 0.95; C.focusTarget = 50;
     G.toT = 0;
   },
   update(dt) {
@@ -728,7 +754,7 @@ S.s3t = {
     for (const w of plane.wheels) w.rotation.z -= speed * dt / 0.3;
     // camera pans to follow
     const tgt = plane.root.position.clone().add(new V3(12, 2, 0));
-    setShot({ target: [tgt.x * 0.6, 4 + plane.root.position.y * 0.6, 280], dir: [-0.3, -0.05, -1], fit: [45, 16], fitP: [22, 32], mm: 45 }, 0);
+    setShot({ target: [tgt.x * 0.75, 3 + plane.root.position.y * 0.7, 70], dir: [-0.3, 0.02, -1], fit: [16, 7], fitP: [10, 16], mm: 45 }, 0);
     plane.beacon.material.emissiveIntensity = (Math.sin(G.t * 6) > 0.6) ? 10 : 0;
     G.hint = null;
     if (t > 9.5 && !G.done) { G.done = true; fadeTo(() => enter('s3p'), 1.0); }
@@ -741,13 +767,14 @@ S.s3p = {
     setTodLighting(1.0); updateEnv(true);
     setEngine(0.15);
     girl.root.visible = true; dad.root.visible = true;
-    place(girl.root, 6.4, -6.6, 0); girl.root.rotation.y = 2.6;
-    place(dad.root, 8.4, -7.4, 0); dad.root.rotation.y = -2.5;
-    place(W.worklight.g, 14, 6, 0); L.work.intensity = 4;
+    place(girl.root, 6.6, -6.4, 0); girl.root.rotation.y = -2.3;
+    place(dad.root, 8.6, -5.6, 0); dad.root.rotation.y = -2.5;
+    place(W.worklight.g, 30, 30, 0); L.work.intensity = 0;
+    C.scene.fog.density = 0.002;
     place(W.cart.g, -4.5, -6.5, 0.5);
     for (const c of W.cones) c.visible = true;
     aimKey(new V3(6, 0, -6), SUN_DIR.clone().setY(0.22), 10);
-    setShot({ target: [6.2, 0.75, -5.2], targetP: [6.6, 0.85, -5.6], dir: [-0.35, 0.28, -1], fit: [3.2, 1.3], fitP: [1.7, 2.2], mm: 40 }, 0);
+    setShot({ target: [6.6, 0.8, -5.4], targetP: [6.7, 0.85, -5.6], dir: [-0.5, 0.17, -0.85], fit: [2.6, 1.15], fitP: [1.5, 2.1], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.balls = []; G.grab = null; G.flyT = 0;
     plane.root.position.set(0, 120, 0); plane.root.rotation.set(0, 0, 0);
@@ -773,7 +800,7 @@ S.s3p = {
     }
     const lookB = G.grab ? G.grab.mesh.position : (G.balls.length ? G.balls[G.balls.length - 1].mesh.position : C.camera.position);
     girl.lookAt(lookB, 0.8); dad.lookAt(lookB, 0.6);
-    G.hint = G.balls.length === 0 ? new V3(5.6, 0.2, -4.6) : (!G.balls.some((b) => b.on) && G.balls.length > 1 ? G.balls[0].mesh.position.clone().add(new V3(0, 0.2, 0)) : null);
+    G.hint = G.balls.length === 0 ? new V3(5.6, 0.2, -5.0) : (!G.balls.some((b) => b.on) && G.balls.length > 1 ? G.balls[0].mesh.position.clone().add(new V3(0, 0.2, 0)) : null);
     G.hintKind = 'drag';
     if (Math.random() < dt * 0.25) breath(girl.mouthWorld(), new V3(0.3, 0.2, 1).applyQuaternion(girl.root.quaternion));
   },

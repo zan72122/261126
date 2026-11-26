@@ -135,7 +135,7 @@ export function initRenderer(canvas) {
         for(int i=0;i<4;i++){
           vec2 o = vec2(i==0||i==2 ? -1.0 : 1.0, i<2 ? -1.0 : 1.0) * texel;
           vec2 uv = vUv + o;
-          vec3 c = min(texture2D(tColor, uv).rgb, vec3(40.0));
+          vec3 c = texture2D(tColor, uv).rgb; c = (c.r == c.r && c.g == c.g && c.b == c.b) ? min(c, vec3(40.0)) : vec3(0.0);
           float k = coc(uv);
           acc += vec4(c * k, k);
         }
@@ -161,7 +161,7 @@ export function initRenderer(canvas) {
         vec3 c = vec3(0.0);
         c += texture2D(tColor, vUv + vec2(-1.5,-1.5)*texel).rgb; c += texture2D(tColor, vUv + vec2(1.5,-1.5)*texel).rgb;
         c += texture2D(tColor, vUv + vec2(-1.5,1.5)*texel).rgb;  c += texture2D(tColor, vUv + vec2(1.5,1.5)*texel).rgb;
-        c = min(c * 0.25, vec3(60.0));
+        c = min(c * 0.25, vec3(60.0)); if (!(c.r == c.r && c.g == c.g && c.b == c.b)) c = vec3(0.0);
         float l = dot(c, vec3(0.2126,0.7152,0.0722));
         gl_FragColor = vec4(c * max(l - thr, 0.0) / max(l, 1e-4), 1.0);
       }`, depthTest: false, depthWrite: false,
@@ -458,7 +458,7 @@ export function initLights() {
   // soft front fill from camera side (snow bounce on faces)
   L.fill = new THREE.PointLight(0xc9d6ff, 1.6, 10, 1.5);
   s.add(L.fill);
-  s.fog = new THREE.FogExp2(0x1a2844, 0.006);
+  s.fog = new THREE.FogExp2(0x1a2844, 0.0035);
 }
 export function setTodLighting(t) {
   C.tod = t;
@@ -472,7 +472,7 @@ export function setTodLighting(t) {
   L.hemi.color.setRGB(0.25 + 0.35 * t, 0.33 + 0.30 * t, 0.62 + 0.15 * t);
   L.hemi.groundColor.setRGB(0.42 + 0.4 * t, 0.46 + 0.3 * t, 0.58 + 0.2 * t);
   L.hemi.intensity = 0.1 + 0.3 * t;
-  C.scene.fog.color.setRGB(0.07 + 0.45 * t, 0.10 + 0.32 * t, 0.18 + 0.30 * t);
+  C.scene.fog.color.setRGB(0.05 + 0.32 * t, 0.075 + 0.22 * t, 0.15 + 0.22 * t);
   C.scene.environmentIntensity = 0.55 + 0.6 * t;
 }
 export function aimKey(center, fromDir, size = 12) {

@@ -173,7 +173,7 @@ export function puff(p, n = 8, s = 1, tint = [1, 1, 1]) {
   for (let i = 0; i < n; i++) FX.powder.emit({ p: [p.x + rnd(-.05, .05) * s, p.y + rnd(-.05, .05) * s, p.z + rnd(-.05, .05) * s], v: [rnd(-.5, .5) * s, rnd(-.1, .6) * s, rnd(-.5, .5) * s], size: rnd(0.04, 0.12) * s, grow: rnd(0.1, 0.4) * s, life: rnd(0.6, 1.6), alpha: rnd(0.25, 0.6), drag: 2.5, grav: 0.3, tint });
 }
 export function steam(p, n = 3, warm = 1) {
-  for (let i = 0; i < n; i++) FX.steam.emit({ p: [p.x + rnd(-.04, .04), p.y + rnd(0, .04), p.z + rnd(-.04, .04)], v: [rnd(-.15, .15), rnd(0.35, 0.9), rnd(-.15, .15)], size: rnd(0.05, 0.14), grow: rnd(0.25, 0.6), life: rnd(1.2, 2.6), alpha: rnd(0.25, 0.5), drag: 1.2, grav: -0.15, tint: [1, 0.97 + 0.03 * (1 - warm), 0.94 + 0.06 * (1 - warm)] });
+  for (let i = 0; i < n; i++) FX.steam.emit({ p: [p.x + rnd(-.04, .04), p.y + rnd(0, .04), p.z + rnd(-.04, .04)], v: [rnd(-.12, .12), rnd(0.3, 0.7), rnd(-.12, .12)], size: rnd(0.03, 0.08), grow: rnd(0.08, 0.22), life: rnd(1.0, 2.0), alpha: rnd(0.1, 0.24), drag: 1.2, grav: -0.15, tint: [1, 0.97 + 0.03 * (1 - warm), 0.94 + 0.06 * (1 - warm)] });
 }
 export function breath(p, dir) {
   for (let i = 0; i < 4; i++) FX.steam.emit({ p: [p.x, p.y, p.z], v: [dir.x * rnd(0.25, 0.45) + rnd(-.05, .05), dir.y * 0.3 + rnd(0.0, 0.08), dir.z * rnd(0.25, 0.45) + rnd(-.05, .05)], size: rnd(0.02, 0.04), grow: rnd(0.1, 0.18), life: rnd(0.9, 1.4), alpha: rnd(0.16, 0.28), drag: 1.6, grav: -0.05 });

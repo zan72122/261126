@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { tex, setMap, patch, pbr, clamp, lerp, damp } from './core.js';
 import { fbm } from './field.js';
+import { paramGeo } from './plane.js';
 
 const V3 = THREE.Vector3;
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -93,7 +94,7 @@ function clothMat(prefix, color, o = {}) {
   return m;
 }
 function skinMat(canvasTex, tone) {
-  const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.55, sheen: 0.35, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.35, 0.25), clearcoat: 0.06, clearcoatRoughness: 0.5 });
+  const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.62, sheen: 0.18, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.8, 0.3, 0.2), specularIntensity: 0.6 });
   if (canvasTex) m.map = canvasTex; else m.color.set(tone);
   const n = tex('skin_nrm.jpg', { repeat: [7, 4] });
   setMap(m, 'normalMap', n); m.normalScale.set(0.35, 0.35);
@@ -108,7 +109,7 @@ function skinMat(canvasTex, tone) {
   return m;
 }
 function hairMat(color) {
-  const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.42, metalness: 0, sheen: 0.5, sheenColor: new THREE.Color(color).multiplyScalar(2.2), sheenRoughness: 0.35, anisotropy: 0.7, anisotropyRotation: Math.PI / 2 });
+  const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.5, metalness: 0, sheen: 0.25, sheenColor: new THREE.Color(color).multiplyScalar(2.0), sheenRoughness: 0.4, anisotropy: 0.3, anisotropyRotation: Math.PI / 2, specularIntensity: 0.5 });
   setMap(m, 'map', tex('hair_c.jpg', { srgb: true, repeat: [3, 1] }));
   setMap(m, 'normalMap', tex('hair_nrm.jpg', { repeat: [3, 1] }));
   m.normalScale.set(0.6, 0.6);
@@ -334,12 +335,12 @@ const EXPR = {
 export function buildPerson(kind) {
   const girl = kind === 'girl';
   const P = girl ? {
-    hx: 0.071, hy: 0.090, hz: 0.083, cheek: 0.07, brow: 0.01, nose: 0.75, chin: 0.02, jawTaper: 0.25,
-    eyeR: 0.0128, eyeX: 0.031, mouthW: 0.0185, skin: '#efc6ab', blush: 'rgba(232,118,108,0.30)', lip: '#d4847c', stubble: 0,
-    hair: 0x2b1a12, brows: 0x3a2518,
+    hx: 0.078, hy: 0.086, hz: 0.084, cheek: 0.09, brow: 0.006, nose: 0.65, chin: -0.01, jawTaper: 0.16,
+    eyeR: 0.0132, eyeX: 0.033, mouthW: 0.0185, skin: '#e9b898', blush: 'rgba(232,118,108,0.30)', lip: '#d4847c', stubble: 0,
+    hair: 0x1e130d, brows: 0x2e1d14,
   } : {
     hx: 0.077, hy: 0.112, hz: 0.098, cheek: 0.035, brow: 0.03, nose: 1.15, chin: 0.05, jawTaper: 0.12,
-    eyeR: 0.0122, eyeX: 0.033, mouthW: 0.024, skin: '#dcae8e', blush: 'rgba(200,110,95,0.18)', lip: '#b8766a', stubble: 1,
+    eyeR: 0.0122, eyeX: 0.033, mouthW: 0.024, skin: '#d29f7f', blush: 'rgba(200,110,95,0.18)', lip: '#b8766a', stubble: 1,
     hair: 0x1d1612, brows: 0x241a14,
   };
   const S = girl ? {
@@ -376,7 +377,7 @@ export function buildPerson(kind) {
   M.fur = new THREE.MeshPhysicalMaterial({ color: girl ? 0xf3ece2 : 0x8a7a68, roughness: 1, sheen: 1, sheenColor: 0xffffff, sheenRoughness: 0.9 });
   setMap(M.fur, 'map', tex('fur_c.jpg', { srgb: true, repeat: [3, 3] }));
   setMap(M.fur, 'normalMap', tex('fur_nrm.jpg', { repeat: [3, 3] })); M.fur.normalScale.set(1.4, 1.4);
-  M.sweater = clothMat('knit', 0xc8a36a, { repeat: [7, 7], sheen: 0.7 });
+  M.sweater = clothMat('knit', 0xb8873e, { repeat: [10, 10], sheen: 0.8, ns: 1.6 });
   M.hair = hairMat(P.hair);
   M.beanie = clothMat('knit', 0x3d4a3f, { repeat: [8, 4], sheen: 0.7 });
   M.zip = new THREE.MeshStandardMaterial({ color: 0x18191b, metalness: 0.6, roughness: 0.4 });
@@ -410,7 +411,8 @@ export function buildPerson(kind) {
   const furTrim = add(spine, new THREE.TorusGeometry(girl ? 0.07 : 0.095, girl ? 0.022 : 0.026, 10, 28), M.fur);
   furTrim.rotation.x = Math.PI / 2 + 0.5; furTrim.position.set(0, S.neckY + 0.0, -0.035);
   person.jacketParts.push(jT, zip, collar, furTrim);
-  person.sweaterParts = [sT];
+  const turtle = add(spine, loft(line(new V3(0, S.neckY - 0.03, 0), new V3(0, S.neckY + 0.04, 0), 4), () => [0.042, 0.04], { seg: 24, capStart: false, capEnd: false, up: new V3(1, 0, 0), mod: wrinkle(0.12, 4, 5, 20) }), M.sweater);
+  person.sweaterParts = [sT, turtle];
   // neck (skin)
   const skin = skinMat(null, P.skin);
   M.skinPlain = skin;
@@ -426,7 +428,7 @@ export function buildPerson(kind) {
   headMesh.morphTargetInfluences = [0, 0];
   person.headMesh = headMesh;
   // ears (dad only visible below beanie / girl hidden by hair+muffs)
-  for (const sx of [-1, 1]) {
+  for (const sx of (girl ? [] : [-1, 1])) {
     const ear = add(head, new THREE.SphereGeometry(1, 16, 12), skin);
     ear.scale.set(0.008, 0.026 * (girl ? 0.85 : 1), 0.018); ear.position.set(sx * P.hx * 0.98, -0.006, -0.008); ear.rotation.y = sx * 0.4;
   }
@@ -436,7 +438,7 @@ export function buildPerson(kind) {
   const eyeGeo = new THREE.SphereGeometry(P.eyeR, 32, 24);
   {
     const pa = eyeGeo.attributes.position, uv = eyeGeo.attributes.uv;
-    const k = 0.97 / (girl ? 0.6 : 0.52);
+    const k = 0.97 / (girl ? 0.53 : 0.48);
     for (let i = 0; i < pa.count; i++) {
       const x = pa.getX(i) / P.eyeR, y = pa.getY(i) / P.eyeR, z = pa.getZ(i) / P.eyeR;
       if (z > 0) uv.setXY(i, 0.5 + x * 0.5 * k, 0.5 + y * 0.5 * k); else uv.setXY(i, 0.02, 0.02);
@@ -518,22 +520,44 @@ export function buildPerson(kind) {
       const last = pts[pts.length - 1].clone();
       const out = new V3(Math.sin(ph), 0, Math.cos(ph));
       for (let i = 1; i <= 6; i++) { const t = i / 6; pts.push(last.clone().add(new V3(0, -fall * t, 0)).addScaledVector(out, 0.012 * t * t + (rng() - 0.5) * 0.002)); }
-      const g = loft(curve(pts, 26), (t) => [w * 0.42 * (1 - t * 0.5), w * (1 - Math.pow(t, 3) * 0.7)], { seg: 8, vScale: 6, up: out, capStart: false });
+      const g = loft(curve(pts, 26), (t) => [w * 0.22 * (1 - t * 0.6), w * (1 - Math.pow(t, 2.5) * 0.92)], { seg: 8, vScale: 6, up: out, capStart: false, capEnd: false });
       add(hairGroup, g, M.hair, { shadow: true });
     };
-    // back and sides: meridians all around except the face
-    for (let i = 0; i < 34; i++) {
-      const ph = Math.PI * 0.30 + (i / 33) * Math.PI * 1.40 + (rng() - 0.5) * 0.04;
+    // solid bob mass under the clumps (continuous sheet, so no gaps between strands)
+    const sheetFn = (u, v, out) => {
+      const ph = 1.0 + u * (Math.PI * 2 - 2.0);
       const side = Math.abs(Math.sin(ph));
-      const th1 = Math.PI * (0.62 + 0.08 * side);
-      clump(ph, 0.12 + rng() * 0.1, th1, 0.07 + rng() * 0.03 + (1 - side) * 0.03, 0.017 + rng() * 0.004);
+      const th1 = Math.PI * (0.6 + 0.08 * side);
+      const fall = 0.07 + (1 - side) * 0.03;
+      const k = 0.62; // fraction of v spent on the scalp
+      if (v < k) {
+        const t = v / k;
+        return out.copy(scalp(0.02 + (th1 - 0.02) * t, ph, 1.045 + 0.01 * t));
+      }
+      const t = (v - k) / (1 - k);
+      const base = scalp(th1, ph, 1.055);
+      const o = new V3(Math.sin(ph), 0, Math.cos(ph));
+      return out.copy(base).add(new V3(0, -fall * t, 0)).addScaledVector(o, 0.01 * t * t - 0.006 * Math.pow(t, 6));
+    };
+    const sheet = paramGeo(sheetFn, 48, 30, { flip: true, uvMap: (u, v) => [u * 6, v * 2] });
+    const sheetMat = M.hair.clone(); sheetMat.side = THREE.DoubleSide;
+    setMap(sheetMat, 'map', tex('hair_c.jpg', { srgb: true, repeat: [6, 2] }));
+    setMap(sheetMat, 'normalMap', tex('hair_nrm.jpg', { repeat: [6, 2] }));
+    sheetMat.color.multiplyScalar(0.8);
+    add(hairGroup, sheet, sheetMat, { shadow: true });
+    // back and sides: meridians all around except the face
+    for (let layer = 0; layer < 2; layer++) for (let i = 0; i < 40; i++) {
+      const ph = Math.PI * 0.33 + ((i + layer * 0.5) / 39) * Math.PI * 1.34 + (rng() - 0.5) * 0.04;
+      const side = Math.abs(Math.sin(ph));
+      const th1 = Math.PI * (0.6 + 0.08 * side) - layer * 0.05;
+      clump(ph, 0.1 + rng() * 0.12, th1, 0.072 + rng() * 0.02 + (1 - side) * 0.03 - layer * 0.01, 0.032 + rng() * 0.008, 1.065 + layer * 0.02);
     }
     // bangs: crown -> forehead, ending just above the brows
-    for (let i = 0; i < 12; i++) {
-      const ph = (i / 11 - 0.5) * 1.3 + (rng() - 0.5) * 0.05;
-      clump(ph, 0.15 + rng() * 0.08, 1.02 - Math.abs(ph) * 0.12 + rng() * 0.04, 0.0, 0.016 + rng() * 0.003, 1.08);
+    for (let i = 0; i < 17; i++) {
+      const ph = (i / 16 - 0.5) * 1.45 + (rng() - 0.5) * 0.05;
+      clump(ph, 0.06 + rng() * 0.08, 1.36 - Math.abs(ph) * 0.14 + rng() * 0.05, 0.0, 0.03 + rng() * 0.006, 1.075);
     }
-  }  } else {
+  } else {
     // beanie with folded cuff
     const bn = loft(curve([new V3(0, 0.01, -0.008), new V3(0, 0.07, -0.004), new V3(0, 0.12, 0)], 10), (t) => {
       const r = Math.cos(t * Math.PI * 0.48);
@@ -568,9 +592,11 @@ export function buildPerson(kind) {
     const up = add(sh, loft(line(new V3(0, 0.01, 0), new V3(0, -S.upArm, 0), 10), (t) => [r1 * (1 - 0.12 * t), r1 * (1 - 0.12 * t)], { seg: 20, vScale: 5, uRepeat: 2, mod: both(quilt(girl ? 0.045 : 0.07, 0.07), wrinkle(0.06, sx + 5)) }), M.jacket);
     const lo = add(elbow, loft(line(new V3(0, 0.02, 0), new V3(0, -S.foreArm + 0.01, 0), 10), (t) => [r2 * (1 - 0.15 * t), r2 * (1 - 0.15 * t)], { seg: 20, vScale: 5, uRepeat: 2, mod: both(quilt(girl ? 0.04 : 0.065, 0.06), wrinkle(0.07, sx + 8)) }), M.jacket);
     const cuffBand = add(elbow, loft(line(new V3(0, -S.foreArm * 0.62, 0), new V3(0, -S.foreArm * 0.62 - 0.02, 0), 1), () => [r2 * 0.97, r2 * 0.97], { seg: 20, capStart: false, capEnd: false }), M.reflect);
-    const supA = add(sh, loft(line(new V3(0, 0.01, 0), new V3(0, -S.upArm, 0), 8), (t) => [r1 * 0.62, r1 * 0.62], { seg: 16, vScale: 5, mod: wrinkle(0.1, sx + 11) }), M.sweater);
-    const supB = add(elbow, loft(line(new V3(0, 0.02, 0), new V3(0, -S.foreArm + 0.01, 0), 8), (t) => [r2 * 0.65, r2 * 0.65], { seg: 16, vScale: 5, mod: wrinkle(0.1, sx + 12) }), M.sweater);
-    person.jacketParts.push(up, lo, cuffBand); person.sweaterParts.push(supA, supB);
+    const supA = add(sh, loft(line(new V3(0, 0.01, 0), new V3(0, -S.upArm, 0), 8), (t) => [r1 * 0.74 * (1 - 0.15 * t), r1 * 0.7 * (1 - 0.15 * t)], { seg: 16, vScale: 5, mod: wrinkle(0.1, sx + 11) }), M.sweater);
+    const supB = add(elbow, loft(line(new V3(0, 0.02, 0), new V3(0, -S.foreArm + 0.01, 0), 8), (t) => [r2 * 0.72 * (1 - 0.1 * t), r2 * 0.7 * (1 - 0.1 * t)], { seg: 16, vScale: 5, mod: wrinkle(0.1, sx + 12) }), M.sweater);
+    // shoulder caps blend the sleeve into the torso
+    const capJ = add(sh, new THREE.SphereGeometry(r1 * 1.0, 20, 14), M.jacket); capJ.position.set(-sx * 0.012, -0.004, 0); capJ.scale.set(1, 0.85, 1.0);
+    person.jacketParts.push(up, lo, cuffBand, capJ); person.sweaterParts.push(supA, supB);
     // mitten: palm + thumb
     const hand = new THREE.Group(); wrist.add(hand);
     const palm = add(hand, new THREE.SphereGeometry(1, 20, 14), M.mitten); palm.scale.set(girl ? 0.026 : 0.04, girl ? 0.05 : 0.075, girl ? 0.018 : 0.028); palm.position.y = girl ? -0.04 : -0.06;
@@ -708,8 +734,9 @@ function updatePerson(p, dt, t) {
     else {
       const ch = st.cheer;
       const restZ = a.sx * (0.12 + 0.03 * br) + a.sx * ch * 2.6;
-      a.sh.rotation.set(-0.05 - ch * 0.3, 0, restZ);
-      a.elbow.rotation.set(-0.35 - ch * 0.3 + (st.shiver > 0.3 ? Math.sin(t * 40) * 0.05 : 0), 0, 0);
+      const sway = Math.sin(t * 0.7 + a.sx) * 0.03;
+      a.sh.rotation.set(-0.1 - ch * 0.5 + sway, a.sx * 0.15, restZ + a.sx * 0.06);
+      a.elbow.rotation.set(-0.45 - ch * 0.2 + (st.shiver > 0.3 ? Math.sin(t * 40) * 0.05 : 0), 0, 0);
       a.wrist.rotation.set(0, 0, 0);
     }
   }
