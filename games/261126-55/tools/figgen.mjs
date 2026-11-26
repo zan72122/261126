@@ -211,7 +211,7 @@ function human(P) {
   // collar ridge (cloth thickness)
   s.add(p => sdTorus(p, add(J.neck, V(0, -0.002 * H, 0.004 * H)), [0, 0.97, 0.24], P.neckR * 1.25, 0.011 * H), B.chest, M.TOP, 0.006 * H, { prio: 1 });
   // jacket hem ridge
-  if (P.hem) s.add(p => sdTorus(p, add(J.hips, V(0, P.hem * H, 0.003 * H)), [0, 1, 0], P.hipW * 1.02, 0.007 * H), B.hips, M.TOP, 0.012 * H, { prio: 1 });
+  if (false && P.hem) s.add(p => sdTorus(p, add(J.hips, V(0, P.hem * H, 0.003 * H)), [0, 1, 0], P.hipW * 1.02, 0.007 * H), B.hips, M.TOP, 0.012 * H, { prio: 1 });
   // zipper / placket ridge
   s.add(p => sdRoundCone(p, add(J.spine, V(0, -0.03 * H, P.waistD + 0.003 * H)), add(J.chest, V(0, 0.05 * H, P.chestD - 0.004 * H)), 0.0022 * H, 0.0022 * H), B.chest, M.TOP2, 0.004 * H, { prio: 2 });
   // chest pockets

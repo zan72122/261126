@@ -46,7 +46,7 @@ function setTimeOfDay(t) {
   scene.fog.density = lerp(0.055, 0.018, t);
   sun.position.copy(sunDir).multiplyScalar(14); sun.target.position.set(0, 0, 0);
   sun.color.setRGB(1, lerp(0.8, 0.95, t), lerp(0.62, 0.86, t));
-  sun.intensity = lerp(1.1, 3.4, t);
+  sun.intensity = lerp(1.1, 2.6, t);
   sun.shadow.radius = lerp(9, 4, t);
   hemi.intensity = lerp(0.4, 0.55, t);
   work.intensity = lerp(26, 0, smooth(t * 1.4));
@@ -102,7 +102,7 @@ const later = (async () => {
 
 function attachHelmet(h, helm, k) {
   const head = h.f.B.head; head.add(helm);
-  helm.position.set(0, 0.128 * k, -0.006 * k); helm.rotation.set(-0.12, 0, 0);
+  helm.position.set(0, 0.14 * k, -0.014 * k); helm.rotation.set(-0.26, 0, 0);
   helm.traverse(m => { if (m.isMesh) m.castShadow = true; });
 }
 
@@ -128,21 +128,21 @@ const handTool = tools.trowel; // scene 1 uses trowel only
 
 // ---------------------------------------------------------------- camera shots
 const SHOTS = {
-  dress: { c: new THREE.Vector3(0.45, 0.72, -0.6), w: 1.25, h: 0.95, dir: new THREE.Vector3(-0.05, -0.2, -1) },
-  pour: { c: new THREE.Vector3(-0.3, 0.42, -0.45), w: 2.5, h: 1.35, dir: new THREE.Vector3(0.18, -0.36, -1) },
-  work: { c: new THREE.Vector3(0.0, 0.2, -0.12), w: 1.75, h: 1.05, dir: new THREE.Vector3(0.0, -0.62, -1) },
-  papa: { c: new THREE.Vector3(0.1, 0.55, -0.1), w: 2.8, h: 1.9, dir: new THREE.Vector3(0.0, -0.4, -1) },
+  dress: { c: new THREE.Vector3(0.55, 0.58, -0.62), w: 1.35, h: 1.3, dir: new THREE.Vector3(-0.08, -0.25, -1) },
+  pour: { c: new THREE.Vector3(-0.3, 0.6, -0.55), w: 3.0, h: 1.9, dir: new THREE.Vector3(-0.28, -0.42, -1) },
+  work: { c: new THREE.Vector3(0.0, 0.3, -0.2), w: 1.7, h: 1.05, dir: new THREE.Vector3(0.05, -0.4, -1) },
+  papa: { c: new THREE.Vector3(0.1, 0.65, -0.1), w: 2.8, h: 1.9, dir: new THREE.Vector3(0.05, -0.3, -1) },
   dry: { c: new THREE.Vector3(-0.2, 0.55, -0.4), w: 3.6, h: 2.0, dir: new THREE.Vector3(0.1, -0.28, -1) },
-  walk: { c: new THREE.Vector3(0.1, 0.45, 0.0), w: 3.6, h: 1.8, dir: new THREE.Vector3(0.3, -0.32, -1) },
+  walk: { c: new THREE.Vector3(0.0, 0.7, -0.1), w: 3.3, h: 2.0, dir: new THREE.Vector3(0.12, -0.3, -1) },
 };
 const cam = { pos: new THREE.Vector3(0, 1.4, 3), tgt: new THREE.Vector3(0, 0.3, 0), shot: 'dress', k: 2.0 };
 function shotPose(name) {
   const S = SHOTS[name]; const aspect = R.w / R.h;
   const portrait = aspect < 1;
-  const vfov = portrait ? 52 : 36;
+  const vfov = portrait ? 50 : 36;
   camera.fov = lerp(camera.fov, vfov, 1);
   const tv = Math.tan(THREE.MathUtils.degToRad(vfov / 2)), th = tv * aspect;
-  const d = Math.max(S.w / 2 / th, S.h / 2 / tv) * 1.04;
+  const d = portrait ? Math.max(S.w * 0.6 / 2 / th, S.h * 1.1 / 2 / tv) : Math.max(S.w / 2 / th, S.h / 2 / tv) * 1.04;
   const dir = S.dir.clone().normalize();
   return { pos: S.c.clone().addScaledVector(dir, -d), tgt: S.c.clone(), d };
 }
@@ -216,7 +216,7 @@ const work_ = { tool: 'trowel', press: null, toolObj: null, side: 'back', last: 
 
 function girlWorkSpot(p) {
   // girl kneels on the side of the slab closest to the touch; shuffles along x
-  const side = work_.side === 'back' ? (p.z > 0.06 ? 'front' : 'back') : (p.z < -0.02 ? 'back' : 'front');
+  const side = 'back';
   const z = side === 'back' ? -SLAB.D / 2 - 0.15 : SLAB.D / 2 + 0.15;
   const x = THREE.MathUtils.clamp(p.x + (side === 'back' ? 0.12 : -0.12), -SLAB.W / 2 + 0.05, SLAB.W / 2 - 0.05);
   return { side, pos: new THREE.Vector3(x, 0, z), yaw: side === 'back' ? 0 : Math.PI };
@@ -352,7 +352,7 @@ const STATES = {
     enter() {
       HINT.target = null; G.onDown = null; G.onUp = null; tray.visible = false; for (const k in tools) tools[k].visible = false;
       setShot('dry', 0.6); sfx.whoosh(); A.birdsOn = true;
-      girl.kneelT = 0; girl.goTo(new THREE.Vector3(0.95, 0, -0.62), () => { girl.yawT = -0.3; });
+      girl.kneelT = 0; girl.goTo(new THREE.Vector3(0.62, 0, -0.78), () => { girl.yawT = -0.3; });
       girl.f.setExpr('wow');
       if (papa) { papa.goTo(new THREE.Vector3(1.6, 0, -0.75), () => papa.yawT = -0.6); papa.f.setExpr('happy'); }
       ENV.morning = ENV.morning || makeEnv(renderer, { glow: 0.5, zen: sRGB('#7fa3c9'), hor: sRGB('#dfe4e8'), sun: new THREE.Vector3(-0.45, 0.62, -0.45).normalize(), bright: 1.25, ground: new THREE.Color(0.25, 0.23, 0.2) });
@@ -372,10 +372,10 @@ const STATES = {
     enter() {
       setShot('walk', 0.7); slab.dryStep(1, 5);
       HINT.offset = null;
-      if (mama) { mama.f.root.visible = true; mama.pos.set(-4.2, 0, 0.05); mama.goTo(new THREE.Vector3(-1.2, 0, 0.0), () => { mama.yawT = 1.2; mama.doGesture('wave', 1.6); }); mama.f.setExpr('happy'); }
+      if (mama) { mama.f.root.visible = true; mama.pos.set(-4.2, 0, 0.05); mama.goTo(new THREE.Vector3(-1.15, 0, -0.12), () => { mama.yawT = 1.2; mama.doGesture('wave', 1.6); }); mama.f.setExpr('happy'); }
       if (dog) { dog.f.root.visible = true; dog.pos.set(-4.8, 0, 0.12); dog.goTo(new THREE.Vector3(-0.85, 0, 0.12), () => { dog.sitT = 1; dog.yawT = 1.5; }); }
-      if (papa) papa.goTo(new THREE.Vector3(1.25, 0, 0.1), () => { papa.yawT = -1.4; });
-      girl.goTo(new THREE.Vector3(0.75, 0, 0.55), () => { girl.yawT = -0.6; girl.f.setExpr('joy'); });
+      if (papa) papa.goTo(new THREE.Vector3(1.2, 0, -0.08), () => { papa.yawT = -0.9; });
+      girl.goTo(new THREE.Vector3(0.45, 0, -0.62), () => { girl.yawT = 0.1; girl.f.setExpr('joy'); });
       document.getElementById('again').classList.add('show');
       G.onDown = (x, y) => playTap(x, y);
     },
@@ -428,7 +428,7 @@ function leverStart() {
   if (G.stats && G.stats.fill > 1.03) { girl.f.setExpr('puzzled'); sfx.voice('are', 1.4); setTimeout(() => girl.f.setExpr('happy'), 900); return; }
   work_.leverDown = true; sfx.clunk(); HINT.idle = 0;
   girl.kneelT = 0; girl.leanT = 0;
-  girl.goTo(new THREE.Vector3(-0.42, 0, -0.66), () => { girl.face(truck.leverTip()); });
+  girl.goTo(new THREE.Vector3(-0.22, 0, -0.56), () => { girl.face(truck.leverTip()); });
   girl.f.setExpr('wow'); setTimeout(() => work_.leverDown && girl.f.setExpr('joy'), 900);
   if (!work_.firstPour) { work_.firstPour = true; sfx.voice('wa', 1.5); }
   work_.side = null;
@@ -458,7 +458,7 @@ function trowelStart(p) {
 }
 function trowelStop() {
   if (!work_.press || work_.press.kind !== 'trowel') return;
-  work_.press = null; girl.reach('R', null); setLoop('scrape', 0);
+  work_.press = null; girl.reach('R', null); setLoop('scrape', 0); pole.visible = false;
   if (G.state === 'pour' || G.state === 'stamp') { girl.f.setExpr('happy'); }
 }
 function selectTool(k) {
@@ -467,6 +467,26 @@ function selectTool(k) {
   work_.tool = k;
   if (k !== 'hand') { const o = tools[k]; glow(o, true); setTimeout(() => glow(o, false), 700); o.position.y += 0.05; girl.f.setExpr('happy'); sfx.voice(k === 'dino' ? 'oh' : 'wa', 1.55); }
 }
+// long wooden handle used when the tool is beyond the girl's reach (real finishers use handled floats / stamps)
+const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 1, 10), new THREE.MeshStandardMaterial({ map: T.woodC, normalMap: T.woodN, roughness: 0.6, color: sRGB('#cfae86') }));
+pole.castShadow = true; pole.visible = false; scene.add(pole);
+function reachTool(toolTop) {
+  // returns where the hand goes; shows a pole from hand to tool if too far
+  const sh = girl.f.B.uaR.getWorldPosition(new THREE.Vector3());
+  const d = toolTop.clone().sub(sh); const L = d.length(); const R0 = 0.36;
+  if (L <= R0) { pole.visible = false; return toolTop; }
+  const hand = sh.clone().addScaledVector(d.normalize(), R0);
+  const ext = toolTop.clone().add(new THREE.Vector3(0, 0.02, 0));
+  const mid = hand.clone().add(ext).multiplyScalar(0.5); const len = hand.distanceTo(ext) + 0.05;
+  pole.visible = true; pole.position.copy(mid); pole.scale.set(1, len, 1);
+  pole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ext.clone().sub(hand).normalize());
+  return hand;
+}
+function clampHandReach(p) {
+  const c = new THREE.Vector3(girl.pos.x - 0.06, 0, girl.pos.z + 0.22); const d = p.clone().setY(0).sub(c); const L = d.length();
+  if (L > 0.3) { const q = c.addScaledVector(d.normalize(), 0.3); p.x = q.x; p.z = Math.max(-SLAB.D / 2 + 0.05, q.z); }
+  return p;
+}
 const STAMP = { hand: { kind: 'hand', depth: 0.012 }, boot: { kind: 'boot', depth: 0.016 }, leaf: { kind: 'leaf', depth: 0.005 }, dino: { kind: 'dino', depth: 0.02 } };
 function stampStart(p) {
   const S = STAMP[work_.tool]; if (!S) return;
@@ -474,6 +494,7 @@ function stampStart(p) {
   work_.press = { kind: 'stamp', tool: work_.tool, p: p.clone(), P: null, on: false, t: 0 };
   moveGirlTo(spot, () => {
     const pr = work_.press; if (!pr || pr.kind !== 'stamp') return;
+    if (pr.tool === 'hand') clampHandReach(pr.p);
     const rot = (work_.side === 'back' ? 0 : Math.PI) + (Math.random() - 0.5) * 0.35;
     pr.P = slab.pressStart(S.kind, pr.p.x, pr.p.z, rot, S.depth * (0.85 + Math.random() * 0.3)); pr.on = true; pr.rot = rot;
     sfx.squish(0.8);
@@ -482,7 +503,7 @@ function stampStart(p) {
 }
 function stampStop() {
   const pr = work_.press; if (!pr || pr.kind !== 'stamp') return;
-  work_.press = null; girl.reach('R', null);
+  work_.press = null; girl.reach('R', null); pole.visible = false;
   if (pr.P && pr.P.depth > 0.002) {
     work_.prints++; work_.kinds.add(pr.tool); if (G.fixed) work_.printsAfterFix = (work_.printsAfterFix || 0) + 1;
     work_.printList.push({ x: pr.p.x, z: pr.p.z, kind: pr.tool, rot: pr.rot });
@@ -498,7 +519,7 @@ function updateWork(dt, t) {
   if (!girl) return;
   // girl lateral shuffle while kneeling
   if (girl.shuffle && !girl.path) { girl.pos.x = damp(girl.pos.x, girl.shuffle.x, 4, dt); girl.pos.z = damp(girl.pos.z, girl.shuffle.z, 4, dt); }
-  if (!pr) { if (!work_.leverDown && (G.state === 'pour' || G.state === 'stamp')) { girl.leanT = 0.15; girl.look = slab.mesh.position.clone().add(new THREE.Vector3(0, 0.1, 0)); } return; }
+  if (!pr) { if (!work_.leverDown && (G.state === 'pour' || G.state === 'stamp') && !G.papaGagLook) { girl.leanT = 0.1; girl.look = (Math.floor(t / 3.5) % 2) ? camera.position : slab.mesh.position.clone().add(new THREE.Vector3(0.1, 0.1, 0.1)); } return; }
   const p = slabPoint(input.x, input.y, 0.25) || pr.p;
   if (pr.kind === 'trowel') {
     const o = tools.trowel; o.visible = true;
@@ -512,7 +533,7 @@ function updateWork(dt, t) {
     o.userData.film.material.opacity = 0.7;
     const sp = Math.hypot(dx, dz) / Math.max(dt, 1e-3);
     setLoop('scrape', Math.min(0.35, sp * 0.4) * (eff > 0 ? 1 : 0.4), 1800 + 3000 * (G.stats ? G.stats.polish : 0));
-    girl.reach('R', o.position.clone().add(new THREE.Vector3(0, 0.06, 0)), 1);
+    girl.reach('R', reachTool(o.position.clone().add(new THREE.Vector3(0, 0.06, 0))), 1);
     girl.leanT = 0.75; girl.look = o.position;
     work_.effAcc = (work_.effAcc || 0) + eff;
     if (work_.effAcc > 25) { work_.effAcc = 0; girl.f.setExpr(Math.random() < 0.5 ? 'happy' : 'focus'); }
@@ -522,12 +543,13 @@ function updateWork(dt, t) {
       const dd = slab.pressUpdate(pr.P, dt, 1);
       // dragging while pressed smears: start a new press along the path
       const mv = Math.hypot(p.x - pr.P.x, p.z - pr.P.z);
+      if (pr.tool === 'hand') clampHandReach(p);
       if (mv > 0.035) { const d = pr.P.depth; pr.P = slab.pressStart(pr.P.kind, p.x, p.z, pr.rot, pr.P.maxDepth); pr.P.t = 0.5; pr.p.copy(p); }
       if (dd > 0.0004) sfx.squish(0.25);
     }
     const at = pr.P ? new THREE.Vector3(pr.P.x, 0, pr.P.z) : p;
-    if (o) { toolPose(o, at, pr.tool, pr.P ? pr.P.depth : -0.02, t); o.rotation.y = pr.rot ?? o.rotation.y; girl.reach('R', o.position.clone().add(new THREE.Vector3(0, pr.tool === 'leaf' ? 0.015 : 0.09, 0)), 1); }
-    else { const y = slab.heightAt(at.x, at.z); girl.reach('R', new THREE.Vector3(at.x, y + 0.03 - (pr.P ? pr.P.depth : 0), at.z - (work_.side === 'back' ? 0.04 : -0.04)), 1); }
+    if (o) { toolPose(o, at, pr.tool, pr.P ? pr.P.depth : -0.02, t); o.rotation.y = pr.rot ?? o.rotation.y; girl.reach('R', reachTool(o.position.clone().add(new THREE.Vector3(0, pr.tool === 'leaf' ? 0.015 : 0.09, 0))), 1); }
+    else { pole.visible = false; const y = slab.heightAt(at.x, at.z); girl.reach('R', new THREE.Vector3(at.x, y + 0.03 - (pr.P ? pr.P.depth : 0), at.z - (work_.side === 'back' ? 0.04 : -0.04)), 1); }
     girl.leanT = 0.75; girl.look = at.clone().setY(0.1);
   }
 }
@@ -539,14 +561,14 @@ function startPapaGag() {
   G.baseEnergy = slab.impEnergy(-SLAB.W / 2, SLAB.W / 2);
   const plank = new THREE.Mesh(new (Object.getPrototypeOf(tray.children[0].geometry).constructor === THREE.BufferGeometry ? THREE.BoxGeometry : THREE.BoxGeometry)(2.2, 0.04, 0.2), tray.children[0].material);
   plank.castShadow = true; papa.f.B.handR.add(plank); plank.position.set(0.1, -0.05, 0); plank.rotation.set(0, 0.3, 0.1); papa.plank = plank;
-  papa.carry = true; papa.pos.set(2.6, 0, 0.12); papa.yaw = papa.yawT = -Math.PI / 2;
+  papa.carry = true; papa.strideK = 0.27; papa.pos.set(2.6, 0, 0.12); papa.yaw = papa.yawT = -Math.PI / 2;
   papa.look = new THREE.Vector3(4, 1.6, 1.5); papa.f.setExpr('happy');
   sfx.voice('umm', 0.6);
   const steps = []; papa.onStep = (side) => {
     const fp = papa.footWorld(side ? 'L' : 'R');
     if (slab.inside(fp.x, fp.z, 0.04)) {
       const P = slab.pressStart('bigboot', fp.x, fp.z + (side ? 0.02 : -0.02), -Math.PI / 2, 0.019);
-      steps.push(P); sfx.squish(1.0);
+      P.live = 0.6; steps.push(P); sfx.squish(1.0);
       if (steps.length === 1) { girl.f.setExpr('wow'); sfx.voice('oh', 1.5); girl.look = papa.f.B.head.getWorldPosition(new THREE.Vector3()); }
     }
   };
@@ -555,7 +577,7 @@ function startPapaGag() {
     // stops mid-slab: feels squish, looks down, oops
     papa.f.setExpr('wow'); papa.look = new THREE.Vector3(0, 0, 0.12); sfx.voice('oh', 0.55);
     setTimeout(() => { papa.f.setExpr('oops'); papa.carry = false; papa.plank.visible = false; papa.doGesture('scratch', 2.0); girl.f.setExpr('puzzled'); sfx.voice('are', 1.45); }, 900);
-    setTimeout(() => { papa.tiptoe = 1; papa.speedT = 0.6; papa.goTo(new THREE.Vector3(-1.5, 0, 0.3), () => { papa.tiptoe = 0; papa.speedT = null; papa.onStep = null; G.papaDone = true; G.papaEnergy = slab.impEnergy(-SLAB.W / 2, SLAB.W / 2) - G.baseEnergy; papa.yawT = 0.6; papa.f.setExpr('oops'); setShot('work', 0.9); girl.f.setExpr('focus'); }); }, 2600);
+    setTimeout(() => { papa.tiptoe = 1; papa.speedT = 0.55; papa.strideK = 0.2; papa.goTo(new THREE.Vector3(-1.5, 0, 0.3), () => { papa.tiptoe = 0; papa.speedT = null; papa.onStep = null; papa.strideK = null; G.papaDone = true; G.papaEnergy = slab.impEnergy(-SLAB.W / 2, SLAB.W / 2) - G.baseEnergy; papa.yawT = 0.6; papa.f.setExpr('oops'); setShot('work', 0.9); girl.f.setExpr('focus'); }); }, 2600);
   }, 1.0);
 }
 function deepestPapaPrint() {
@@ -627,12 +649,50 @@ function updateFalling(dt) {
   }
 }
 
+// ---------------------------------------------------------------- planar reflection for the wet / polished slab
+const REFL = { rt: null, cam: new THREE.PerspectiveCamera(), plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -SLAB.top) };
+function renderReflection() {
+  const sc = 0.42, w = Math.max(64, Math.round(R.rt.width * sc)), h = Math.max(64, Math.round(R.rt.height * sc));
+  if (!REFL.rt || REFL.rt.width !== w || REFL.rt.height !== h) { REFL.rt && REFL.rt.dispose(); REFL.rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType }); }
+  const c = REFL.cam; const y = SLAB.top;
+  c.fov = camera.fov; c.aspect = camera.aspect; c.near = camera.near; c.far = camera.far;
+  c.position.copy(camera.position); c.position.y = 2 * y - c.position.y;
+  const tg = cam.tgt.clone(); tg.y = 2 * y - tg.y;
+  c.up.set(0, -1, 0); c.lookAt(tg); c.up.set(0, 1, 0);
+  // Reflector-style: virtual camera with flipped up; slab samples it projectively
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y *= -1;
+  c.lookAt(c.position.clone().add(fwd)); 
+  const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion); upv.y *= -1; c.up.copy(upv); c.lookAt(c.position.clone().add(fwd));
+  c.updateMatrixWorld(); c.updateProjectionMatrix();
+  slab.U.uTexMat.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(c.projectionMatrix).multiply(c.matrixWorldInverse);
+  slab.mesh.visible = false; pourFX.mesh.visible = pourFX.mesh.visible;
+  const r = renderer; const oldClip = r.clippingPlanes;
+  REFL.plane.set(new THREE.Vector3(0, 1, 0), -y + 0.002); r.clippingPlanes = [REFL.plane];
+  const sm = r.shadowMap.autoUpdate; r.shadowMap.autoUpdate = false;
+  r.setRenderTarget(REFL.rt); r.render(scene, c); r.setRenderTarget(null);
+  r.shadowMap.autoUpdate = sm; r.clippingPlanes = oldClip || [];
+  slab.mesh.visible = true;
+  slab.U.tRefl.value = REFL.rt.texture; slab.U.uRes.value.set(R.rt.width, R.rt.height); slab.U.uReflOn.value = 1;
+}
+
 // ---------------------------------------------------------------- loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0, frames = 0;
+const SUB = +(Q.get('sub') || 1);
 function loop() {
-  const now = performance.now(); let dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (DEV && window.__fixedDt) dt = window.__fixedDt;
-  G.t += dt; G.st += dt; frames++;
+  const now = performance.now(); let dt0 = Math.min(0.05, (now - last) / 1000); last = now;
+  if (DEV && window.__fixedDt) dt0 = window.__fixedDt;
+  if (Q.has('sub')) dt0 = 1 / 30;
+  frames++;
+  for (let sub = 0; sub < SUB; sub++) step(dt0, sub === SUB - 1);
+  const t = G.t;
+  updateCamera(dt0, t); updateHint(dt0); updateGlow(t);
+  camera.updateMatrixWorld();
+  if (G.state !== 'dress' && G.state !== 'load' && G.state !== 'walk' && TOD.t < 0.9) renderReflection(); else slab.U.uReflOn.value = 0;
+  render(scene, camera, t);
+  afterFrame(dt0);
+}
+function step(dt, lastSub) {
+  G.t += dt; G.st += dt;
   const t = G.t;
   if (G.state !== 'load') STATES[G.state].update && STATES[G.state].update(dt, t);
   updateWork(dt, t);
@@ -640,24 +700,26 @@ function loop() {
   if (girl) {
     const leverTarget = work_.leverDown ? -0.55 : 0.25;
     truck.lever.rotation.z = damp(truck.lever.rotation.z, leverTarget, 10, dt);
-    const flowOn = work_.leverDown && girl.pos.distanceTo(new THREE.Vector3(-0.42, 0, -0.66)) < 0.2;
+    const flowOn = work_.leverDown && girl.pos.distanceTo(new THREE.Vector3(-0.22, 0, -0.56)) < 0.2;
     work_.flow = damp(work_.flow, flowOn ? 1 : 0, flowOn ? 2.5 : 4, dt);
     truck.drum.rotation.x += dt * (0.35 + work_.flow * 1.6);
     work_.pourT += dt * work_.flow;
-    truck.chutePivot.rotation.y = 0.2 + (Math.sin(work_.pourT * 0.55) * 0.5 + 0.5) * 0.55;
+    work_.stow = damp(work_.stow ?? 0, (G.state === 'pour' && (G.stats ? G.stats.fill < 0.95 : true)) || work_.flow > 0.05 ? 0 : 1, 1.5, dt);
+    truck.chutePivot.rotation.y = lerp(0.2 + (Math.sin(work_.pourT * 0.55) * 0.5 + 0.5) * 0.55, -1.25, work_.stow);
     truck.chuteFilmMat.opacity = Math.min(1, truck.chuteFilmMat.opacity + work_.flow * dt * 2);
     const lip = truck.chuteEnd(), dir = truck.chuteDir();
     pourFX.update(dt, t, lip, dir, Math.max(0.0, slab.heightAt(lip.x, lip.z)), work_.flow);
     if (work_.flow > 0.05 && pourFX.impact) { const ip = pourFX.impact; if (slab.inside(ip.x, ip.z)) slab.pour(ip.x, ip.z, 0.0115 * work_.flow * dt); }
     setLoop('pour', work_.flow * 0.5, 300 + 200 * Math.sin(t * 7)); setLoop('drum', 0.12 + work_.flow * 0.25);
   }
+  for (const P of G.papaSteps || []) if (P.live > 0) { P.live -= dt; slab.pressUpdate(P, dt, 1.6); }
   slab.flow(dt);
-  slab.upload();
+  if (lastSub) slab.upload();
   for (const a of Object.values(actors)) a && a.update(dt);
   updateFlights(dt); updateForms(dt); updateFalling(dt);
   if (girl) { const hp = girl.f.B.head.getWorldPosition(new THREE.Vector3()); faceFill.position.copy(hp).add(new THREE.Vector3(0.3, 0.25, 0.6)); faceFill.intensity = 0.6 * (1 - TOD.t); }
-  updateCamera(dt, t); updateHint(dt); updateGlow(t);
-  render(scene, camera, t);
+}
+function afterFrame(dt) {
   // adaptive resolution (keep ≥30fps on phones)
   fpsAcc += dt; fpsN++;
   if (fpsAcc > 2) { const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; if (!DEV) { if (fps < 32 && R.scale > 0.55) { R.scale -= 0.1; resize(camera); } else if (fps > 55 && R.scale < (R.dpr >= 2 ? 0.8 : 1)) { R.scale += 0.05; resize(camera); } } }
@@ -672,6 +734,10 @@ if (DEV && Q.get('state')) await devJump(Q.get('state'));
 else go('dress');
 requestAnimationFrame(loop);
 window.G = G; window.slab = slab; window.go = go; window.work_ = work_;
+window.__T = { helmet, bootPair, truck, tools, sunSprite, camera, girl: () => girl, papa: () => papa,
+  proj(v) { const p = (v.isVector3 ? v.clone() : v.getWorldPosition(new THREE.Vector3())).project(camera); return [(p.x * 0.5 + 0.5) * R.w, (-p.y * 0.5 + 0.5) * R.h]; },
+  projXYZ(x, y, z) { return this.proj(new THREE.Vector3(x, y, z)); }, errors: [] };
+window.addEventListener('error', e => window.__T.errors.push(String(e.message)));
 
 // ---------------------------------------------------------------- dev: jump to a state with plausible content (for screenshots)
 async function devJump(s) {
@@ -682,7 +748,7 @@ async function devJump(s) {
   if (s === 'dress') { helmet.parent.remove(helmet); scene.add(helmet); helmet.position.set(0.95, 0.315, -0.66); bootPair.visible = true; setBoots(false); G.dressDone = false; go('dress'); return; }
   if (s === 'pour') { go('pour'); return; }
   if (s === 'pouring') {
-    go('pour'); girl.pos.set(-0.42, 0, -0.66); work_.leverDown = true; girl.face(truck.leverTip());
+    go('pour'); girl.pos.set(-0.22, 0, -0.56); work_.leverDown = true; girl.face(truck.leverTip());
     for (let i = 0; i < 40; i++) { const x = -0.5 + (i % 8) * 0.08, z = -0.2 + Math.floor(i / 8) * 0.08; slab.pour(x, z, 0.0015); }
     for (let i = 0; i < 30; i++) slab.flow(0.05); return;
   }

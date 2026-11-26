@@ -17,7 +17,7 @@ export function buildWorld(scene, T) {
   // excavation pit under the slab (crushed stone visible in slab shader) – darker rim around the form
   // ---------------------------------------------------------------- old sidewalk panels (left & right), broom-finished, weathered
   W.oldPanels = [];
-  const oldMat = makeOldConcreteMat(T, 0.92, '#9b978e');
+  const oldMat = makeOldConcreteMat(T, 0.92, '#7f7b74');
   for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
     const g = new THREE.BoxGeometry(SLAB.W - 0.008, 0.1, SLAB.D, 1, 1, 1);
     g.translate(0, -0.05 + SLAB.top + 0.0, 0);
@@ -70,13 +70,13 @@ export function buildWorld(scene, T) {
   const fenceMat = new THREE.MeshStandardMaterial({ color: sRGB('#d8d8d2'), roughness: 0.55, metalness: 0.2, normalMap: T.metalN, envMapIntensity: 0.8 });
   for (let i = -8; i <= 8; i++) {
     const p = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.03), fenceMat);
-    p.position.set(i * 1.82, 1.2, -8.2); p.receiveShadow = true; scene.add(p);
-    const rib = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.05), fenceMat); rib.position.set(i * 1.82, 0.4, -8.17); scene.add(rib);
+    p.position.set(i * 1.82, 1.2, -13); p.receiveShadow = true; scene.add(p);
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.05), fenceMat); rib.position.set(i * 1.82, 0.4, -12.97); scene.add(rib);
     const rib2 = rib.clone(); rib2.position.y = 2.0; scene.add(rib2);
   }
   const bldMat = new THREE.MeshStandardMaterial({ color: sRGB('#8f938f'), roughness: 0.9, normalMap: T.metalN, normalScale: new THREE.Vector2(0.4, 0.4) });
   const netMat = new THREE.MeshStandardMaterial({ color: sRGB('#7d8a7e'), roughness: 0.95, transparent: true, opacity: 0.85 });
-  const bld = new THREE.Group(); scene.add(bld); bld.position.set(-2, 0, -16);
+  const bld = new THREE.Group(); scene.add(bld); bld.position.set(-2, 0, -20);
   for (let f = 0; f < 6; f++) {
     const slab = new THREE.Mesh(new THREE.BoxGeometry(14, 0.25, 8), bldMat); slab.position.set(0, f * 3.2 + 0.1, 0); bld.add(slab);
     for (let c = -2; c <= 2; c++) { const col = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.0, 0.5), bldMat); col.position.set(c * 3.3, f * 3.2 + 1.6, 3.5); bld.add(col); }
@@ -90,7 +90,7 @@ export function buildWorld(scene, T) {
   W.trees = [];
   const trunkMat = new THREE.MeshStandardMaterial({ color: sRGB('#3d3129'), roughness: 0.95, normalMap: T.woodN });
   const leafMat = makeLeafCardMat();
-  for (const [x, z, s] of [[3.6, -1.6, 1], [-5.5, -1.8, 1.15], [9, -2, 1.05], [-11, -2.2, 1.1]]) {
+  for (const [x, z, s] of [[2.6, -1.6, 0.9], [-5.5, -1.8, 1.15], [7, -2, 1.05], [-11, -2.2, 1.1], [1.5, -9, 1.2], [-3, -10, 1.1]]) {
     const t = new THREE.Group(); t.position.set(x, 0, z); scene.add(t);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.14 * s, 3.2 * s, 10), trunkMat); trunk.position.y = 1.6 * s; trunk.castShadow = true; t.add(trunk);
     for (let b = 0; b < 4; b++) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 1.6, 6), trunkMat); br.position.set(Math.cos(b * 1.7) * 0.4, 3.0 * s, Math.sin(b * 1.7) * 0.4); br.rotation.set(Math.sin(b) * 0.7, 0, Math.cos(b * 1.7) * 0.7); t.add(br); }
@@ -107,14 +107,14 @@ export function buildWorld(scene, T) {
   }
   // fallen leaves on ground near slab
   {
-    const n = 140; const g = new THREE.PlaneGeometry(0.1, 0.1); g.rotateX(-Math.PI / 2);
+    const n = 70; const g = new THREE.PlaneGeometry(0.09, 0.09); g.rotateX(-Math.PI / 2);
     const fl = new THREE.InstancedMesh(g, leafMat, n); const q = new THREE.Quaternion(), col = new THREE.Color();
     for (let i = 0; i < n; i++) {
       let x, z; do { x = (Math.random() - 0.5) * 9; z = 0.6 + Math.random() * 3.2; } while (Math.abs(x) < 1.2 && z < 1.4);
       if (Math.random() < 0.4) { z = -0.55 - Math.random() * 0.25 * 0; z = -0.62; x = 1.5 + Math.random() * 4; }
       q.setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.4, Math.random() * 6, (Math.random() - 0.5) * 0.4));
       M4.compose(new THREE.Vector3(x, 0.004 + (z < 0 ? 0.0 : 0), z), q, new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + Math.random() * 0.6)); fl.setMatrixAt(i, M4);
-      col.setHSL(0.02 + Math.random() * 0.09, 0.5 + Math.random() * 0.3, 0.25 + Math.random() * 0.2, THREE.SRGBColorSpace); fl.setColorAt(i, col);
+      col.setHSL(0.04 + Math.random() * 0.08, 0.35 + Math.random() * 0.25, 0.22 + Math.random() * 0.15, THREE.SRGBColorSpace); fl.setColorAt(i, col);
     }
     fl.receiveShadow = true; scene.add(fl);
   }

@@ -131,7 +131,7 @@ export class PourFX {
           vU = uv;
           float n = texture2D(tD, vec2(uv.x*0.3, uv.y*0.6 - uT*0.9)).b - 0.5;
           float n2 = texture2D(tD, vec2(uv.x*0.7+0.3, uv.y*1.4 - uT*1.6)).b - 0.5;
-          transformed += normal * (n*0.03 + n2*0.015) * smoothstep(0.0, 0.1, uv.x);`);
+          transformed += normal * (n*0.05 + n2*0.04) * smoothstep(0.0, 0.1, uv.x) * (0.6 + uv.x);`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uT; uniform sampler2D tD; varying vec2 vU;')
         .replace('#include <color_fragment>', `#include <color_fragment>
           vec4 dd = texture2D(tD, vec2(vU.x*1.5, vU.y*3.0 - uT*2.0));
@@ -156,12 +156,12 @@ export class PourFX {
       let p = lip.clone(), v = v0.clone();
       for (let i = 0; i < 14; i++) { pts.push(p.clone()); const st = 0.03; v.y -= 9.8 * st; p.addScaledVector(v, st); if (p.y < groundY) { p.y = groundY; pts.push(p.clone()); break; } }
       const curve = new THREE.CatmullRomCurve3(pts);
-      const g = new THREE.TubeGeometry(curve, 24, 0.045 * Math.sqrt(flow) + 0.01, 10, false);
+      const g = new THREE.TubeGeometry(curve, 28, 0.05 * Math.sqrt(flow) + 0.01, 14, false);
       // taper: thinner as it accelerates
       const pa = g.attributes.position, uv = g.attributes.uv;
       for (let i = 0; i < pa.count; i++) {
         const u = uv.getX(i); const c = curve.getPointAt(Math.min(1, u));
-        const s = 1 - u * 0.35; pa.setXYZ(i, c.x + (pa.getX(i) - c.x) * s, c.y + (pa.getY(i) - c.y) * s, c.z + (pa.getZ(i) - c.z) * s * 1.25);
+        const s = (1 - u * 0.4) * (u < 0.08 ? 1.0 + (0.08 - u) * 4 : 1); pa.setXYZ(i, c.x + (pa.getX(i) - c.x) * s * 1.3, c.y + (pa.getY(i) - c.y) * s * 0.8, c.z + (pa.getZ(i) - c.z) * s);
       }
       g.computeVertexNormals();
       this.mesh.geometry.dispose(); this.mesh.geometry = g; this.mesh.visible = true;

@@ -117,7 +117,7 @@ export function buildTruck(scene, T) {
   // collection chute under hopper
   add(new RoundedBox(0.28, 0.5, 0.32, 0.03), steel, 0.05, 1.68, 0, 0, 0, 0.2);
   // main chute: U trough, pivots at base
-  const chutePivot = new THREE.Group(); chutePivot.position.set(0.15, 1.36, 0.55); G.add(chutePivot);
+  const chutePivot = new THREE.Group(); chutePivot.position.set(0.15, 1.62, 0.55); G.add(chutePivot);
   const sh = new THREE.Shape();
   const cw = 0.2;
   sh.moveTo(-cw, 0.16); sh.absarc(0, 0.0, cw, Math.PI, 0, true); sh.lineTo(cw, 0.16); sh.lineTo(cw + 0.012, 0.16); sh.absarc(0, 0, cw + 0.012, 0, Math.PI, false); sh.lineTo(-cw - 0.012, 0.16);
@@ -129,13 +129,14 @@ export function buildTruck(scene, T) {
   const filmG = new THREE.ExtrudeGeometry(filmSh, { depth: 1.74, bevelEnabled: false, curveSegments: 12 });
   const chuteArm = new THREE.Group(); chutePivot.add(chuteArm); chuteArm.add(chute);
   tr.chuteFilmMat = new THREE.MeshPhysicalMaterial({ color: sRGB('#5e5d58'), roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.15, transparent: true, opacity: 0 });
-  const film = new THREE.Mesh(filmG, tr.chuteFilmMat); film.position.z = 0.005; chuteArm.add(film);
-  chuteArm.rotation.x = 0.43; // slope down
+  const film = new THREE.Mesh(filmG, tr.chuteFilmMat); film.position.z = 0.005; film.visible = false; chuteArm.add(film);
+  chuteArm.rotation.x = 0.36; // slope down
   tr.chutePivot = chutePivot; tr.chuteArm = chuteArm; tr.chuteLen = 1.75;
   // control box + lever at rear right corner
-  const box = add(new RoundedBox(0.2, 0.26, 0.14, 0.02), dark, 0.16, 0.58, 1.08);
-  add(new RoundedBox(0.05, 0.5, 0.05, 0.01), dark, 0.16, 0.3, 1.08);
-  const leverPivot = new THREE.Group(); leverPivot.position.set(0.27, 0.62, 1.08); G.add(leverPivot);
+  const box = add(new RoundedBox(0.2, 0.26, 0.14, 0.02), dark, 0.4, 0.58, 1.25);
+  add(new RoundedBox(0.05, 0.5, 0.05, 0.01), dark, 0.4, 0.3, 1.25);
+  add(new RoundedBox(0.4, 0.05, 0.05, 0.01), dark, 0.22, 0.5, 1.2);
+  const leverPivot = new THREE.Group(); leverPivot.position.set(0.51, 0.62, 1.25); G.add(leverPivot);
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.42, 10), steel); rod.position.y = 0.21; rod.castShadow = true; leverPivot.add(rod);
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.038, 20, 14), new THREE.MeshPhysicalMaterial({ color: sRGB('#a3241c'), roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 }));
   knob.position.y = 0.43; knob.castShadow = true; leverPivot.add(knob);

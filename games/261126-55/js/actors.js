@@ -49,7 +49,7 @@ export class Human {
     }
     this.walk = damp(this.walk, moving ? 1 : 0, 6, dt);
     if (moving) {
-      const stride = this.H * 0.42;
+      const stride = this.H * (this.strideK || 0.42);
       const prev = this.phase;
       this.phase += dt * (this.speedT || this.speed) / stride * Math.PI;
       if (Math.floor(prev / Math.PI) !== Math.floor(this.phase / Math.PI)) { this.stepSide ^= 1; this.onStep && this.onStep(this.stepSide); }
@@ -107,8 +107,8 @@ export class Human {
     const g = this.gesture, gt = this.gT;
     for (const [s, sg] of [['L', 1], ['R', -1]]) {
       const swing = Math.sin(ph + (sg > 0 ? Math.PI : 0)) * w;
-      let ua = new THREE.Vector3(sg * 0.18, -1, swing * 0.35 + 0.05);
-      let fa = new THREE.Vector3(sg * 0.1, -1, swing * 0.3 + 0.25);
+      let ua = new THREE.Vector3(sg * 0.07, -1, swing * 0.35 + 0.03);
+      let fa = new THREE.Vector3(sg * 0.02, -1, swing * 0.3 + 0.22);
       if (g === 'cheer') { const a = smooth(gt / 0.3) * smooth((this.gDur - gt) / 0.3); const wv = Math.sin(gt * 14) * 0.15; ua.lerp(new THREE.Vector3(sg * 0.55, 1, 0.1), a); fa.lerp(new THREE.Vector3(sg * (0.3 + wv), 1, 0.05), a); }
       if (g === 'clap') { const a = smooth(gt / 0.25) * smooth((this.gDur - gt) / 0.25); const c = Math.abs(Math.sin(gt * 9)); ua.lerp(new THREE.Vector3(sg * 0.35, -0.4, 0.9), a); fa.lerp(new THREE.Vector3(-sg * (0.5 + c * 0.5), 0.2, 0.7), a); }
       if (g === 'scratch' && s === 'R') { const a = smooth(gt / 0.3) * smooth((this.gDur - gt) / 0.3); ua.lerp(new THREE.Vector3(-0.8, 0.5, 0.3), a); fa.lerp(new THREE.Vector3(0.35, 1, -0.2 + Math.sin(gt * 18) * 0.15), a); }
@@ -137,8 +137,9 @@ export class Human {
       const accum = this.lean * 0.9;
       B.neck.rotation.y = THREE.MathUtils.clamp(yl, -1.1, 1.1) * 0.45 * this.lookW;
       B.head.rotation.y = THREE.MathUtils.clamp(yl, -1.1, 1.1) * 0.45 * this.lookW;
-      B.neck.rotation.x = THREE.MathUtils.clamp(pitch - accum, -0.6, 0.8) * 0.4 * this.lookW;
-      B.head.rotation.x = THREE.MathUtils.clamp(pitch - accum, -0.6, 0.8) * 0.5 * this.lookW;
+      const pc = THREE.MathUtils.clamp(pitch - accum, -0.6, this.maxDown ?? 0.55);
+      B.neck.rotation.x = pc * 0.4 * this.lookW;
+      B.head.rotation.x = pc * 0.5 * this.lookW;
       B.head.rotation.z = (this.f.exprName === 'puzzled' ? 0.22 : 0) + Math.sin(this.t * 0.9) * 0.02;
       f.lookTarget = this.look;
     }

@@ -72,8 +72,8 @@ export class Slab {
   flow(dt) {
     if (this.active <= 0) return;
     this.active -= dt;
-    const h = this.h, yieldS = 0.0045, k = 0.22;
-    for (let it = 0; it < 3; it++) {
+    const h = this.h, yieldS = 0.004, k = 0.24;
+    for (let it = 0; it < 5; it++) {
       for (let pass = 0; pass < 2; pass++) {
         for (let j = 0; j < GZ - (pass ? 1 : 0); j++) for (let i = 0; i < GX - (pass ? 0 : 1); i++) {
           const a = j * GX + i, b = pass ? a + GX : a + 1;
@@ -231,7 +231,9 @@ export class Slab {
       for (let i = 0; i < GX * GZ; i++) { S[i * 4] = this.lump[i] * 255; S[i * 4 + 1] = this.smooth[i] * 255; S[i * 4 + 2] = this.dry[i] * 255; S[i * 4 + 3] = this.wet[i] * 255; }
       this.sTex.needsUpdate = true; this.dirtyS = false;
     }
-    if (this.dirtyI) {
+    this.iTick = (this.iTick || 0) + 1;
+    if (this.dirtyI && (this.iTick % 2 === 0 || this.forceI)) {
+      this.forceI = false;
       const I = this.iTexData, sc = 127 / IMP_RANGE;
       for (let i = 0; i < FX * FZ; i++) { let v = 128 + this.imp[i] * sc; I[i * 2] = v < 0 ? 0 : v > 255 ? 255 : v; I[i * 2 + 1] = this.mark[i] * 255; }
       this.iTex.needsUpdate = true; this.dirtyI = false;
@@ -249,10 +251,10 @@ export class Slab {
       tH: { value: this.hTex }, tS: { value: this.sTex }, tI: { value: this.iTex }, tD: { value: detailTex }, tBed: { value: bedTex },
       uSize: { value: new THREE.Vector2(SLAB.W, SLAB.D) }, uBase: { value: SLAB.base }, uImp: { value: IMP_RANGE },
       uTexel: { value: new THREE.Vector2(1 / FX, 1 / FZ) }, uCTexel: { value: new THREE.Vector2(1 / GX, 1 / GZ) },
-      uDryTint: { value: 0 },
+      uDryTint: { value: 0 }, tRefl: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uReflOn: { value: 0 }, uTexMat: { value: new THREE.Matrix4() },
     };
     const common = /* glsl */`
-      uniform sampler2D tH, tS, tI, tD, tBed; uniform vec2 uSize, uTexel, uCTexel; uniform float uBase, uImp, uDryTint;
+      uniform sampler2D tH, tS, tI, tD, tBed, tRefl; uniform vec2 uSize, uTexel, uCTexel, uRes; uniform float uBase, uImp, uDryTint, uReflOn; uniform mat4 uTexMat;
       float presence(float h){ return smoothstep(0.003, 0.02, h); }
       float lumpField(vec2 p){
         float a = texture2D(tD, p*2.6 + vec2(0.13,0.71)).b;
@@ -276,13 +278,14 @@ export class Slab {
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\n' + common + '\nvarying vec2 vSUv;')
+        .replace('#include <common>', '#include <common>\n' + common + '\nvarying vec2 vSUv; varying vec3 vWPos;')
         .replace('#include <begin_vertex>', `vec3 transformed = vec3(position);
+          vWPos = (modelMatrix * vec4(position.x, slabH(uv, 0.0), position.z, 1.0)).xyz;
           vSUv = uv;
           transformed.y = slabH(uv, 0.0);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\n' + common + `
-          varying vec2 vSUv;
+          varying vec2 vSUv; varying vec3 vWPos;
           float gS, gLump, gDry, gWet, gPr, gMark, gImp;
           vec3 gN;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
@@ -300,15 +303,15 @@ export class Slab {
             vec4 d = texture2D(tD, p/0.21);
             vec4 d2 = texture2D(tD, p/0.9 + 0.31);
             // fresh wet paste (dark), aggregate peeking through while lumpy
-            vec3 paste = vec3(0.118,0.117,0.111) * (0.86 + 0.28*d2.b);
-            vec3 agg = mix(vec3(0.15,0.135,0.115), vec3(0.27,0.25,0.22), d.g);
+            vec3 paste = vec3(0.062,0.062,0.059) * (0.85 + 0.3*d2.b);
+            vec3 agg = mix(vec3(0.075,0.068,0.06), vec3(0.15,0.14,0.125), d.g);
             float aggVis = smoothstep(0.15, 0.6, d.r) * (1.0 - gS) * (0.35 + 0.65*gLump);
             vec3 wetC = mix(paste, agg, aggVis*0.85);
             wetC *= 1.0 - 0.18*gMark; // water pooled in prints
             // dry: pale, powdery, mottled; prints a touch darker; rims chalky
             float dr = smoothstep(0.05, 0.95, gDry + (d2.b-0.5)*0.25);
-            vec3 dryC = vec3(0.47,0.46,0.43) * (0.86 + 0.22*d2.b + 0.08*d.g) * mix(1.0, 0.82, d.r*(1.0-gS)*0.5);
-            dryC *= 1.0 - 0.1*gMark + clamp(gImp*25.0, -0.08, 0.1);
+            vec3 dryC = vec3(0.33,0.322,0.3) * (0.86 + 0.22*d2.b + 0.08*d.g) * mix(1.0, 0.82, d.r*(1.0-gS)*0.5);
+            dryC *= 1.0 - 0.16*gMark + clamp(gImp*30.0, -0.14, 0.12);
             dryC = mix(dryC, dryC*vec3(1.03,1.0,0.95), uDryTint);
             vec3 c = mix(wetC, dryC, dr);
             // empty bed: damp crushed stone
@@ -323,7 +326,19 @@ export class Slab {
           nonPerturbedNormal = normal;`)
         .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
           material.clearcoat = gPr * (1.0 - gDry) * mix(0.25, 1.0, max(gS, gWet*0.6));
-          material.clearcoatRoughness = mix(0.4, 0.02, gS);`);
+          material.clearcoatRoughness = mix(0.4, 0.02, gS);`)
+        .replace('#include <opaque_fragment>', `
+          if (uReflOn > 0.5) {
+            vec3 Vv = normalize(vViewPosition);
+            float NdV = clamp(dot(normal, Vv), 0., 1.);
+            float F = 0.03 + 0.97*pow(1.0 - NdV, 5.0);
+            vec4 pc = uTexMat * vec4(vWPos.x, ${SLAB.top.toFixed(3)}, vWPos.z, 1.0);
+            vec2 nOff = gN.xz*0.25;
+            vec3 refl = texture2D(tRefl, pc.xy/pc.w + nOff).rgb;
+            float mirror = gPr * (1.0 - gDry) * mix(0.12, 1.0, gS*gS) * (1.0 - gLump*0.7);
+            outgoingLight = mix(outgoingLight, refl*0.85, clamp(F*mirror*1.1 + mirror*0.05, 0., 0.92));
+          }
+          #include <opaque_fragment>`);
       // nonPerturbedNormal may not be declared in this three version path
       if (!sh.fragmentShader.includes('vec3 nonPerturbedNormal')) sh.fragmentShader = sh.fragmentShader.replace('nonPerturbedNormal = normal;', '');
     };
