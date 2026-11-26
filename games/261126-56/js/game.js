@@ -43,7 +43,7 @@ export class Game {
     // props
     this.stool = buildStool(world, T, girl); this.stool.group.position.set(-1.42, PATIO, -0.32); this.stool.group.rotation.y = 0.12; scene.add(this.stool.group);
     this.sign = buildSign(world); this.sign.position.set(-1.72, PATIO, -0.98); this.sign.rotation.y = 0.32; scene.add(this.sign);
-    this.basket = buildBasket(world); this.basket.group.position.set(1.66, PATIO, 0.4); scene.add(this.basket.group);
+    this.basket = buildBasket(world); this.basket.group.position.set(1.46, PATIO, 0.42); scene.add(this.basket.group);
     this.jar = buildJar(); this.jar.group.position.set(0.62, PATIO, 0.4); scene.add(this.jar.group);
     this.jarHome = this.jar.group.position.clone();
     this.puddle = makePuddle(); this.puddle.position.set(1.42, PATIO + 0.002, -0.12); this.puddle.scale.setScalar(0.001); this.puddle.visible = false; scene.add(this.puddle);
@@ -159,7 +159,7 @@ export class Game {
     else if (s === 'tie') { c = new V3(-0.56, 0.72, -0.08); w = 1.18; h = 0.86; dir = new V3(0.02, 0.55, 1); }
     else if (s === 'dye') { c = new V3(0.36, 0.74, -0.1); w = 2.95; h = 1.3; dir = new V3(0.0, 0.34, 1); if (this.papa && this.papa.group.visible) { c.y = 0.95; h = 1.95; c.x = 0.5; dir.set(0, 0.22, 1); } }
     else if (s === 'line') { c = new V3(0.05, 1.12, -1.65); w = 2.75; h = 1.65; dir = new V3(0.0, 0.06, 1); }
-    else { c = new V3(0.05, 0.98, -1.3); w = 3.1; h = 2.2; dir = new V3(0.0, 0.1, 1); }
+    else { c = new V3(0.2, 0.98, -1.35); w = 3.35; h = 2.2; dir = new V3(0.0, 0.1, 1); }
     if (P) {
       // narrow screens follow the action instead of showing everything tiny
       const maxW = s === 'tie' ? 1.05 : (s === 'intro' ? 0.95 : 1.35);
@@ -205,6 +205,7 @@ export class Game {
   bindInput() {
     const el = this.R.r.domElement;
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); this.audio.unlock(); this.onDown(e); });
+    el.addEventListener('touchend', () => this.audio.unlock(), { passive: true });
     el.addEventListener('pointermove', (e) => { e.preventDefault(); this.onMove(e); });
     const up = (e) => { this.onUp(e); };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
@@ -424,7 +425,7 @@ export class Game {
     }
     const b = this.basket.group.position;
     const inBasket = Math.hypot(H.target.x - b.x, H.target.z - b.z) < 0.4 && H.target.y < 0.9;
-    const sBasket = this.screenDist(b.clone().add(new V3(0, 0.2, 0))) < 120;
+    const sBasket = this.screenDist(b.clone().add(new V3(0, 0.2, 0))) < Math.max(120, Math.min(this.W, this.H) * 0.22) || (c.dyed && H.target.x > 1.25);
     if (inBasket || sBasket) {
       c.state = 'basket';
       if (!inBasket) { for (let k = 0; k < c.n; k++) { const i = k * 3; c.pos[i] += b.x - H.target.x; c.pos[i + 2] += b.z - H.target.z; c.pos[i + 1] += Math.max(0, b.y + 0.5 - H.target.y); } c.prev.set(c.pos); }
@@ -456,7 +457,7 @@ export class Game {
     } else if (M.stage === 2) {
       // leans in for a closer look ... and bumps the bench
       if (M.t > 1.1 && !M.tipped) {
-        M.tipped = true; M.tipT = 0; this.audio.clank(); P.setFeel('oops'); P.poseT.lean = -0.2; P.poseT.armsUp = 1;
+        M.tipped = true; M.tipT = 0; this.audio.clank(); P.setFeel('oops'); P.poseT.lean = -0.2; P.poseT.armsUp = 0.6;
         P.group.position.x += 0.06;
         this.later(0.35, () => this.splash());
       }
@@ -469,6 +470,10 @@ export class Game {
         tub.on = false; tub.level = Math.max(0, tub.level - dt * 0.6);
         if (M.tipT > 1.2) { M.stage = 3; M.t = 0; tub.level = 0; P.poseT.armsUp = 0; P.setFeel('sheepish'); P.poseT.laugh = 0.6; this.audio.laughLow(); this.later(1.6, () => (P.poseT.laugh = 0)); this.girl.setFeel('wow', 1.5); }
       }
+    } else if (M.stage >= 5 && M.pourK > 0.001) {
+      // put the jar back
+      M.pourK = Math.max(0, M.pourK - dt * 1.5);
+      this.jar.group.position.lerpVectors(this.jarHome, new V3(tub.x - 0.12, 0.72, tub.z + 0.02), ease(M.pourK)); this.jar.group.rotation.z = -1.9 * ease(M.pourK);
     } else if (M.stage === 3 || M.stage === 4) {
       P.lookAt = this.girl.B.head.getWorldPosition(new V3());
       if (M.stage === 4) {
@@ -538,16 +543,16 @@ export class Game {
   toLine() {
     this.setState('line');
     this.audio.whoosh();
-    const slots = { tee: -0.85, hanky: 0.02, shirt: 0.95 };
+    const slots = { tee: -0.62, hanky: 0.2, shirt: 1.02 };
     const order = [this.tee, this.hanky, this.papaShirt];
     order.forEach((c, i) => this.later(0.6 + i * 0.5, () => {
       if (c === this.papaShirt) { this.scene.add(c.mesh); this.scene.add(c.rings); c.wet = Math.max(c.wet, 0.6); }
       this.hangOnLine(c, slots[c.name]);
       c.slot = slots[c.name];
     }));
-    this.walkTo(this.girl, new V3(0.0, PATIO, -1.32), 0.8);
-    if (this.mama) this.walkTo(this.mama, new V3(-1.45, PATIO, -1.25), 0.8);
-    if (this.papa) { this.later(1.5, () => { this.papa.group.visible = true; this.papa.group.position.set(2.6, PATIO, -1.1); this.walkTo(this.papa, new V3(1.55, PATIO, -1.25), 0.9); }); }
+    this.walkTo(this.girl, new V3(-0.2, PATIO, -1.32), 0.8);
+    if (this.mama) this.walkTo(this.mama, new V3(-1.15, PATIO, -2.5), 0.8);
+    if (this.papa) { this.later(1.5, () => { this.papa.group.visible = true; this.papa.group.position.set(2.8, PATIO, -2.6); this.walkTo(this.papa, new V3(1.45, PATIO, -2.55), 0.9); }); }
     this.dryT = 0;
   }
 
@@ -734,8 +739,12 @@ export class Game {
       }
     }
     if (st === 'dye') {
-      if (!this.held && this.focusX === null) this.focusX = this.girl.group.position.x;
-      if (!this.held) this.focusX = THREE.MathUtils.lerp(this.focusX ?? 0, this.girl.group.position.x, 0.02);
+      if (!this.held) {
+        // show both the next cloth and where it should go
+        const h = this.hint();
+        const want = h ? (h.drag ? (h.p.x + h.drag.x) / 2 : h.p.x) : this.girl.group.position.x;
+        this.focusX = THREE.MathUtils.lerp(this.focusX ?? want, want, 0.03);
+      }
       if (this.papa && !this.mishap.stage) {
         const dipped = this.cloths.some((c) => c.indigoDone);
         this.dipT = dipped ? (this.dipT || 0) + dt : 0;
@@ -754,9 +763,9 @@ export class Game {
           this.setState('finale');
           this.audio.chime(5, 600);
           for (const p of [this.girl, this.papa, this.mama]) p && p.setFeel('happy', 2);
-          this.walkTo(this.girl, new V3(0.0, PATIO, -1.25), 0.8);
-          this.walkTo(this.mama, new V3(-0.8, PATIO, -1.3), 0.8);
-          this.walkTo(this.papa, new V3(0.85, PATIO, -1.3), 0.8);
+          this.walkTo(this.girl, new V3(0.6, PATIO, -1.2), 0.8);
+          this.walkTo(this.mama, new V3(-1.2, PATIO, -1.3), 0.8);
+          this.walkTo(this.papa, new V3(1.62, PATIO, -1.3), 0.8);
         }
       }
     }

@@ -56,7 +56,7 @@ export class Renderer {
           }
           // gentle halation on very bright areas (wet sheen, sky)
           vec3 hb = vec3(0.0);
-          for (int i = 0; i < 6; i++) { vec2 o = P[i*2] * 9.0 * px; hb += max(texture2D(tColor, vUv + o).rgb - 1.6, 0.0); }
+          for (int i = 0; i < 6; i++) { vec2 o = P[i*2] * 9.0 * px; hb += max(texture2D(tColor, vUv + o).rgb - 3.2, 0.0); }
           col += hb * 0.03;
           vec3 m = aces(col);
           // vignette

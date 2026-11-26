@@ -246,7 +246,7 @@ export class World {
     const shrubMat = mk(leafTex2, 0.03, 1.8);
     const treeMat = mk(leafTex, 0.07, 1.1);
     const o = new THREE.Object3D();
-    const addCluster = (mat, cx, cy, cz, rx, ry, rz, count, quad, darkCore) => {
+    const addCluster = (mat, cx, cy, cz, rx, ry, rz, count, quad, darkCore, shadow = true) => {
       const { geo, pos } = leafCluster(count, rx, ry, rz, quad, rng);
       const im = new THREE.InstancedMesh(geo, mat, count);
       const col = new THREE.Color();
@@ -259,7 +259,7 @@ export class World {
         const lit = 0.55 + 0.45 * Math.max(0, (p[1] / ry) * 0.6 + (p[0] / rx) * -0.3 + 0.4);
         im.setColorAt(i, col.setRGB(lit, lit * (0.98 + rng() * 0.08), lit * 0.9));
       });
-      im.castShadow = true; im.receiveShadow = true;
+      im.castShadow = shadow; im.receiveShadow = shadow;
       this.scene.add(im);
       if (darkCore) {
         const core = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ color: 0x1c2a10, roughness: 1 }));
@@ -278,7 +278,7 @@ export class World {
     // far treeline
     for (let i = 0; i < 14; i++) {
       const a = -1.2 + i * 0.18; const R = 22 + rng() * 6;
-      addCluster(treeMat, Math.sin(a) * R, 3 + rng() * 2, -Math.cos(a) * R, 3.5, 3, 3, 120, 2.6, true);
+      addCluster(treeMat, Math.sin(a) * R, 3 + rng() * 2, -Math.cos(a) * R, 3.5, 3, 3, 120, 2.6, true, false);
     }
     // a potted plant near the house
     const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.15, 0.34, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0xb0684a, roughness: 0.85, side: THREE.DoubleSide }));
