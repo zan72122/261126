@@ -111,7 +111,7 @@ export class Robot {
     const body = this.body = new THREE.Group(); hips.add(body);
     this.addPart(roundBox(0.2, 0.19, 0.15, 0.045, 110), body, V(0, 0.1, 0), 'body');
     // chest door + rivets
-    this.addPart(roundBox(0.12, 0.1, 0.02, 0.012, 160), body, V(0, 0.11, 0.072), 'door');
+    this.addPart(roundBox(0.12, 0.1, 0.02, 0.009, 160), body, V(0, 0.11, 0.072), 'door');
     const riv = pill(0.008, 0.0065, 0.0065, 8, 12);
     for (const [x, y] of [[-0.075, 0.03], [0.075, 0.03], [-0.075, 0.175], [0.075, 0.175], [-0.05, 0.17], [0.05, 0.17], [-0.05, 0.035], [0.05, 0.035]]) {
       const r = this.addPart(riv.clone(), body, V(x, y, 0.072), 'rivet'); r.rotation.x = Math.PI / 2;
@@ -152,16 +152,16 @@ export class Robot {
       const scr = new THREE.Mesh(new THREE.CircleGeometry(0.03, 40), this.eyeMatGlow);
       // each eye shows its half of the eye canvas
       const uv = scr.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * 0.5 + (s > 0 ? 0.5 : 0));
-      scr.position.set(s * 0.05, 0.095, faceZ - 0.004); head.add(scr);
+      scr.position.set(s * 0.05, 0.095, faceZ + 0.0015); head.add(scr);
       const gm = this.glassMat.clone(); gm.opacity = 0.75; gm.roughness = 0.7;
       const dome = new THREE.Mesh(new THREE.SphereGeometry(0.031, 32, 12, 0, Math.PI * 2, 0, 0.75), gm);
-      dome.rotation.x = Math.PI / 2; dome.scale.set(1, 0.55, 1); dome.position.set(s * 0.05, 0.095, faceZ - 0.012); head.add(dome);
+      dome.rotation.x = Math.PI / 2; dome.scale.set(1, 0.5, 1); dome.position.set(s * 0.05, 0.095, faceZ - 0.006); head.add(dome);
       this.eyeGlass.push(gm);
     }
-    const mFrame = this.addPart(roundBox(0.09, 0.04, 0.012, 0.012, 200), head, V(0, 0.035, faceZ - 0.002), 'mouthframe');
-    const mScr = new THREE.Mesh(new THREE.PlaneGeometry(0.074, 0.026), this.mouthMatGlow); mScr.position.set(0, 0.035, faceZ + 0.0045); head.add(mScr);
+    const mFrame = this.addPart(roundBox(0.09, 0.04, 0.012, 0.0055, 200), head, V(0, 0.035, faceZ - 0.003), 'mouthframe');
+    const mScr = new THREE.Mesh(new THREE.PlaneGeometry(0.074, 0.026), this.mouthMatGlow); mScr.position.set(0, 0.035, faceZ + 0.0068); head.add(mScr);
     const mg = this.glassMat.clone(); mg.opacity = 0.7; mg.roughness = 0.7; this.mouthGlass = mg;
-    const mGl = new THREE.Mesh(new THREE.PlaneGeometry(0.074, 0.026), mg); mGl.position.set(0, 0.035, faceZ + 0.0055); head.add(mGl);
+    const mGl = new THREE.Mesh(new THREE.PlaneGeometry(0.074, 0.026), mg); mGl.position.set(0, 0.035, faceZ + 0.0075); head.add(mGl);
     // arms
     this.arms = [];
     for (const s of [-1, 1]) {
@@ -188,10 +188,12 @@ export class Robot {
       const foot = this.addPart(roundBox(0.068, 0.036, 0.1, 0.016, 130), hp, V(0, -0.132, 0.012), 'foot');
       this.legs.push({ s, hp, ball, foot });
     }
+    // visible spots for each joint (where the glow sits and the oil should land)
+    const anchor = (parent, x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o); return o; };
     this.joints = {
-      neck: { obj: this.neckMesh, oil: 0, sq: 0 },
-      armL: { obj: this.arms[0].ball, oil: 0, sq: 0 }, armR: { obj: this.arms[1].ball, oil: 0, sq: 0 },
-      legL: { obj: this.legs[0].ball, oil: 0, sq: 0 }, legR: { obj: this.legs[1].ball, oil: 0, sq: 0 },
+      neck: { obj: anchor(this.neck, 0, 0.012, 0.075), oil: 0, sq: 0 },
+      armL: { obj: anchor(this.arms[0].sh, -0.012, 0.006, 0.026), oil: 0, sq: 0 }, armR: { obj: anchor(this.arms[1].sh, 0.012, 0.006, 0.026), oil: 0, sq: 0 },
+      legL: { obj: anchor(this.legs[0].hp, -0.01, -0.02, 0.03), oil: 0, sq: 0 }, legR: { obj: anchor(this.legs[1].hp, 0.01, -0.02, 0.03), oil: 0, sq: 0 },
     };
     this.ao = aoBlob(0.42, 0.36, 0.85); this.root.add(this.ao);
     // initial rust: random patchiness so every robot is a bit different

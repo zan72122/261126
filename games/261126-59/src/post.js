@@ -20,11 +20,13 @@ export class Post {
     for (const t of [this.ha, this.hb]) { t.texture.minFilter = t.texture.magFilter = THREE.LinearFilter; }
     this.blurMat = new THREE.ShaderMaterial({
       vertexShader: VS, depthTest: false, depthWrite: false,
-      uniforms: { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
-      fragmentShader: `uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv;
-        void main(){ vec3 c = texture2D(tSrc, vUv).rgb*0.227;
-          c += texture2D(tSrc, vUv+uDir*1.385).rgb*0.316; c += texture2D(tSrc, vUv-uDir*1.385).rgb*0.316;
-          c += texture2D(tSrc, vUv+uDir*3.231).rgb*0.070; c += texture2D(tSrc, vUv-uDir*3.231).rgb*0.070;
+      uniforms: { tSrc: { value: null }, tDepth: { value: this.main.depthTexture }, uDir: { value: new THREE.Vector2() } },
+      fragmentShader: `uniform sampler2D tSrc, tDepth; uniform vec2 uDir; varying vec2 vUv;
+        // taps that are nearer than the centre (a foreground edge) are ignored, so subjects don't bleed halos
+        vec3 tap(vec2 o, float d0, vec3 c0){ float d = texture2D(tDepth, vUv+o).r; return d < d0 - 0.0004 ? c0 : texture2D(tSrc, vUv+o).rgb; }
+        void main(){ vec3 c0 = texture2D(tSrc, vUv).rgb; float d0 = texture2D(tDepth, vUv).r; vec3 c = c0*0.227;
+          c += tap(uDir*1.385, d0, c0)*0.316; c += tap(-uDir*1.385, d0, c0)*0.316;
+          c += tap(uDir*3.231, d0, c0)*0.070; c += tap(-uDir*3.231, d0, c0)*0.070;
           gl_FragColor = vec4(c,1.0); }`,
     });
     this.compMat = new THREE.ShaderMaterial({
@@ -49,9 +51,9 @@ export class Post {
           vec3 c = texture2D(tCol, vUv).rgb;
           if (uDof > 0.5) {
             float z = linDepth(texture2D(tDepth, vUv).r);
-            float coc = clamp(abs(z - uFocus)/uRange - 0.15, 0.0, 1.0);
+            float coc = clamp((z - uFocus)/uRange - 0.25, 0.0, 1.0); // only behind the subject: no halos around it
             coc = coc*coc*(3.0-2.0*coc);
-            c = mix(c, texture2D(tBlur, vUv).rgb, coc*0.85);
+            c = mix(c, texture2D(tBlur, vUv).rgb, coc*0.55);
           }
           c = mix(c, c*vec3(1.06,1.0,0.92), uWarm);
           c = aces(c);
@@ -76,9 +78,9 @@ export class Post {
     const cu = this.compMat.uniforms;
     if (cu.uDof.value > 0.5) {
       this.quad.material = this.blurMat;
-      this.blurMat.uniforms.tSrc.value = this.main.texture; this.blurMat.uniforms.uDir.value.set(1.6 / this.hw, 0);
+      this.blurMat.uniforms.tSrc.value = this.main.texture; this.blurMat.uniforms.uDir.value.set(1.0 / this.hw, 0);
       r.setRenderTarget(this.ha); r.render(this.scene, this.cam);
-      this.blurMat.uniforms.tSrc.value = this.ha.texture; this.blurMat.uniforms.uDir.value.set(0, 1.6 / this.hh);
+      this.blurMat.uniforms.tSrc.value = this.ha.texture; this.blurMat.uniforms.uDir.value.set(0, 1.0 / this.hh);
       r.setRenderTarget(this.hb); r.render(this.scene, this.cam);
     }
     cu.uNear.value = camera.near; cu.uFar.value = camera.far; cu.uTime.value = t;

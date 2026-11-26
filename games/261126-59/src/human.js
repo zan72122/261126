@@ -328,8 +328,8 @@ export class Human {
     const p = cg.attributes.position, keep = new Uint8Array(p.count), v = V3();
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i);
-      const front = v.z > 0.25 && v.y < (cfg.adult ? 0.62 : 0.5) - 0.25 * Math.abs(v.x);
-      const side = Math.abs(v.x) > 0.7 && v.y < (cfg.adult ? 0.15 : -0.05) && v.z > -0.35;
+      const front = v.z > 0.25 && v.y < (cfg.adult ? 0.5 : 0.5) - 0.25 * Math.abs(v.x);
+      const side = Math.abs(v.x) > 0.7 && v.y < (cfg.adult ? -0.12 : -0.05) && v.z > -0.35;
       const low = v.y < (cfg.adult ? -0.35 : -0.55);
       keep[i] = front || side || low ? 0 : 1;
       capFn(v); p.setXYZ(i, v.x, v.y, v.z);

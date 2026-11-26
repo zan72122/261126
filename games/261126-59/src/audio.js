@@ -35,7 +35,7 @@ export function rub(speed, kind) {
   rubGain.gain.setTargetAtTime(v * (kind === 'brush' ? 0.22 : 0.14), ctx.currentTime, 0.04);
 }
 function tone(freq, dur, type = 'sine', vol = 0.2, slide = 0, delay = 0) {
-  if (!ctx) return;
+  if (!ctx) return; vol = Math.max(vol, 0.0005);
   const t0 = ctx.currentTime + delay;
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t0); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
@@ -47,7 +47,7 @@ function noise(dur, f, q, vol, delay = 0, slide = 0) {
   const t0 = ctx.currentTime + delay;
   const s = ctx.createBufferSource(); s.buffer = noiseBuf; const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.setValueAtTime(f, t0); bf.Q.value = q;
   if (slide) bf.frequency.exponentialRampToValueAtTime(Math.max(60, f + slide), t0 + dur);
-  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  vol = Math.max(vol, 0.0005); const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   s.connect(bf); bf.connect(g); g.connect(master); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05);
 }
 export const sfx = {

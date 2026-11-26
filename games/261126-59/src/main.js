@@ -7,7 +7,7 @@ import { Robot } from './robot.js';
 import { Human } from './human.js';
 import { FX } from './fx.js';
 import { makeBrush, makeRag, makeOilCan, makeBigCan, makeClothesPile } from './props.js';
-import { unlock, sfx, voice, rub, setRain } from './audio.js';
+import { unlock, sfx, voice as voiceRaw, rub, setRain } from './audio.js';
 
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const clamp = THREE.MathUtils.clamp, lerp = THREE.MathUtils.lerp;
@@ -17,7 +17,7 @@ const DBGCAM = params.get('cam') ? params.get('cam').split(',').map(Number) : nu
 
 // ------------------------------------------------------------------ quality
 const mobile = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
-const Q = { dpr: Math.min(window.devicePixelRatio || 1, mobile ? 2 : 2), msaa: 4, dof: true, shadow: mobile ? 1024 : 2048 };
+const Q = { dpr: Math.min(window.devicePixelRatio || 1, mobile ? 1.6 : 2), msaa: mobile ? 2 : 4, dof: true, shadow: mobile ? 1024 : 2048 };
 if (params.get('q') === 'low') { Q.dpr = 1; Q.msaa = 0; Q.dof = false; Q.shadow = 512; }
 
 const cvs = document.getElementById('c');
@@ -44,7 +44,7 @@ const girl = new Human({
 scene.add(girl.root);
 const dad = new Human({
   scale: 1.52, adult: true, skin: 0xdcae92, hair: 0x2a1c14, iris: 0x4a3424, lip: 'rgba(170,100,92,0.9)', longSleeve: true,
-  shirtMat: new THREE.MeshPhysicalMaterial({ map: tex('wool_col', { srgb: true, repeat: [3, 3] }), normalMap: tex('twill_nrm', { repeat: [8, 8] }), color: 0x9fb0a8, roughness: 0.9, sheen: 0.8, sheenColor: new THREE.Color(0.6, 0.6, 0.6) }),
+  shirtMat: new THREE.MeshPhysicalMaterial({ map: tex('wool_col', { srgb: true, repeat: [9, 9] }), normalMap: tex('twill_nrm', { repeat: [8, 8] }), color: 0xb8c4bc, roughness: 0.9, sheen: 0.8, sheenColor: new THREE.Color(0.6, 0.6, 0.6) }),
   pantsMat: twill(0x5f6a74), shoeCol: 0x6a5a48, pose: 'kneel',
 });
 dad.root.visible = false; scene.add(dad.root);
@@ -54,7 +54,7 @@ const robot = new Robot(scene);
 const pile = makeClothesPile(); scene.add(pile);
 const brush = makeBrush(), rag = makeRag(), can = makeOilCan(), bigCan = makeBigCan();
 for (const p of [brush, rag, can, bigCan]) scene.add(p);
-const toolHome = { brush: V3(0.12, 0, 0.3), rag: V3(0.32, 0.012, 0.2), can: V3(0.28, 0, 0.3) };
+const toolHome = { brush: V3(0.04, 0, 0.25), rag: V3(0.23, 0.012, 0.19), can: V3(0.2, 0, 0.24) };
 brush.position.copy(toolHome.brush).setY(0.012); brush.rotation.set(Math.PI, 0.5, 0); brush.position.y = 0.052;
 rag.position.copy(toolHome.rag);
 can.position.copy(toolHome.can); can.visible = false; bigCan.visible = false;
@@ -62,7 +62,7 @@ const toolAO = {};
 // puddle of oil on the floor (paintable alpha mask)
 const pudC = canvas(256, 256), pg = pudC.getContext('2d'); pg.fillStyle = '#000'; pg.fillRect(0, 0, 256, 256);
 const pudT = canvasTex(pudC, false);
-const puddle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshPhysicalMaterial({ color: 0x3a2206, roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, alphaMap: pudT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, envMapIntensity: 1.4 }));
+const puddle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshPhysicalMaterial({ color: 0x2a1604, roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, alphaMap: pudT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, envMapIntensity: 0.7 }));
 puddle.rotation.x = -Math.PI / 2; puddle.position.set(0.02, 0.003, -0.02); puddle.renderOrder = 2; scene.add(puddle);
 // leak water puddle
 const wpC = canvas(128, 128), wg = wpC.getContext('2d'); wg.fillStyle = '#000'; wg.fillRect(0, 0, 128, 128);
@@ -82,12 +82,12 @@ function showHint(p) { hintTarget = p; }
 
 // ------------------------------------------------------------------ camera shots
 const shots = {
-  dress: { tgt: V3(-0.6, 0.45, 0.15), dir: V3(0.3, 0.28, 1), pts: [V3(-0.38, 0.85, 0.1), V3(-1.0, 0.1, 0.32), V3(-0.38, 0.2, 0.25), V3(-0.75, 0.3, 0.32)] },
+  dress: { tgt: V3(-0.6, 0.45, 0.15), dir: V3(0.3, 0.28, 1), pts: [V3(-0.37, 0.9, 0.1), V3(-1.02, 0.1, 0.32), V3(-0.2, 0.55, 0.15), V3(-0.22, 0.05, 0.25), V3(-0.75, 0.3, 0.32)] },
   trunk: { tgt: V3(-0.1, 0.4, -0.3), dir: V3(0.25, 0.4, 1), pts: [V3(-0.42, 0.86, 0.08), V3(0.42, 0.4, -0.62), V3(-0.42, 0.2, 0.2), V3(0.3, 0.05, -0.35)] },
-  polish: { tgt: V3(-0.1, 0.4, 0.0), dir: V3(0.2, 0.3, 1), pts: [V3(-0.4, 0.92, 0.08), V3(0.18, 0.6, -0.05), V3(0.15, 0.02, 0.0), V3(-0.4, 0.3, 0.15)] },
+  polish: { tgt: V3(-0.1, 0.4, 0.0), dir: V3(0.2, 0.3, 1), pts: [V3(-0.4, 0.92, 0.08), V3(0.18, 0.6, -0.05), V3(0.15, 0.02, 0.0), V3(-0.4, 0.3, 0.15), V3(0.3, 0.0, 0.22), V3(0.0, 0.0, 0.3)] },
   oil: { tgt: V3(-0.08, 0.4, 0.0), dir: V3(0.2, 0.3, 1), pts: [V3(-0.4, 0.92, 0.08), V3(0.18, 0.62, -0.05), V3(0.15, 0.02, 0.05), V3(-0.4, 0.3, 0.15)] },
   dad: { tgt: V3(0.05, 0.6, 0.0), dir: V3(0.05, 0.28, 1), pts: [V3(-0.42, 0.9, 0.08), V3(0.55, 1.42, 0.05), V3(0.0, 0.05, 0.1), V3(0.62, 0.6, 0.05)] },
-  window: { tgt: V3(0.05, 0.98, -1.95), dir: V3(0.55, 0.12, 1), pts: [V3(-0.6, 1.65, -2.05), V3(0.55, 1.65, -2.05), V3(-0.6, 0.0, -1.8), V3(0.9, 0.0, -1.3), V3(0.62, 2.0, -1.45)] },
+  window: { tgt: V3(0.05, 0.95, -1.9), dir: V3(0.42, 0.16, 1), pts: [V3(-0.45, 1.66, -2.08), V3(0.45, 1.66, -2.08), V3(-0.5, 0.05, -1.75), V3(0.75, 0.05, -1.6)], ptsL: [V3(-0.45, 1.66, -2.08), V3(0.45, 1.66, -2.08), V3(-0.55, 0.3, -1.75), V3(0.8, 0.3, -1.6), V3(0.35, 0.12, -1.5)] },
 };
 const cam = { pos: V3(0, 1, 2), tgt: V3(0, 0.4, 0), fromPos: V3(), fromTgt: V3(), toPos: V3(), toTgt: V3(), t: 1, dur: 1.6, shot: null };
 // ~35mm-equivalent across the short side in portrait, ~45mm in landscape
@@ -97,6 +97,7 @@ function solveShot(s) {
   const dir = s.dir.clone().normalize();
   const tmp = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.05, 30);
   const tgt = s.tgt.clone();
+  const P = camera.aspect > 1 && s.ptsL ? s.ptsL : s.pts;
   let dist = 2;
   for (let pass = 0; pass < 3; pass++) {
     let lo = 0.3, hi = 7;
@@ -104,13 +105,13 @@ function solveShot(s) {
       const d = (lo + hi) / 2;
       tmp.position.copy(tgt).addScaledVector(dir, d); tmp.lookAt(tgt); tmp.updateMatrixWorld(); tmp.updateProjectionMatrix();
       let ok = true;
-      for (const p of s.pts) { const q = p.clone().project(tmp); if (Math.abs(q.x) > 0.92 || Math.abs(q.y) > 0.9 || q.z > 1) { ok = false; break; } }
+      for (const p of P) { const q = p.clone().project(tmp); if (Math.abs(q.x) > 0.92 || Math.abs(q.y) > 0.9 || q.z > 1) { ok = false; break; } }
       if (ok) hi = d; else lo = d;
     }
     dist = hi;
     tmp.position.copy(tgt).addScaledVector(dir, dist); tmp.lookAt(tgt); tmp.updateMatrixWorld();
     let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
-    for (const p of s.pts) { const q = p.clone().project(tmp); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+    for (const p of P) { const q = p.clone().project(tmp); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const right = V3(1, 0, 0).applyQuaternion(tmp.quaternion), upv = V3(0, 1, 0).applyQuaternion(tmp.quaternion);
     const h = Math.tan(THREE.MathUtils.degToRad(tmp.fov / 2)) * dist;
@@ -133,6 +134,7 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
+function voice(who, kind) { voiceRaw(who, kind); const h = who === 'girl' ? girl : dad; h.talk = 1; clearTimeout(h._tk); h._tk = setTimeout(() => (h.talk = 0), 650); }
 // ------------------------------------------------------------------ state
 const S = { name: 'boot', t: 0, tool: null, dressed: { coverall: false, gloves: false }, lid: 0, lift: 0, done: {}, rain: 1, rainbow: 0, sun: 0, fogCov: 0, bucketPlaced: false, puddle: 0, spin: 0, spinA: 0 };
 function setState(n) { S.name = n; S.t = 0; idleT = 0; hintTarget = null; }
@@ -140,7 +142,7 @@ function setState(n) { S.name = n; S.t = 0; idleT = 0; hintTarget = null; }
 const ROBOT_FLOOR = V3(0.03, 0, -0.04);
 // lying on its back in the trunk: up -> +x, face -> +y
 const Q_LIE = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V3(0, 0, 1), V3(1, 0, 0), V3(0, 1, 0))).multiply(new THREE.Quaternion().setFromAxisAngle(V3(0, 1, 0), 0.0));
-const P_LIE = V3(-0.3, 0.335, -0.6);
+const P_LIE = V3(-0.29, 0.29, -0.62);
 function robotInTrunk() { robot.root.position.copy(P_LIE); robot.root.quaternion.copy(Q_LIE); }
 robotInTrunk();
 girl.root.position.set(-0.37, 0, 0.1); girl.root.rotation.y = 1.3;
@@ -216,7 +218,7 @@ cvs.addEventListener('pointermove', (e) => {
   touch.moved += Math.hypot(e.clientX - touch.x, e.clientY - touch.y);
   touch.x = e.clientX; touch.y = e.clientY; idleT = 0;
 });
-const up = () => { touch.active = false; touch.hit = null; touch.last = null; rub(0, ''); girl.reach[0] = null; girl.palmN = null; };
+const up = () => { touch.active = false; touch.hit = null; touch.last = null; touch.lastUv = null; touch.prevP = null; touch.prevPolish = null; rub(0, ''); girl.reach[0] = null; girl.palmN = null; };
 cvs.addEventListener('pointerup', up); cvs.addEventListener('pointercancel', up);
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
@@ -276,7 +278,11 @@ function handleTouch(dt) {
     const amt = clamp(moved / 0.01, 0, 2.5) + dt * 0.6; // even holding still scrubs a little
     let dr = 0, ds = 0, glass = false;
     const tool = S.tool;
-    robot.paint(h.p, tool === 'brush' ? 0.045 : 0.05, (a, i, f) => {
+    // fast strokes: stamp along the path so nothing is skipped
+    const segN = touch.prevPolish && moved < 0.2 ? Math.min(4, 1 + Math.floor(moved / 0.025)) : 1;
+    const stampAmt = amt / segN;
+    for (let si = 1; si <= segN; si++) robot.paint(segN > 1 ? touch.prevPolish.clone().lerp(h.p, si / segN) : h.p, tool === 'brush' ? 0.045 : 0.05, (a, i, f) => {
+      const amt = stampAmt;
       const r0 = a[i], s0 = a[i + 1];
       if (tool === 'brush') {
         a[i] = Math.min(1, r0 + 0.07 * amt * f * (1.05 - r0 * 0.4));
@@ -288,6 +294,7 @@ function handleTouch(dt) {
       }
       dr += a[i] - r0; ds += a[i + 1] - s0;
     });
+    touch.prevPolish = h.p.clone();
     // cloth wipes the dusty glass of the eyes / mouth
     if (tool === 'rag') {
       const head = robot.head; head.updateMatrixWorld();
@@ -310,7 +317,9 @@ function handleTouch(dt) {
       touch.oilT = 0.32;
       can.updateMatrixWorld(true);
       const tip = can.userData.tip.clone().applyMatrix4(can.matrixWorld);
-      const d = fx.oilDrop(tip, V3(0, -0.2, 0), 0.0045);
+      const from = h.p.clone().add(V3((Math.random() - 0.5) * 0.004, 0.09, (Math.random() - 0.5) * 0.004));
+      if (tip.distanceTo(from) < 0.06) from.copy(tip);
+      const d = fx.oilDrop(from, V3(0, -0.2, 0), 0.0045);
       d.target = h.p.clone(); d.targetN = h.n.clone();
       sfx.drip();
     }
@@ -324,11 +333,15 @@ function handleTouch(dt) {
     touch.hit = h; if (!h) return;
     girl.reach[0] = h.p.clone().add(V3(0, 0.03, 0)); girl.palmN = [V3(0, 1, 0), null]; girl.setLook(h.p);
     const moved = touch.last ? h.p.distanceTo(touch.last) : 0; touch.last = h.p.clone(); touch.wiggle += moved * 30;
-    const u = (h.p.x - puddle.position.x) / 1.2 + 0.5, v = (h.p.z - puddle.position.z) / 1.2 + 0.5;
-    const amt = clamp(moved / 0.01, 0, 2) + dt * 0.4;
-    const gr = pg.createRadialGradient(u * 256, v * 256, 0, u * 256, v * 256, 24);
-    gr.addColorStop(0, `rgba(0,0,0,${0.22 * amt})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    pg.fillStyle = gr; pg.fillRect(u * 256 - 26, v * 256 - 26, 52, 52); pudT.needsUpdate = true;
+    const prev = touch.prevP || h.p, n = Math.min(10, 1 + Math.floor(moved / 0.015));
+    for (let i = 1; i <= n; i++) {
+      const q = prev.clone().lerp(h.p, i / n);
+      const u = (q.x - puddle.position.x) / 1.2 + 0.5, v = (q.z - puddle.position.z) / 1.2 + 0.5;
+      const gr = pg.createRadialGradient(u * 256, v * 256, 0, u * 256, v * 256, 26);
+      gr.addColorStop(0, 'rgba(0,0,0,0.45)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      pg.fillStyle = gr; pg.fillRect(u * 256 - 28, v * 256 - 28, 56, 56);
+    }
+    touch.prevP = h.p.clone(); pudT.needsUpdate = true;
     rub(clamp(moved / 0.012, 0, 1), 'rag');
     return;
   }
@@ -337,8 +350,10 @@ function handleTouch(dt) {
     touch.hit = null;
     if (!h || !h.uv) { girl.reach[0] = null; rub(0, ''); return; }
     girl.reach[0] = h.p.clone().add(V3(0, 0, 0.035)); girl.palmN = [V3(0, 0, 1), null]; girl.setLook(h.p);
-    const moved = touch.last ? h.p.distanceTo(touch.last) : 0; touch.last = h.p.clone();
-    wipeFog(h.uv.x, h.uv.y, 22, clamp(moved / 0.008, 0.2, 2));
+    const moved = touch.last ? h.p.distanceTo(touch.last) : 0;
+    const lu = touch.lastUv || h.uv, n = Math.min(12, 1 + Math.floor(moved / 0.015));
+    for (let i = 1; i <= n; i++) wipeFog(lerp(lu.x, h.uv.x, i / n), lerp(lu.y, h.uv.y, i / n), 30, 1.2);
+    touch.last = h.p.clone(); touch.lastUv = h.uv.clone();
     rub(clamp(moved / 0.012, 0, 1), 'rag');
   }
 }
@@ -355,9 +370,11 @@ fx.onOilLand = (p, d) => {
     robot.paint(d.target, 0.03, (a, i, f) => { a[i + 2] = Math.min(1, a[i + 2] + 0.5 * f); });
     sfx.plink();
     // which joint did it reach?
+    let bestK = null, bestD = 0.12;
+    for (const [k, j] of Object.entries(robot.joints)) { if (j.oil >= 1) continue; const jp = V3(); j.obj.getWorldPosition(jp); const dd = jp.distanceTo(d.target); if (dd < bestD) { bestD = dd; bestK = k; } }
     for (const [k, j] of Object.entries(robot.joints)) {
       const jp = V3(); j.obj.getWorldPosition(jp);
-      if (jp.distanceTo(d.target) < 0.065 && j.oil < 1) {
+      if (k === bestK) {
         j.oil = Math.min(1, j.oil + 0.34); j.wig = 0.9;
         sfx.squeak(1 - j.oil); robot.setExpr('flicker');
         if (j.oil >= 1) { sfx.servo(); voice('girl', 'yay'); girl.setExpr('happy'); fx.glint(jp, 0.06); }
@@ -376,7 +393,8 @@ function coverage(ctx, w, h, ch = 0) { const d = ctx.getImageData(0, 0, w, h).da
 
 // water from the leak
 let dripT = 1;
-fx.onWaterLand = (p) => {
+fx.onWaterLand = (p, d) => {
+  if (d && d.splash) return;
   const bp = W.bucket.position;
   if (Math.hypot(p.x - bp.x, p.z - bp.z) < 0.13 && S.bucketPlaced) { sfx.plink(); W.bucket.userData.level = Math.min(1, W.bucket.userData.level + 0.03); return; }
   sfx.splash();
@@ -419,7 +437,7 @@ function updateRobotS3(dt, t) {
     R.climbT += dt / 1.2; const k = Math.min(1, R.climbT);
     root.position.y = Math.sin(k * Math.PI) * 0.25 + k * (ROOM.winY - 0.0);
     root.position.z = lerp(SILL_SPOT.z, -2.0, k);
-    root.rotation.y = lerp(root.rotation.y, Math.PI, 0.2);
+    root.rotation.y = lerp(root.rotation.y, -2.3, 0.2);
     P.lL = P.lR = Math.sin(k * Math.PI) * 0.6;
     if (k >= 1) { R.mode = 'onsill'; sfx.thump(); R.wipeT = 0; }
   } else if (R.mode === 'onsill' || R.mode === 'idle') {
@@ -496,7 +514,7 @@ function update(dt, t) {
     if (idleT > 4) {
       if (held !== rag && pr.r > 0.75) showHint(rag.getWorldPosition(V3()).add(V3(0, 0.03, 0)));
       else if (!held) showHint(brush.getWorldPosition(V3()));
-      else showHint(robot.dullestPoint());
+      else { if (!S.dull || S.t - S.dullT > 1.5) { S.dull = robot.dullestPoint(); S.dullT = S.t; } showHint(S.dull); }
     }
     // the girl reacts as it gets shinier
     if (pr.s > 0.35 && !S.done.s35) { S.done.s35 = 1; voice('girl', 'wow'); girl.setExpr('wow'); setTimeout(() => girl.setExpr('focus'), 1500); }
@@ -596,7 +614,7 @@ function update(dt, t) {
     if (!touch.active) girl.setLook(R.mode === 'walk' ? robot.head.getWorldPosition(V3()) : (S.t % 7 < 3.5 ? cam.pos : W.glass.position));
     glow(W.bucket.children[0].material, !S.bucketPlaced && R.mode !== 'walk', t);
     if (idleT > 4) showHint(!S.bucketPlaced ? W.bucket.position.clone().add(V3(0, 0.28, 0)) : S.fogCov < 0.6 ? W.glass.position.clone().add(V3(-0.15, -0.2, 0)) : null);
-    if (st === 'window' && S.bucketPlaced && S.fogCov > 0.6 && !S.done.rain) {
+    if (st === 'window' && S.bucketPlaced && S.fogCov > 0.5 && !S.done.rain) {
       S.done.rain = 1; S.rainStop = 0.0001; setRain(0); sfx.fanfare(); setTimeout(() => sfx.birds(), 1800); setTimeout(() => sfx.birds(), 4200);
       girl.setExpr('laugh'); voice('girl', 'wow'); robot.setExpr('happy'); R.danceT = 3;
       setTimeout(() => { setState('free'); }, 2000);
@@ -604,7 +622,7 @@ function update(dt, t) {
     if (S.rainStop > 0) {
       S.rainStop = Math.min(1, S.rainStop + dt * 0.25); const k = ease(S.rainStop);
       S.rain = 1 - k; const gu = W.glassMat.uniforms;
-      gu.uRain.value = 1 - k * 0.7; gu.uSun.value = k; gu.uRainbow.value = k; gu.uBright.value = 3.2 + k * 2.5; gu.uFogAmt.value = 1 - k;
+      gu.uRain.value = 1 - k * 0.7; gu.uSun.value = k; gu.uRainbow.value = k; gu.uBright.value = 1.25 + k * 0.35; gu.uFogAmt.value = 1 - k;
       W.sun.color.copy(kelvin(7200)).lerp(kelvin(4800), k); W.sun.intensity = 2.2 + k * 5;
       W.winFill.intensity = 6 + k * 4; W.hemi.intensity = 0.55 + k * 0.3; fx.dustMat.uniforms.uBright.value = 1 + k * 1.5;
       post.compMat.uniforms.uWarm.value = k * 0.5;
@@ -618,10 +636,11 @@ function toWindow() {
     setState('window'); goShot('window', 0);
     dad.root.visible = false; bigCan.visible = false; hold(null);
     girl.poseMode = 'stand'; girl.root.position.set(-0.3, 0, -1.82); girl.root.rotation.y = Math.PI - 0.55; girl.setExpr('happy');
-    robot.root.position.set(0.05, 0, -1.3); robot.root.rotation.set(0, 0, 0); S.spin = 0; robot.setExpr('idle');
-    W.bucket.position.set(1.05, 0, -0.95);
+    robot.root.position.set(0.32, 0, -1.5); robot.root.rotation.set(0, -0.6, 0); S.spin = 0; robot.setExpr('idle');
+    W.bucket.position.set(0.78, 0, -1.62);
     W.glassMat.uniforms.uFogAmt.value = 1;
     puddle.visible = false; robot.ao.visible = true;
+    W.trunk.userData.lid.rotation.x = 0; W.trunk.position.set(-1.3, 0, -0.35); W.trunk.rotation.y = 0.5;
   });
 }
 function fade(mid) {
@@ -651,6 +670,7 @@ function frame() {
   post.compMat.uniforms.uRange.value = 0.55 + 0.3 * (cam.dist || 1.5);
   if (params.get('look') === 'cam') { girl.setLook(camera.position); girl.reach[0] = null; }
   if (params.get('ex')) girl.setExpr(params.get('ex'));
+  if (params.get('rob')) { robot.alive = 1; robot.setExpr(params.get('rob')); for (const g of Object.values(jointGlows)) g.visible = false; can.visible = false; }
   robot.update(dt, tAll); girl.update(dt, tAll); if (dad.root.visible) dad.update(dt, tAll);
   placeHeld(dt);
   fx.update(dt, tAll, S.name === 'oil' ? [(p) => false] : null);
@@ -708,10 +728,11 @@ function debugJump(s) {
   for (const j of Object.values(robot.joints)) j.oil = 1;
   if (s === 'dad') { S.done.oil = true; dad.root.visible = true; bigCan.visible = true; setState('dad'); goShot('dad', 0); return; }
   if (s === 'spin') { S.done.oil = true; dad.root.visible = true; bigCan.visible = true; for (let i = 0; i < 20; i++) addPuddle(ROBOT_FLOOR.x + (Math.random() - 0.5) * 0.3, ROBOT_FLOOR.z + (Math.random() - 0.5) * 0.3, 0.12); S.spin = 1; setState('spin'); hold(rag); goShot('dad', 0); dad.setExpr('oops'); girl.setExpr('determined'); return; }
-  if (s === 'window' || s === 'free') { setState('window'); toWindowNow(); if (s === 'free') { S.bucketPlaced = true; W.bucket.position.set(LEAK.x, 0, LEAK.z); for (let i = 0; i < 60; i++) wipeFog(Math.random(), Math.random(), 40, 2); } }
+  if (s === 'window' || s === 'free') { setState('window'); toWindowNow(); if (s === 'free') { S.bucketPlaced = true; W.bucket.position.set(LEAK.x, 0, LEAK.z); for (let i = 0; i < 60; i++) wipeFog(Math.random(), Math.random(), 40, 2); S.done.rain = 1; S.rainStop = 0.95; S.name = 'free'; } }
 }
 function toWindowNow() {
   setState('window'); goShot('window', 0); girl.poseMode = 'stand'; girl.root.position.set(-0.3, 0, -1.82); girl.root.rotation.y = Math.PI - 0.55;
-  robot.root.position.set(0.05, 0, -1.3); robot.setExpr('idle'); W.bucket.position.set(1.05, 0, -0.95); W.glassMat.uniforms.uFogAmt.value = 1; puddle.visible = false;
+  robot.root.position.set(0.32, 0, -1.5); robot.root.quaternion.identity(); robot.root.rotation.set(0, -0.6, 0); robot.setExpr('idle'); W.bucket.position.set(0.78, 0, -1.62); W.glassMat.uniforms.uFogAmt.value = 1; puddle.visible = false;
+  W.trunk.userData.lid.rotation.x = 0; W.trunk.position.set(-1.3, 0, -0.35); W.trunk.rotation.y = 0.5;
 }
-window.__dbg = { S, robot, girl, dad, W, cam, goShot, fx };
+window.__dbg = { S, robot, girl, dad, W, cam, goShot, fx, pile, brush, rag, can, camera, THREE, LEAK, R };

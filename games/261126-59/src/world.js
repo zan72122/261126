@@ -42,7 +42,7 @@ export function buildWorld(scene, Q) {
   // UVs from xy (metres), boards run vertically: swap
   const uv = wallG.attributes.uv; for (let i = 0; i < uv.count; i++) { const x = uv.getX(i), y = uv.getY(i); uv.setXY(i, y, x); }
   wallG.setAttribute('uv1', uv);
-  const wallMat = pbr('board', { arm: true, repeat: [1 / 0.75, 1 / 0.75], ns: 1.3 }); wallMat.color.set(0xcfc2b4);
+  const wallMat = pbr('board', { arm: true, repeat: [1 / 0.75, 1 / 0.75], ns: 1.3 }); wallMat.color.set(0xb9b2aa);
   const wall = new THREE.Mesh(wallG, wallMat); wall.position.z = back; wall.receiveShadow = true; wall.castShadow = true; scene.add(wall);
   // thickness of the window reveal
   const revealMat = pbr('timber', { arm: true, repeat: [1, 0.4] }); revealMat.color.set(0xc9b49c);
@@ -66,7 +66,7 @@ export function buildWorld(scene, Q) {
   const glassMat = new THREE.ShaderMaterial({
     uniforms: {
       tOut: { value: tex('outdoor', { srgb: true }) }, tDrop: { value: tex('drops_nrm', { repeat: [1, 1] }) }, tDropM: { value: tex('drops_msk') },
-      tFog: { value: fogT }, uTime: { value: 0 }, uRain: { value: 1 }, uBright: { value: 2.4 }, uSun: { value: 0 }, uRainbow: { value: 0 }, uFogAmt: { value: 0 },
+      tFog: { value: fogT }, uTime: { value: 0 }, uRain: { value: 1 }, uBright: { value: 1.25 }, uSun: { value: 0 }, uRainbow: { value: 0 }, uFogAmt: { value: 0 },
     },
     vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
     fragmentShader: `uniform sampler2D tOut, tDrop, tDropM, tFog; uniform float uTime, uRain, uBright, uSun, uRainbow, uFogAmt; varying vec2 vUv;
@@ -80,15 +80,15 @@ export function buildWorld(scene, Q) {
         vec2 ouv = vec2(0.5 + (uv.x-0.5)*0.42, 0.3 + uv.y*0.62);
         vec3 o = texture2D(tOut, ouv + off*0.6).rgb;
         // sun breaking through + rainbow arc after the rain
-        o = mix(o, o*vec3(1.25,1.18,1.0)+vec3(0.08,0.07,0.03), uSun);
+        o = mix(o, mix(o*vec3(1.1,1.08,1.0), vec3(0.42,0.6,0.88), smoothstep(0.45,0.85,ouv.y))+vec3(0.06,0.05,0.02), uSun);
         vec2 rc = vec2(ouv.x-0.62, ouv.y-0.25)*vec2(1.0,1.6); float rr = length(rc);
         float band = smoothstep(0.0,0.05,rr-0.36)*smoothstep(0.0,0.05,0.48-rr);
-        o += rainbow(clamp((rr-0.36)/0.12,0.0,1.0))*band*0.45*uRainbow*smoothstep(0.0,0.1,rc.y+0.05);
+        o += rainbow(clamp((rr-0.36)/0.12,0.0,1.0))*band*1.1*uRainbow*smoothstep(0.0,0.1,rc.y+0.05);
         // drops catch light: brighter rims, darker cores
         float dm = clamp(m1 + m2*0.8, 0.0, 1.0)*uRain;
         o *= 1.0 - dm*0.18; o += dm*length(off)*3.0;
         float fog = texture2D(tFog, uv).r; fog = (1.0 - fog)*uFogAmt;
-        vec3 fogC = vec3(0.62,0.64,0.66) + o*0.25;
+        vec3 fogC = vec3(0.30,0.32,0.34) + o*0.22;
         o = mix(o, fogC, fog*0.92);
         gl_FragColor = vec4(o*uBright, 1.0);
       }`,
@@ -98,7 +98,7 @@ export function buildWorld(scene, Q) {
   W.glass = glass; W.glassMat = glassMat;
 
   // ---------- knee walls
-  const kneeMat = pbr('board', { arm: true, repeat: [(front - back) / 0.75, knee / 0.75] }); kneeMat.color.set(0xbfae9a);
+  const kneeMat = pbr('board', { arm: true, repeat: [(front - back) / 0.75, knee / 0.75] }); kneeMat.color.set(0xaea398);
   for (const s of [-1, 1]) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(front - back, knee), kneeMat);
     m.geometry.setAttribute('uv1', m.geometry.attributes.uv);
@@ -106,7 +106,7 @@ export function buildWorld(scene, Q) {
   }
   // ---------- roof slopes (boards) + rafters
   const slopeLen = Math.hypot(hx, ridge - knee), slopeAng = Math.atan2(ridge - knee, hx);
-  const roofMat = pbr('board', { arm: true, repeat: [slopeLen / 0.75, slopeLen / 0.75], ns: 1.2 }); roofMat.color.set(0xb6a38e);
+  const roofMat = pbr('board', { arm: true, repeat: [slopeLen / 0.75, slopeLen / 0.75], ns: 1.2 }); roofMat.color.set(0xa89c90);
   const rafterMat = pbr('timber', { arm: true, repeat: [3, 0.35], ns: 1.4 }); rafterMat.color.set(0xd2bea6);
   const depth = front - back, zc = (front + back) / 2;
   for (const s of [-1, 1]) {
@@ -134,7 +134,7 @@ export function buildWorld(scene, Q) {
 
   // ---------- clamp work lamp hung from the collar beam
   const lamp = new THREE.Group(); lamp.position.set(0.32, 1.5, 0.18); scene.add(lamp);
-  const shadeMat = new THREE.MeshPhysicalMaterial({ color: 0x5b6248, metalness: 0.6, roughness: 0.38, clearcoat: 0.3, side: THREE.DoubleSide, normalMap: tex('rust_msk'), normalScale: new THREE.Vector2(0.05, 0.05) });
+  const shadeMat = new THREE.MeshPhysicalMaterial({ color: 0x3d4a3a, metalness: 0.25, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.3, side: THREE.DoubleSide, normalMap: tex('plaster_nrm'), normalScale: new THREE.Vector2(0.15, 0.15) });
   const shade = new THREE.Mesh(latheProfile(0.16, (t) => 0.035 + 0.09 * t * t, 24, 40), shadeMat);
   shade.rotation.x = Math.PI; shade.position.y = 0.12; shade.castShadow = true; lamp.add(shade);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.5).multiplyScalar(14) }));
@@ -198,6 +198,12 @@ export function buildWorld(scene, Q) {
       const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.62, 0.4).multiplyScalar(0.9) }));
       pl.position.set(x, 0.9, z); pl.rotation.y = ry; es.add(pl);
     }
+    // rafters (dark stripes overhead) and plank lines give polished steel something to mirror
+    const darkM = new THREE.MeshBasicMaterial({ color: 0x0c0806 });
+    for (let z = -2.2; z < 2.4; z += 0.6) { const r = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.14, 0.08), darkM); r.position.set(0, 2.2, z); es.add(r); }
+    for (let x = -2.5; x < 2.6; x += 0.16) { const l = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 5), darkM); l.rotation.x = -Math.PI / 2; l.position.set(x, 0.02, 0); es.add(l); }
+    const trunkM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.12, 0.06) }); const tb = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.5), trunkM); tb.position.set(0, 0.2, -0.62); es.add(tb);
+    const girlM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.38, 0.5) }); const gb = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.8, 16), girlM); gb.position.set(-0.4, 0.4, 0.1); es.add(gb);
     es.position.y = -0.45; // capture from about robot height
     const pm = new THREE.PMREMGenerator(renderer);
     const rt = pm.fromScene(es, 0.015, 0.1, 20);
@@ -245,7 +251,7 @@ function buildTrunk() {
 
 function buildBucket() {
   const g = new THREE.Group();
-  const zinc = new THREE.MeshPhysicalMaterial({ color: 0x9aa0a4, metalness: 1, roughness: 0.38, normalMap: tex('rust_msk'), normalScale: new THREE.Vector2(0.12, 0.12) });
+  const zinc = new THREE.MeshPhysicalMaterial({ color: 0x8a8e90, metalness: 1, roughness: 0.55, normalMap: tex('rust_msk'), normalScale: new THREE.Vector2(0.12, 0.12) });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.26, 48, 8, true), zinc); body.material = zinc.clone(); body.material.side = THREE.DoubleSide;
   body.position.y = 0.13; body.castShadow = body.receiveShadow = true; g.add(body);
   const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.12, 40), zinc); bottom.rotation.x = -Math.PI / 2; bottom.position.y = 0.01; g.add(bottom);
