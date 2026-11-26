@@ -1,0 +1,1 @@
+three 0.187.0 (npm), bundled as IIFE global THREE by tools/build.mjs
