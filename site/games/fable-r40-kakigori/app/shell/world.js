@@ -15,7 +15,8 @@ export const LAYOUT = {
   customerFront: new THREE.Vector3(-0.38, 0.03, -0.50),
   queue: [new THREE.Vector3(-0.70, 0.03, -0.72), new THREE.Vector3(-1.0, 0.03, -0.90)],
   exit: new THREE.Vector3(-1.5, 0.03, -0.48),
-  // ボトル（赤・緑・青・黄・練乳）は器の右奥に1列（画面の右へはみ出さず、指で1本ずつ押せる間隔）
+  // ボトル（赤・緑・青・黄・練乳）と飾りの皿は「画面の端のトレー」：置き場所は毎フレーム、画面の端の決まった所から
+  // 台の上へ写して決める（game.js の layoutTrays）。ここの値は最初の1フレーム用
   bottleStart: new THREE.Vector3(0.255, 0, -0.06), bottleDir: new THREE.Vector3(1, 0, 0), bottleGap: 0.058,
   tray: new THREE.Vector3(-0.33, 0, 0.12),
   shelfX: 0.50, shelfZ: -0.70, shelfScale: 0.5,
@@ -59,6 +60,10 @@ export function buildWorld(scene, tex, proc) {
   const counterMat = own(new THREE.MeshStandardMaterial({ map: woodTop, roughness: 0.75 }));
   const top = new THREE.Mesh(own(new THREE.BoxGeometry(1.9, 0.04, 0.74)), counterMat);
   top.position.set(0, -0.02, 0); scene.add(top);
+  // 手前（子ども側）の天板の続き：引いた構図や縦長でも画面の下に台の切れ目・余白が出ないように
+  const woodNear = tex.wood.clone(); own(woodNear); woodNear.repeat.set(3.2, 1.3); woodNear.needsUpdate = true;
+  const near = new THREE.Mesh(own(new THREE.PlaneGeometry(2.8, 1.4)), own(new THREE.MeshLambertMaterial({ map: woodNear, color: 0xf2e6d6 })));
+  near.rotation.x = -Math.PI / 2; near.position.set(0, -0.0005, 0.98); scene.add(near);
   const front = new THREE.Mesh(own(new THREE.BoxGeometry(1.9, 0.5, 0.03)), own(new THREE.MeshLambertMaterial({ color: 0x9a6a44 })));
   front.position.set(0, -0.29, -0.355); scene.add(front);
 
@@ -145,11 +150,11 @@ export function buildWorld(scene, tex, proc) {
     g.position.copy(home); scene.add(g);
     return { syrup: s, group: g, mat, home, state: 'home', t: 0, tilt: 0, rate: 0, target: new THREE.Vector3(), pointer: null, hopT: 9 };
   });
-  // ボトル台
-  const rackLen = LAYOUT.bottleGap * (SYRUPS.length - 1) + 0.085;
-  const rack = new THREE.Mesh(own(new THREE.BoxGeometry(rackLen, 0.015, 0.075)), own(new THREE.MeshStandardMaterial({ map: woodTop, color: 0xd9b38c, roughness: 0.7 })));
-  rack.position.copy(LAYOUT.bottleStart).addScaledVector(LAYOUT.bottleDir, LAYOUT.bottleGap * (SYRUPS.length - 1) / 2); rack.position.y = 0.0075;
-  rack.rotation.y = Math.atan2(-LAYOUT.bottleDir.z, LAYOUT.bottleDir.x); scene.add(rack);
+  // ボトル台：1本ずつの丸い木の台（1つの InstancedMesh）。ボトルは画面の端のトレーに並ぶので、台も毎フレームそこへ動かす
+  const coasterMat = own(new THREE.MeshStandardMaterial({ map: woodTop, color: 0xd9b38c, roughness: 0.7 }));
+  const coasters = new THREE.InstancedMesh(own(new THREE.CylinderGeometry(0.036, 0.039, 0.015, 24)), coasterMat, SYRUPS.length);
+  coasters.frustumCulled = false; coasters.count = SYRUPS.length; scene.add(coasters);
+  W.coasters = coasters;
 
   // ---- 飾り：形を共有、器の上では InstancedMesh ----
   const topMat = own(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })); topMat.userData.shared = true;
@@ -172,11 +177,11 @@ export function buildWorld(scene, tex, proc) {
   // 皿
   const dishProfile = [[0, 0], [0.07, 0], [0.085, 0.012], [0.088, 0.016], [0.08, 0.012], [0, 0.006]].map(([x, y]) => new THREE.Vector2(x, y));
   const dish = new THREE.Mesh(own(new THREE.LatheGeometry(dishProfile, 32)), own(new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.4 })));
-  dish.position.copy(LAYOUT.tray); scene.add(dish);
+  dish.position.copy(LAYOUT.tray); scene.add(dish); W.dish = dish;
   W.piles = W.toppingKinds.map((kind, i) => {
     const a = -Math.PI / 2 + (i / 3) * Math.PI * 2 + 0.4;
-    const c = new THREE.Vector3(LAYOUT.tray.x + Math.cos(a) * 0.042, 0.008, LAYOUT.tray.z + Math.sin(a) * 0.042);
-    const g = new THREE.Group(); g.position.copy(c); scene.add(g);
+    const off = new THREE.Vector3(Math.cos(a) * 0.042, 0.008, Math.sin(a) * 0.042); // 皿の中心からのずれ
+    const g = new THREE.Group(); g.position.copy(LAYOUT.tray).add(off); scene.add(g);
     for (let j = 0; j < 3; j++) {
       const m = new THREE.Mesh(toppingGeos[kind], topMat);
       const b = (j / 3) * Math.PI * 2; m.position.set(Math.cos(b) * 0.012, j === 2 ? 0.006 : 0, Math.sin(b) * 0.012); m.rotation.y = b;
@@ -184,7 +189,7 @@ export function buildWorld(scene, tex, proc) {
     }
     const pick = new THREE.Mesh(own(new THREE.SphereGeometry(0.04, 8, 6)), wheelPick.material);
     pick.userData.kind = 'pile'; pick.userData.index = i; g.add(pick); W.pick.push(pick);
-    return { kind, group: g, hopT: 9 };
+    return { kind, group: g, off, hopT: 9 };
   });
 
   // ---- 店先の棚（遠景、木目） ----

@@ -4,10 +4,11 @@ import * as THREE from '../vendor/three.module.min.js';
 import { LAYOUT, SYRUPS } from './world.js';
 import { makeAnimal, ANIMAL_KINDS, VOICE } from './animals.js';
 import { clamp, easeInOut, easeOutBack, hop, damp, disposeDeep } from './util.js';
+import { createMoundSmoother } from './smooth.js';
 
 const TAP_MS = 320, TAP_PX = 14, HINT_IDLE = 3.5, HINT_EVERY = 3.4, MAX_TOPPINGS = 18;
 
-export function createGame({ scene, camera, renderer, world, createHero, tier, textures, audio, debug }) {
+export function createGame({ scene, camera, rig, renderer, world, createHero, tier, textures, audio, debug }) {
   const W = world;
   const canvas = renderer.domElement;
 
@@ -20,6 +21,9 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
   });
   scene.add(hero.root); scene.add(hero.fx);
   const dims = hero.dims;
+  // 寄ると見える山の格子を、表示側で 2 倍に細分して滑らかに見せる（hero のコード・状態はそのまま。shell/smooth.js。?smooth=0 で比べられる）
+  let smoother = null;
+  if (new URLSearchParams(location.search).get('smooth') !== '0') try { smoother = createMoundSmoother(THREE, hero); } catch (err) { debug.pushErr('smooth: ' + err.message); smoother = null; }
   const toppingsGroup = new THREE.Group(); toppingsGroup.name = 'toppings'; hero.root.add(toppingsGroup);
   const topInst = {};
   for (const k of W.toppingKinds) {
@@ -93,7 +97,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     audio.init();
-    S.lastTouch = S.time;
+    S.lastTouch = S.time; S.waitTouch = false;
     try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* 古いブラウザ */ }
     const hit = pickAt(e);
     const p = { id: e.pointerId, kind: hit ? hit.kind : null, index: hit ? hit.index : -1, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, e, data: {} };
@@ -105,6 +109,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
       p.data.off = new THREE.Vector3(S.bowlPos.x - tmp.x, 0, S.bowlPos.z - tmp.z);
       audio.sfx.pop(0.9);
     } else if (p.kind === 'wheel') {
+      S.lastBackTouch = S.time;
       p.data.ang = wheelScreenAngle(e); p.data.t = performance.now();
       S.wheelOmega = Math.max(S.wheelOmega, 4); audio.sfx.click(); // 触った瞬間に少し回る
     } else if (p.kind === 'bottle') {
@@ -114,6 +119,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
     } else if (p.kind === 'pile') {
       W.piles[p.index].hopT = 0; audio.sfx.pop(1.6);
     } else if (p.kind === 'customer') {
+      S.lastBackTouch = S.time;
       const who = hit.who || front;
       if (who !== front) { who.poke(); audio.sfx.hello(VOICE[who.kind]); p.kind = null; return; } // 列の子はぴょんと返事だけ
       front.poke(); audio.sfx.hello(VOICE[front.kind]);
@@ -362,7 +368,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
       const n = nextAnimal(); n.group.position.set(LAYOUT.queue[1].x - 0.5, LAYOUT.queue[1].y, LAYOUT.queue[1].z - 0.2); n.walkTo(LAYOUT.queue[1], 1.6); queue.push(n);
     }
     if (t > 2.9 && !G.entered) {
-      G.entered = true; hero.root.visible = true; S.bowlPos.copy(LAYOUT.bowlEnter); S.state = 'enter'; S.stateT = 0; S.served++;
+      G.entered = true; hero.root.visible = true; S.bowlPos.copy(LAYOUT.bowlEnter); S.state = 'enter'; S.stateT = 0; S.served++; S.waitTouch = true;
       audio.sfx.whoosh();
     }
   }
@@ -435,15 +441,143 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
     let i = 0;
     if (hero.root.visible) blob(i++, S.bowlPos.x, S.bowlPos.z, dims.rimRadius * 2.5 * (1 - (hero.root.position.y) * 6));
     blob(i++, LAYOUT.column.x, LAYOUT.column.z, 0.22);
-    blob(i++, LAYOUT.tray.x, LAYOUT.tray.z, 0.21);
+    blob(i++, W.dish.position.x, W.dish.position.z, 0.21);
     for (const b of W.bottles) { const lift = Math.max(0, b.group.position.y - b.home.y); blob(i++, b.group.position.x, b.group.position.z, Math.max(0.02, 0.075 - lift * 0.25)); }
     W.blobs.count = i; W.blobs.instanceMatrix.needsUpdate = true;
+  }
+
+  // ---------- カメラ：主役（器と氷の山）中心の構図 ----------
+  // 場面ごとの構図（shell/camera.js がばねでゆっくり追う）：
+  //   work     器・ボトル・飾りを触っている間（と離して数秒）：寄る。主役＝器と山が短い辺の約 62%。器を置いた所へついて行く
+  //   pour     シロップが流れている間：少し上から見下ろして流れ筋を見せる
+  //   carry    器を持っている間：少し引いて、渡す所（お客さんの前）が画面に入るようにする（焦点は固定＝指の下の器が逃げない）
+  //   overview 新しい器が来た時・機械の車輪やお客さんを触っている時・しばらく触らない時：機械の口とお客さんまで入れる
+  //   give     渡す〜食べる〜棚へ：器とお客さんが入るまでゆっくり引き、低い角度で顔を見せる
+  const CAM = {
+    frac: 0.62,
+    pitch: { work: 44, pour: 54, carry: 34, overview: 30, give: 28 },
+    // 主役の中心を置く画面の位置（NDC）。縦長は指の届く下寄り
+    land: { ax: 0.0, ay: -0.10 }, port: { ax: 0, ay: -0.24 },
+    idleOverview: 7, idleOverviewDone: 3.5, // 何秒触らないと引くか（山とシロップができていれば早めに：お客さんを見せる）
+  };
+  const camPts = Array.from({ length: 40 }, () => new THREE.Vector3());
+  const camFocus = new THREE.Vector3();
+  const camShot = { name: 'overview', pts: camPts, n: 0, subN: 0, focus: camFocus, pitch: 34, yaw: 0, frac: CAM.frac, minFrac: 0, ax: 0, ay: 0, time: 0.8, followTime: 0.4 };
+  let camPeak = 0, camPour = 0;
+  S.lastBackTouch = -9; // 車輪・お客さんを最後に触った時刻
+  S.waitTouch = true;   // 新しい器が来てから最初に触るまでは、お店全体（機械とお客さん）を見せる
+  // 器と山の外形（中心 x,z、山の高さ pk）を点で置く。戻り値は次の空き番号
+  function bowlPts(n, x, z, pk) {
+    const R = dims.rimRadius, Hr = dims.rimHeight;
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; camPts[n++].set(x + Math.cos(a) * R, Hr, z + Math.sin(a) * R); }
+    camPts[n++].set(x, 0, z + dims.footRadius); camPts[n++].set(x - dims.footRadius, 0, z); camPts[n++].set(x + dims.footRadius, 0, z);
+    camPts[n++].set(x, pk, z);
+    return n;
+  }
+  function customerPts(n, a, top) {
+    const c = a.group.position;
+    camPts[n++].set(c.x - 0.12, 0.02, c.z + 0.05); camPts[n++].set(c.x + 0.12, 0.02, c.z + 0.05);
+    camPts[n++].set(c.x, top, c.z);
+    return n;
+  }
+  function shotName() {
+    if (S.state === 'give') return 'give';
+    if (S.state === 'enter') return 'overview';
+    if (S.held) return 'carry';
+    if (camPour > 0.05 || S.pouring > 0) return 'pour';
+    if (S.waitTouch || S.time - S.lastBackTouch < 2.5 || pointersOn('wheel') || pointersOn('customer')) return 'overview';
+    const idle = S.time - S.lastTouch, st = hero.getStats();
+    if (idle > (st.stage >= 3 ? CAM.idleOverviewDone : CAM.idleOverview)) return 'overview';
+    return 'work';
+  }
+  function pointersOn(kind) { for (const p of pointers.values()) if (p.kind === kind) return true; return false; }
+  function updateCamera(dt) {
+    const st = hero.getStats();
+    // 山の高さはゆっくり追う（積もるたびに揺れない）。空の器でも「これから積もる分」の余白を取る
+    camPeak += (Math.max(st.peak || 0, dims.rimHeight + 0.07) - camPeak) * damp(1.2, dt);
+    camPour += ((S.pouring > 0 ? 1 : 0) - camPour) * damp(1.6, dt);
+    const lay = rig.view.portrait ? CAM.port : CAM.land;
+    const home = LAYOUT.bowlHome, name = shotName();
+    const sh = camShot;
+    let n = 0;
+    sh.name = name; sh.minFrac = 0; sh.shiftX = 0.45; sh.shiftY = 0.45; sh.ax = lay.ax; sh.ay = lay.ay; sh.time = 0.8; sh.followTime = 0.45;
+    if (name === 'give') {
+      n = bowlPts(0, LAYOUT.give.x, LAYOUT.give.z, Math.min(camPeak, 0.2)); sh.subN = n;
+      n = customerPts(n, front, 0.36);
+      camFocus.set((LAYOUT.give.x + front.group.position.x) / 2, 0.12, (LAYOUT.give.z + front.group.position.z) / 2);
+      sh.pitch = CAM.pitch.give; sh.frac = 0.84; sh.minFrac = 0.34; sh.ay = rig.view.portrait ? -0.1 : -0.04; sh.time = 1.2; sh.followTime = 1.0;
+    } else if (name === 'carry') {
+      // 作業域の真ん中の器と、渡す所の器、お客さんの体（顔の下まで）
+      const wx = (LAYOUT.work.x0 + LAYOUT.work.x1) / 2, wz = (LAYOUT.work.z0 + LAYOUT.work.z1) / 2;
+      n = bowlPts(0, wx, wz, camPeak); sh.subN = n;
+      n = bowlPts(n, LAYOUT.give.x, LAYOUT.give.z, dims.rimHeight);
+      n = customerPts(n, front, 0.16);
+      camFocus.set((wx + LAYOUT.give.x) / 2, camPeak * 0.4, (wz + LAYOUT.give.z) / 2);
+      sh.pitch = CAM.pitch.carry; sh.frac = 0.9; sh.minFrac = 0.5; sh.shiftX = rig.view.portrait ? 0.75 : 0.5; sh.shiftY = 0.75; sh.time = 1.0; sh.followTime = 0.8;
+    } else if (name === 'overview') {
+      const bx = S.state === 'enter' ? home.x : S.bowlPos.x, bz = S.state === 'enter' ? home.z : S.bowlPos.z;
+      n = bowlPts(0, bx, bz, camPeak); sh.subN = n;
+      camPts[n++].set(LAYOUT.spout.x, LAYOUT.spout.y + 0.04, LAYOUT.spout.z); // 機械の口
+      W.wheel.getWorldPosition(camPts[n++]);                                    // 車輪
+      n = customerPts(n, front, 0.3);
+      camFocus.set(bx, 0.15, bz - 0.1);
+      sh.pitch = CAM.pitch.overview; sh.frac = 0.92; sh.minFrac = 0.42; sh.shiftX = rig.view.portrait ? 0.3 : 0.12; sh.shiftY = 0.85; sh.ay = rig.view.portrait ? -0.08 : 0; sh.time = 1.1; sh.followTime = 0.9;
+    } else {
+      // work / pour：器のある所を中心に寄る（器は離した所で止まっているので、ついて行っても指の下はずれない）
+      n = bowlPts(0, S.bowlPos.x, S.bowlPos.z, camPeak); sh.subN = n;
+      camFocus.set(S.bowlPos.x, camPeak * 0.45, S.bowlPos.z);
+      sh.pitch = CAM.pitch.work + (CAM.pitch.pour - CAM.pitch.work) * camPour; sh.frac = CAM.frac;
+      sh.time = 0.8; sh.followTime = 0.6;
+    }
+    sh.n = n;
+    rig.update(dt, sh);
+  }
+
+  // ---------- 画面の端のトレー（ボトルと飾りの皿） ----------
+  // 画面（safe-area の内側）の決まった所を台の上へ写して置き場所にする。カメラが動いても画面の端に留まる。
+  const trayP = new THREE.Vector3(), coasterM = new THREE.Matrix4(), coasterQ = new THREE.Quaternion(), coasterS = new THREE.Vector3(1, 1, 1);
+  const TRAY_Y = 0.07; // ボトルの見た目の中心の高さ（ここを画面の点に合わせる）
+  function toCounter(sx, sy, y, out) {
+    if (!rig.screenToPlane(sx, sy, y, out)) return null;
+    out.x = clamp(out.x, -0.85, 0.85); out.z = clamp(out.z, -0.3, 1.2); out.y = 0;
+    return out;
+  }
+  // 器が近づいたら、トレーの物はそっと横へよける（器と重ならない）
+  function keepAway(p, r) {
+    const dx = p.x - S.bowlPos.x, dz = p.z - S.bowlPos.z, d = Math.hypot(dx, dz), m = dims.rimRadius + r + 0.01;
+    if (d < m) { const k = d > 1e-4 ? m / d : 0; p.x = S.bowlPos.x + (d > 1e-4 ? dx * k : m); p.z = S.bowlPos.z + dz * k; }
+    return p;
+  }
+  function layoutTrays() {
+    const v = rig.view, sf = v.safe, L = sf.l, R = v.w - sf.r, T = sf.t, B = v.h - sf.b, Sh = Math.min(R - L, B - T);
+    for (let i = 0; i < W.bottles.length; i++) {
+      let sx, sy;
+      if (v.portrait) { // 縦長：下の端に横1列。上半分（色の付いた肩とふた）だけが見える
+        const gap = Math.min(0.19 * (R - L), 0.2 * Sh);
+        sx = (L + R) / 2 + (i - 2) * gap; sy = B - 0.02 * Sh;
+      } else {          // 横長：右の端にジグザグの縦1列（隣どうしが重ならない）。横に余裕がある画面ほど2列の間を広げる
+        const kx = clamp(v.aspect / (4 / 3), 1, 1.6);
+        sx = R - (i & 1 ? 0.09 : 0.09 + 0.145 * kx) * Sh; sy = T + (0.25 + 0.15 * i) * Sh;
+      }
+      const b = W.bottles[i];
+      if (toCounter(sx, sy, TRAY_Y, trayP)) { keepAway(trayP, 0.04); b.home.x = trayP.x; b.home.z = trayP.z; }
+      coasterM.compose(trayP.set(b.home.x, 0.0075, b.home.z), coasterQ, coasterS);
+      W.coasters.setMatrixAt(i, coasterM);
+    }
+    W.coasters.instanceMatrix.needsUpdate = true;
+    // 飾りの皿：横長は左下、縦長は左の端（半分見える）
+    const dx = v.portrait ? L + 0.03 * Sh : L + 0.16 * Sh, dy = v.portrait ? B - 0.45 * Sh : B - 0.16 * Sh;
+    if (toCounter(dx, dy, 0.01, trayP)) { keepAway(trayP, 0.09); W.dish.position.x = trayP.x; W.dish.position.z = trayP.z; }
+    for (const p of W.piles) { p.group.position.x = W.dish.position.x + p.off.x; p.group.position.z = W.dish.position.z + p.off.z; }
   }
 
   // ---------- 毎フレーム ----------
   const prevBowl = S.bowlPos.clone();
   function update(dt) {
     S.time += dt; S.stateT += dt;
+    // 先にカメラとトレーを動かす（このフレームのレイキャスト・描画は同じカメラを使う）
+    updateCamera(dt);
+    layoutTrays();
 
     // 器
     if (S.state === 'free') {
@@ -500,6 +634,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
     }
 
     updateShelf(dt); updateHearts(dt); updateHints(); updateBlobs();
+    if (smoother) smoother.update(); // hero の山が変わった時だけ作り直す
 
     // 光の輪
     S.glowT += dt;
@@ -508,7 +643,8 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
     W.glow.position.set(S.bowlPos.x, 0.003, S.bowlPos.z); W.glow.scale.setScalar(dims.rimRadius * 3.2 + gl * 0.06);
     // 渡す所の光：ヒントの時に2回ふわっと（器を持って近づくと、その間ずっと光る）
     S.giveGlowT += dt;
-    const near = S.state === 'free' && S.held ? clamp(1 - (dGive - LAYOUT.giveRadius) / 0.25, 0, 1) : 0;
+    // 器を持っている間は、渡す所がうっすら光る（少し引いた画面で「ここへ」が分かる）。近づくほど強く
+    const near = S.state === 'free' && S.held ? Math.max(0.45, clamp(1 - (dGive - LAYOUT.giveRadius) / 0.25, 0, 1)) : 0;
     const gg = Math.max(S.giveGlowT < 2.4 ? Math.sin((S.giveGlowT / 1.2) * Math.PI) ** 2 : 0, near * (0.55 + 0.25 * Math.sin(S.time * 6)));
     W.giveGlow.material.opacity = gg; W.giveGlow.visible = gg > 0.01 && S.state === 'free'; W.giveGlow.scale.setScalar(0.36 + gg * 0.05);
 
@@ -535,6 +671,7 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
   }
 
   function dispose() {
+    if (smoother) smoother.dispose();
     hero.dispose();
     for (const s of shelf) { s.obj.userData.dispose && s.obj.userData.dispose(); s.obj.removeFromParent(); }
     [front, ...queue].forEach((a) => a.dispose());
@@ -544,11 +681,12 @@ export function createGame({ scene, camera, renderer, world, createHero, tier, t
 
   return {
     update, hero, screenOf, dispose,
+    onContextRestored() { hero.onContextRestored(); if (smoother) smoother.onContextRestored(); },
     heroObjs: [hero.root, hero.fx],
     get bottlesHome() { return W.bottles.every((b) => b.state === 'home'); },
     get happy() { return front.mode === 'happy' || (S.give && S.give.happy); },
     get customerWalking() { return front.walking; },
-    get label() { const st = hero.getStats(); return `${S.state} served ${S.served} stage ${st.stage} vol ${st.volume.toFixed(2)} cov ${st.coverage.toFixed(2)}`; },
+    get label() { const st = hero.getStats(); return `${S.state} served ${S.served} stage ${st.stage} vol ${st.volume.toFixed(2)} cov ${st.coverage.toFixed(2)}` + (smoother ? `  smooth ${smoother.ms.toFixed(2)}ms` : ''); },
     get state() { return { state: S.state, served: S.served, stats: hero.getStats(), toppings: toppings.length, shelf: shelf.length }; },
   };
 }

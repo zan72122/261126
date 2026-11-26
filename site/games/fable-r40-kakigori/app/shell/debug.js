@@ -1,4 +1,4 @@
-// ?debug=1 の小さなオーバーレイ：tier・canvas・fps(平均/p95)・draw call・三角形・テクスチャ数・GPU 見積・エラー・最初に触れるまでの時間。
+// ?debug=1 の小さなオーバーレイ：tier・画面と canvas・描画解像度の倍率・カメラ（場面・主役が短い辺の何%か）・fps(平均/p95)・draw call・三角形・テクスチャ数・GPU 見積・エラー・最初に触れるまでの時間。
 import { triCount } from './util.js';
 
 export function createDebug(enabled) {
@@ -12,7 +12,7 @@ export function createDebug(enabled) {
   let el = null, last = {};
   if (enabled) {
     el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:6px;top:6px;z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:5px 7px;border-radius:6px;pointer-events:none;white-space:pre;max-width:60vw;overflow:hidden';
+    el.style.cssText = 'position:fixed;left:max(6px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top));z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:5px 7px;border-radius:6px;pointer-events:none;white-space:pre;max-width:60vw;overflow:hidden';
     document.body.appendChild(el);
   }
 
@@ -62,10 +62,13 @@ export function createDebug(enabled) {
       textures: est.textures, glTextures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       gpuMiB: est.totalMiB, texMiB: est.texMiB, geoMiB: est.geoMiB, fbMiB: est.fbMiB, errors: errors.length,
       scene: info.scene || '', readyMs: info.readyMs || 0, touch: navigator.maxTouchPoints || 0,
+      renderScale: info.renderScale || 1, view: info.view ? info.view.w + '×' + info.view.h : '',
+      shot: info.cam ? info.cam.shot : '', heroFrac: info.cam ? info.cam.frac : 0, camDist: info.cam ? info.cam.dist : 0, camPitch: info.cam ? info.cam.pitch : 0,
     };
     if (el) {
       el.textContent =
-        `tier ${last.tier} (touch ${last.touch})  canvas ${last.canvas} @${last.pr.toFixed(2)}\n` +
+        `tier ${last.tier} (touch ${last.touch})  view ${last.view}  canvas ${last.canvas} @${last.pr.toFixed(2)} (scale ${last.renderScale})\n` +
+        `cam ${last.shot}  hero ${(last.heroFrac * 100).toFixed(0)}% of short side  dist ${last.camDist.toFixed(2)}m  pitch ${last.camPitch.toFixed(0)}°\n` +
         `ready ${Math.round(last.readyMs)}ms\n` +
         `fps ${last.fps.toFixed(1)}  p95 ${last.p95ms.toFixed(1)}ms\n` +
         `calls ${last.calls}  tris ${last.tris} (hero ${heroTris})\n` +
