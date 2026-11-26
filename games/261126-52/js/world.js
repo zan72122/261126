@@ -61,11 +61,11 @@ export function buildWorld() {
   outer.position.y = GROUND.base * GROUND.maxDepth; outer.receiveShadow = true;
   s.add(outer);
   // a ploughed taxiway lane (darker, packed) leading away east for the departure
-  const laneMat = pbr('ground', { repeat: [3, 40], roughness: 1 });
+  const laneMat = pbr('ground', { repeat: [40, 3], roughness: 1 });
   laneMat.color.setRGB(0.42, 0.44, 0.5);
   patch(laneMat, { key: 'lane', fragment: { roughnessmap_fragment: `$ roughnessFactor *= 0.5;` } });
-  const lane = new THREE.Mesh(new THREE.PlaneGeometry(14, 400).rotateX(-Math.PI / 2), laneMat);
-  lane.position.set(40, 0.125, -60); lane.rotation.y = 0.0; lane.receiveShadow = true;
+  const lane = new THREE.Mesh(new THREE.PlaneGeometry(400, 24).rotateX(-Math.PI / 2), laneMat);
+  lane.position.set(0, 0.125, 47); lane.rotation.y = 0.0; lane.receiveShadow = true;
   // (runway is far ahead; lane only visible in the departure shot)
   s.add(lane);
   W.lane = lane;
@@ -102,7 +102,7 @@ export function buildWorld() {
   const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.9, 0.75).multiplyScalar(30) });
   const poleMat = pbr('metal', { color: 0x666b70, metalness: 1, roughness: 1, metalMap: true });
   W.lamps = [];
-  for (const [x, z] of [[-30, -32], [26, -40], [-38, 28], [36, 30], [-70, -80], [80, -60]]) {
+  for (const [x, z] of [[-30, -32], [26, -40], [-38, -12], [36, -16], [-70, -80], [80, -60]]) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, 24, 8), poleMat); pole.position.set(x, 12, z); s.add(pole);
     for (let k = 0; k < 4; k++) {
       const l = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.25), lampMat);
@@ -198,7 +198,7 @@ export function buildWorld() {
       const pt = new THREE.CanvasTexture(pc); pt.colorSpace = THREE.SRGBColorSpace;
       const plate = new THREE.Mesh(new THREE.CircleGeometry(0.09, 24), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5 }));
       plate.position.set(x, 0.9, 0.203); cart.add(plate);
-      tanks.push({ mesh: tank, hot, x, top: new V3(x, 1.48, 0) });
+      tanks.push({ mesh: tank, parts: [tank, dome, cap, gauge, plate], hot, x, top: new V3(x, 1.48, 0) });
     }
     cart.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.0).rotateX(-Math.PI / 2), blobMaterial()); blob.position.y = 0.13; cart.add(blob);
@@ -284,7 +284,7 @@ export function buildWorld() {
     const coneMat = pbr('paint', { color: 0xb5532a, repeat: [1, 1], roughness: 1 });
     addSnowCap(coneMat, 0.03);
     W.cones = [];
-    for (const [x, z] of [[9.2, -2.2], [9.4, 2.2], [-8.7, -0.8]]) {
+    for (const [x, z] of [[11.6, 2.6], [13.8, 3.4], [-8.7, -0.8]]) {
       const c = new THREE.Group();
       const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.7, 20, 1, true), coneMat); cone.position.y = 0.37; c.add(cone);
       const bandM = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.11, 0.1, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xd0d4d8, metalness: 0.8, roughness: 0.3 })); bandM.position.y = 0.45; c.add(bandM);

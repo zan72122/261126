@@ -162,7 +162,7 @@ export function buildPlane() {
   const fusId = tex('fus_id.png', { clamp: false });
   fusId.magFilter = THREE.NearestFilter; fusId.minFilter = THREE.NearestFilter; fusId.generateMipmaps = false;
   const snowC = tex('snow_c.jpg', { srgb: true, repeat: [1, 1] });
-  const FU = { winLit: { value: winTex }, fusId: { value: fusId }, depthMap: { value: fusSnow.tex }, snowTex: { value: snowC }, litColor: { value: new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(5.5) }, cabin: { value: 0 } };
+  const FU = { winLit: { value: winTex }, fusId: { value: fusId }, depthMap: { value: fusSnow.tex }, snowTex: { value: snowC }, litColor: { value: new THREE.Color(1.0, 0.72, 0.42).multiplyScalar(3.2) }, cabin: { value: 0 } };
   patch(fm, {
     key: 'fus',
     uniforms: FU,

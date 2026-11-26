@@ -302,7 +302,7 @@ export function setShot(s, dur = 0) {
     rig.from = { pos: C.camera.position.clone(), tgt: rig.curTgt ? rig.curTgt.clone() : c.tgt.clone(), vfov: C.camera.fov };
     rig.to = c; rig.t = 0; rig.dur = dur;
   }
-  if (s.focusDist !== undefined) C.focusTarget = s.focusDist;
+  C.focusTarget = s.focusDist;
 }
 export function fitCamera() {
   if (!C.camera) return;

@@ -98,19 +98,24 @@ S.title = {
   },
   update(dt) {
     girl.lookAt(G.titleStep === 0 ? rack.jacket.getWorldPosition(new V3()) : G.titleStep === 1 ? rack.muffs.getWorldPosition(new V3()) : C.camera.position);
-    G.hint = G.titleStep === 0 ? rack.jacket.getWorldPosition(new V3()).add(new V3(0, 0.05, 0.1)) : G.titleStep === 1 ? rack.muffs.getWorldPosition(new V3()) : null;
+    G.hint = G.titleStep === 0 ? itemCenter(rack.jacket) : G.titleStep === 1 ? itemCenter(rack.muffs) : null;
     G.hintKind = 'tap';
     if (G.anim) G.anim(dt);
   },
   down(p) {
-    const hits = pick(p, [rack.jacket, rack.muffs]);
-    if (!hits) return;
-    let obj = hits.object; while (obj && obj !== rack.jacket && obj !== rack.muffs) obj = obj.parent;
+    // generous hit test: ray hit OR within ~70px of the item on screen
+    const near = (o) => { if (!o.visible) return false; const c = itemCenter(o).project(C.camera); const x = (c.x * 0.5 + 0.5) * C.w, y = (-c.y * 0.5 + 0.5) * C.h; return Math.hypot(x - p.x, y - p.y) < Math.max(70, C.w * 0.08); };
+    let obj = null;
+    const hits = pick(p, [rack.jacket, rack.muffs].filter((o) => o.visible));
+    if (hits) { obj = hits.object; while (obj && obj !== rack.jacket && obj !== rack.muffs) obj = obj.parent; }
+    if (!obj) obj = near(rack.jacket) ? rack.jacket : near(rack.muffs) ? rack.muffs : null;
+    if (!obj) return;
     if (obj === rack.jacket && G.titleStep === 0) wearJacket();
     else if (obj === rack.muffs && G.titleStep === 1) wearMuffs();
     else if (obj === rack.muffs && G.titleStep === 0) { girl.say('huh', 1.2, 'cold'); sfx.huh(); wobble(rack.muffs); }
   },
 };
+function itemCenter(o) { const b = new THREE.Box3().setFromObject(o); return b.getCenter(new V3()); }
 function wobble(o) { const r0 = o.rotation.z; let t = 0; const prev = G.anim; G.anim = (dt) => { prev && prev(dt); t += dt; o.rotation.z = r0 + Math.sin(t * 20) * 0.15 * Math.max(0, 1 - t * 2); }; }
 function flyTo(obj, targetFn, dur, done) {
   const start = obj.getWorldPosition(new V3());
@@ -191,7 +196,7 @@ S.s1 = {
     W.brush.g.visible = true;
     girl.setBase('focus');
     aimKey(new V3(4, 0, -2), new V3(-0.5, 0.75, -0.6), 11);
-    setShot({ target: [7.0, 2.0, -0.6], targetP: [7.55, 1.95, -0.4], dir: [0.8, 0.06, -1], fit: [2.3, 1.25], fitP: [1.25, 1.95], mm: 40 }, 0);
+    setShot({ target: [7.25, 1.9, -0.5], targetP: [8.0, 1.8, -0.15], dir: [0.8, 0.06, -1], fit: [2.45, 1.3], fitP: [1.3, 2.0], mm: 40 }, 0);
     C.aperture = 0.12; C.exposure = 1.0;
     G.brushPrev = null; G.brushing = false; G.s1cov = 0; G.revealed = new Set();
     G.brushHead = plane.body.localToWorld(fusPoint(13.6 / FL, 0.12)).add(new V3(0, 0.55, -0.35));
@@ -226,7 +231,7 @@ S.s1 = {
           girl.lookAt(C.camera.position);
         }
       }
-      if (G.s1cov > 0.72 && !G.done) { G.done = true; avalanche(); }
+      if ((G.s1cov > 0.66 || (G.stateT > 80 && G.s1cov > 0.5)) && !G.done) { G.done = true; avalanche(); }
     }
     if (G.lookAtCam) girl.lookAt(C.camera.position);
     setLoop('brush', G.brushing ? Math.min(0.35, G.brushSpeed * 0.18) : 0, 1800 + G.brushSpeed * 600);
@@ -250,18 +255,18 @@ S.s1 = {
     G.brushPrev = surf.clone();
     G.brushHead.lerp(surf, 0.7);
     G.brushSpeed = Math.min(3, (G.brushSpeed || 0) + moved * 8);
-    brushSnow(h.uv.x, h.uv.y, Math.min(0.12, moved) + 0.02, n, surf);
+    brushSnow(h.uv.x, h.uv.y, Math.min(0.16, moved) + 0.035, n, surf);
   },
   up() { G.brushing = false; },
 };
 function brushSnow(u, v, amount, n, surf) {
   const f = plane.fusSnow;
   const x = u * FL;
-  const ru = 0.24 / FL, rv = 0.24 / (2 * Math.PI * Math.max(0.3, plane_r(x)));
+  const ru = 0.33 / FL, rv = 0.33 / (2 * Math.PI * Math.max(0.3, plane_r(x)));
   let removed = 0;
   f.brush(u, v, ru, rv, (i, k) => {
     const old = f.c[0][i];
-    const nv = Math.max(0, old - amount * 2.2 * k - (old < 0.1 ? 0.03 * k : 0));
+    const nv = Math.max(0, old - amount * 3.2 * k - (old < 0.12 ? 0.05 * k : 0));
     removed += old - nv; f.c[0][i] = nv;
   });
   // the stroke throws powder and drops clumps that pile on the ground
@@ -332,7 +337,7 @@ function iceCoverage() {
 }
 S.s2 = {
   enter() {
-    G.slideAnim = null; G.lookAtCam = false;
+    G.slideAnim = null; G.lookAtCam = false; setLoop('brush', 0);
     for (const f of [plane.fusSnow, plane.wingSnowP, plane.wingSnowS]) { f.c[0].fill(0); f.dirty = true; }
     capU.capSnow.value = 0;
     W.brush.g.visible = false;
@@ -346,7 +351,7 @@ S.s2 = {
     place(girl.root, 2.5, -5.0, 0);
     girl.root.position.y = W.step.position.y + 0.455 * 1.55;
     girl.root.rotation.y = -Math.PI / 2;
-    place(dad.root, 2.15, -7.6, 0); dad.root.rotation.y = -Math.PI / 2 - 0.3;
+    place(dad.root, 2.25, -6.75, 0); dad.root.rotation.y = -Math.PI / 2 - 0.25;
     dad.root.visible = true; dad.say('smile', 1, 'smile');
     place(W.cart.g, 3.3, -3.55, Math.PI / 2 + 0.35);
     place(W.sign, 1.6, -9.3, -Math.PI / 2 + 0.35);
@@ -385,22 +390,30 @@ S.s2 = {
     // hints
     if ((G.t * 2 | 0) !== ((G.t - dt) * 2 | 0)) {
       if (G.tool !== 'hot') G.hint = W.cart.g.localToWorld(new V3(-0.24, 1.3, 0.2));
-      else if (G.dadState === 'frozen') G.hint = dad.joints.chest.getWorldPosition(new V3());
+      else if (G.dadState === 'frozen') G.hint = dad.joints.head.getWorldPosition(new V3()).add(new V3(0, -0.15, 0));
       else G.hint = thickestIce();
       G.hintKind = G.tool !== 'hot' ? 'tap' : 'hold';
     }
-    if (!G.done && cov > 0.8 && G.dadState === 'thawed') { G.done = true; s2Finish(); }
+    if (!G.done && (cov > 0.75 || (G.stateT > 70 && cov > 0.5)) && G.dadState === 'thawed') { G.done = true; s2Finish(); }
   },
   down(p) {
-    const tankHit = pick(p, W.cart.tanks.map((t) => t.mesh));
+    const tankHit = pick(p, W.cart.tanks.flatMap((t) => t.parts));
     if (tankHit) {
-      const t = W.cart.tanks.find((t) => t.mesh === tankHit.object);
+      const t = W.cart.tanks.find((t) => t.parts.includes(tankHit.object));
       if (G.dadState === 'gag') return;
       G.tool = t.hot ? 'hot' : 'cold'; sfx.pick();
       W.lance.g.visible = true; W.hose.visible = true;
       G.lanceTank = t;
       girl.say(t.hot ? 'smile' : 'huh', 1.0, 'smile');
       return;
+    }
+    // forgiving tap near a tank
+    for (const t of W.cart.tanks) {
+      const c = t.mesh.getWorldPosition(new V3()).add(new V3(0, 0.2, 0)).project(C.camera);
+      if (Math.hypot((c.x * 0.5 + 0.5) * C.w - p.x, (-c.y * 0.5 + 0.5) * C.h - p.y) < Math.max(45, C.w * 0.05)) {
+        G.tool = t.hot ? 'hot' : 'cold'; sfx.pick(); W.lance.g.visible = true; W.hose.visible = true; G.lanceTank = t;
+        girl.say(t.hot ? 'smile' : 'huh', 1.0, 'smile'); return;
+      }
     }
     if (!G.tool) { // nudge toward the tanks
       girl.say('huh', 0.8, 'smile'); sfx.huh(); return;
@@ -410,12 +423,22 @@ S.s2 = {
   move(p) {
     if (!G.spraying) return;
     const targets = [plane.wP, plane.iceMesh];
-    const dadMeshes = G.dadState === 'frozen' ? dad.meshes : [];
-    const h = pick(p, [...targets, ...dadMeshes]);
+    if (G.dadState === 'frozen') {
+      // the frozen dad wins over the wing in front of him (forgiving for small fingers)
+      const hd = pick(p, dad.meshes);
+      const hc = dad.joints.chest.getWorldPosition(new V3()), hh = dad.joints.head.getWorldPosition(new V3());
+      const sc = (v) => { const q = v.clone().project(C.camera); return [(q.x * 0.5 + 0.5) * C.w, (-q.y * 0.5 + 0.5) * C.h]; };
+      const near = [hc, hh].some((v) => { const q = sc(v); return Math.hypot(q[0] - p.x, q[1] - p.y) < Math.max(50, C.w * 0.06); });
+      if (hd || near) {
+        const pt = hd ? hd.point : hc.clone().lerp(hh, 0.4);
+        G.sprayHit = hd || { point: pt }; G.sprayTarget = pt.clone(); G.sprayOnDad = true; return;
+      }
+    }
+    const h = pick(p, targets);
     if (!h) { G.sprayTarget = null; return; }
     G.sprayHit = h;
     G.sprayTarget = h.point.clone();
-    G.sprayOnDad = dadMeshes.includes(h.object);
+    G.sprayOnDad = false;
   },
   up() { G.spraying = false; G.sprayTarget = null; },
 };
@@ -462,14 +485,14 @@ function spray(dt) {
   const u = h.uv.x, v = h.uv.y;
   const f = plane.iceField;
   const chord = 2.15 - 1.1 * u, span = 7.65;
-  const ru = 0.16 / span, rv = 0.16 / (chord * 2);
+  const ru = 0.27 / span, rv = 0.27 / (chord * 2);
   let melted = 0;
   if (hot) {
     // heat spreads wider than the jet: a ring of clear, bubbly ice forms around the melted core
-    f.brush(u, v, ru * 2.0, rv * 2.0, (i, k) => { f.c[1][i] = Math.min(1, f.c[1][i] + dt * 1.6 * k); });
+    f.brush(u, v, ru * 1.7, rv * 1.7, (i, k) => { f.c[1][i] = Math.min(1, f.c[1][i] + dt * 2.4 * k); });
     f.brush(u, v, ru, rv, (i, k) => {
       const cl = f.c[1][i];
-      if (cl > 0.6) { const o = f.c[0][i]; f.c[0][i] = Math.max(0, o - dt * 0.8 * k * cl); melted += o - f.c[0][i]; }
+      if (cl > 0.55) { const o = f.c[0][i]; f.c[0][i] = Math.max(0, o - dt * 1.7 * k * cl); melted += o - f.c[0][i]; }
       f.c[2][i] = Math.min(1, f.c[2][i] + dt * 3 * k);
     });
   } else {
@@ -571,13 +594,16 @@ function thawDad(dt) {
   const inv = new THREE.Matrix4().copy(dad.root.matrixWorld).invert();
   const lp = h.point.clone().applyMatrix4(inv);
   const u = Math.atan2(lp.x, lp.z) / (Math.PI * 2) + 0.5, v = lp.y / 1.9;
-  ff.brush(u, v, 0.14, 0.12, (i, k) => { ff.c[0][i] = Math.max(0, ff.c[0][i] - dt * 2.5 * k); });
+  ff.brush(u, v, 0.32, 0.16, (i, k) => { ff.c[0][i] = Math.max(0, ff.c[0][i] - dt * 4.0 * k); });
+  // warm water runs all over him: everything thaws a little while he is being sprayed
+  for (let i = 0; i < ff.c[0].length; i++) ff.c[0][i] = Math.max(0, ff.c[0][i] - dt * 0.28);
+  ff.dirty = true;
   steam(h.point, 2, 1);
   dad.say('oops', 0.6, 'frozen');
   let s = 0; for (let i = 0; i < ff.c[0].length; i++) s += ff.c[0][i];
   const m = s / ff.c[0].length;
   dad.st.shiver = clamp(m * 2.5, 0.2, 1);
-  if (m < 0.06 && G.dadState === 'frozen') {
+  if (m < 0.1 && G.dadState === 'frozen') {
     G.dadState = 'thawed';
     ff.c[0].fill(0); ff.dirty = true;
     dad.setBase('smile'); dad.st.shiver = 0; dad.st.cheer = 0;
@@ -597,7 +623,7 @@ function s2Finish() {
 // ------------------------------------------------------------ S3a: switch on the cabin lights (tap each window)
 S.s3w = {
   enter() {
-    W.lance.g.visible = false; W.hose.visible = false;
+    W.lance.g.visible = false; W.hose.visible = false; setLoop('spray', 0);
     for (const a of girl.arms) a.w = 0;
     for (const a of dad.arms) a.w = 0;
     G.dadAnim = null;
@@ -663,7 +689,7 @@ S.s3m = {
     for (const w of W.wands) w.visible = true;
     W.wandLight.intensity = 2.5;
     aimKey(new V3(8, 0, 0), new V3(-0.4, 0.6, -0.7), 12);
-    setShot({ target: [9.9, 1.5, -0.2], targetP: [11.2, 1.45, 0.0], dir: [-0.3, 0.05, -1], fit: [3.6, 1.6], fitP: [1.8, 2.4], mm: 40 }, 0);
+    setShot({ target: [10.3, 1.6, -0.2], targetP: [11.9, 1.5, 0.1], dir: [-0.3, 0.08, -1], fit: [3.4, 1.6], fitP: [1.7, 2.4], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.wave = 0; G.waveV = 0; G.waves = 0; G.planeX = 0; G.dragY = null; G.armPhase = 0;
     plane.propSpeed = 40; setEngine(0.6);
@@ -733,31 +759,33 @@ S.s3t = {
     for (const w of W.wands) w.visible = false; W.wandLight.intensity = 0;
     girl.root.visible = false; dad.root.visible = false;
     setTodLighting(0.9); updateEnv(true);
-    // runway far north; plane starts left, rolls right toward the sun
+    // runway runs along x, 45 m south of the camera; we look toward the sunrise over the trees
     plane.root.rotation.set(0, 0, 0);
-    plane.root.position.set(-110, 0, 70);
+    plane.root.position.set(-70, 0, 45);
     C.scene.fog.density = 0.0012;
-    aimKey(new V3(0, 0, 70), SUN_DIR.clone().setY(0.15), 30);
-    setShot({ target: [-10, 5, 70], dir: [-0.3, 0.02, -1], fit: [16, 7], fitP: [10, 16], mm: 45 }, 0);
-    C.aperture = 0.03; C.exposure = 0.95; C.focusTarget = 50;
+    aimKey(new V3(0, 0, 45), SUN_DIR.clone().setY(0.15), 30);
     G.toT = 0;
+    S.s3t.frame();
+  },
+  frame() {
+    const p = plane.root.position;
+    setShot({ target: [p.x * 0.85, 2.2 + p.y * 0.85, p.z], dir: [0.12, 0.02, -1], fit: [13, 6], fitP: [8.5, 13], mm: 45, focusDist: 40 }, 0);
+    C.aperture = 0.03; C.exposure = 0.95;
   },
   update(dt) {
     G.toT += dt;
     const t = G.toT;
     const tod = Math.min(1, 0.9 + t * 0.012); if (Math.abs(tod - C.tod) > 0.005) setTodLighting(tod); updateEnv(false);
-    const speed = Math.min(55, 6 + t * 9);
+    const speed = Math.min(45, 4 + t * 7);
     plane.root.position.x += speed * dt;
     const x = plane.root.position.x;
-    if (x > -30) { const k = (x + 30); plane.root.position.y = Math.pow(Math.max(0, k), 1.35) * 0.06; plane.root.rotation.z = Math.min(0.16, k * 0.004); }
+    if (x > -5) { const k = x + 5; plane.root.position.y = Math.pow(k, 1.35) * 0.05; plane.root.rotation.z = Math.min(0.16, k * 0.005); }
     plane.propSpeed = 60; setEngine(Math.min(1, 0.6 + t * 0.08));
     for (const w of plane.wheels) w.rotation.z -= speed * dt / 0.3;
-    // camera pans to follow
-    const tgt = plane.root.position.clone().add(new V3(12, 2, 0));
-    setShot({ target: [tgt.x * 0.75, 3 + plane.root.position.y * 0.7, 70], dir: [-0.3, 0.02, -1], fit: [16, 7], fitP: [10, 16], mm: 45 }, 0);
+    S.s3t.frame();
     plane.beacon.material.emissiveIntensity = (Math.sin(G.t * 6) > 0.6) ? 10 : 0;
     G.hint = null;
-    if (t > 9.5 && !G.done) { G.done = true; fadeTo(() => enter('s3p'), 1.0); }
+    if (t > 8.5 && !G.done) { G.done = true; fadeTo(() => enter('s3p'), 1.0); }
   },
 };
 
@@ -768,7 +796,7 @@ S.s3p = {
     setEngine(0.15);
     girl.root.visible = true; dad.root.visible = true;
     place(girl.root, 6.6, -6.4, 0); girl.root.rotation.y = -2.3;
-    place(dad.root, 8.6, -5.6, 0); dad.root.rotation.y = -2.5;
+    place(dad.root, 8.1, -5.0, 0); dad.root.rotation.y = -2.5;
     place(W.worklight.g, 30, 30, 0); L.work.intensity = 0;
     C.scene.fog.density = 0.002;
     place(W.cart.g, -4.5, -6.5, 0.5);

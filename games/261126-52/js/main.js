@@ -1,6 +1,6 @@
 // main.js — boot, frame loop, pointer input, idle hint hand, adaptive resolution
 import * as THREE from 'three';
-import { C, initRenderer, resize, render, initSky, updateSky, initLights, updateCamera, allTexturesLoaded, setShot } from './core.js';
+import { C, initRenderer, resize, render, initSky, updateSky, initLights, updateCamera, allTexturesLoaded, setShot, setTodLighting, updateEnv, aimKey, L } from './core.js';
 import { initFx, updateFx, sparkle } from './fx.js';
 import { setupGame, updateGame, gameDown, gameMove, gameUp, G } from './game.js';
 
@@ -45,10 +45,11 @@ function updateHint(dt) {
 
 // ---- loop with adaptive resolution (keeps >= 30 fps on phones)
 const HQ = /hq=1/.test(location.search);
+const FIXDT = +(new URLSearchParams(location.search).get('dt') || 0);
 let last = performance.now(), acc = 0, frames = 0, slow = 0, fast = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  let dt = FIXDT || Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
   C.time += dt; C.dt = dt;
   updateGame(dt);
   updateCamera(dt);
@@ -67,7 +68,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 allTexturesLoaded().then(() => { window.__texReady = true; });
-window.__G = G; window.__C = C; window.__setShot = setShot;
+window.__G = G; window.__C = C; window.__setShot = setShot; window.__core = { setTodLighting, updateEnv, aimKey, L, THREE };
 window.__probe = (x, y) => {
   const r = new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(x / C.w * 2 - 1, -y / C.h * 2 + 1), C.camera);
   return r.intersectObjects(C.scene.children, true).slice(0, 4).map((h) => { let n = [], o = h.object; while (o) { n.push((o.name || o.type) + (o.geometry ? ':' + o.geometry.type : '')); o = o.parent; } return n.join('<') + ' d=' + h.distance.toFixed(2) + ' mat=' + (h.object.material && h.object.material.type); });

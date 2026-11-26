@@ -76,6 +76,25 @@ export function loft(path, radius, { seg = 24, capStart = true, capEnd = true, v
   }
   return g;
 }
+/** merge non-indexed-compatible geometries (position/normal/uv + index) into one */
+export function mergeGeos(list) {
+  let nv = 0, ni = 0;
+  for (const g of list) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = new Uint32Array(ni);
+  let ov = 0, oi = 0;
+  for (const g of list) {
+    const c = g.attributes.position.count;
+    pos.set(g.attributes.position.array, ov * 3); nor.set(g.attributes.normal.array, ov * 3); uv.set(g.attributes.uv.array, ov * 2);
+    if (g.index) { const a = g.index.array; for (let i = 0; i < a.length; i++) idx[oi + i] = a[i] + ov; oi += a.length; }
+    else { for (let i = 0; i < c; i++) idx[oi + i] = ov + i; oi += c; }
+    ov += c; g.dispose();
+  }
+  const m = new THREE.BufferGeometry();
+  m.setAttribute('position', new THREE.BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); m.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  m.setIndex(new THREE.BufferAttribute(idx, 1));
+  m.computeBoundingSphere();
+  return m;
+}
 const line = (a, b, n) => { const out = []; for (let i = 0; i <= n; i++) out.push(new V3().lerpVectors(a, b, i / n)); return out; };
 function curve(pts, n) { return new THREE.CatmullRomCurve3(pts, false, 'centripetal').getPoints(n); }
 
@@ -369,7 +388,7 @@ export function buildPerson(kind) {
   const M = person.mats;
   M.jacket = clothMat('nylon', jacketCol, { repeat: [5, 5], sheen: 0.5, sheenColor: girl ? 0xd08070 : 0x5070a0, ns: 0.8 });
   M.jacket.clearcoat = 0.12; M.jacket.clearcoatRoughness = 0.5;
-  M.reflect = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, metalness: 0.85, roughness: 0.32 });
+  M.reflect = new THREE.MeshStandardMaterial({ color: 0xa9adb2, metalness: 0.8, roughness: 0.45 });
   setMap(M.reflect, 'normalMap', tex('nylon_nrm.jpg', { repeat: [20, 2] }));
   M.pants = clothMat(girl ? 'nylon' : 'twill', girl ? 0x2e3440 : 0x40444a, { repeat: [5, 5], sheen: 0.3 });
   M.boots = pbr('rubber', { color: girl ? 0x4a2e22 : 0x1c1c1e, repeat: [2, 2], physical: true, clearcoat: 0.2, roughness: 1 });
@@ -513,6 +532,7 @@ export function buildPerson(kind) {
       const d = new V3(Math.sin(th) * Math.sin(ph), Math.cos(th), Math.sin(th) * Math.cos(ph));
       return headSurf(d, P).multiplyScalar(off);
     };
+    const hairGeos = [];
     const clump = (ph, th0, th1, fall, w, off = 1.07) => {
       const pts = [];
       const n = 12;
@@ -521,7 +541,7 @@ export function buildPerson(kind) {
       const out = new V3(Math.sin(ph), 0, Math.cos(ph));
       for (let i = 1; i <= 6; i++) { const t = i / 6; pts.push(last.clone().add(new V3(0, -fall * t, 0)).addScaledVector(out, 0.012 * t * t + (rng() - 0.5) * 0.002)); }
       const g = loft(curve(pts, 26), (t) => [w * 0.22 * (1 - t * 0.6), w * (1 - Math.pow(t, 2.5) * 0.92)], { seg: 8, vScale: 6, up: out, capStart: false, capEnd: false });
-      add(hairGroup, g, M.hair, { shadow: true });
+      hairGeos.push(g);
     };
     // solid bob mass under the clumps (continuous sheet, so no gaps between strands)
     const sheetFn = (u, v, out) => {
@@ -557,6 +577,7 @@ export function buildPerson(kind) {
       const ph = (i / 16 - 0.5) * 1.45 + (rng() - 0.5) * 0.05;
       clump(ph, 0.06 + rng() * 0.08, 1.36 - Math.abs(ph) * 0.14 + rng() * 0.05, 0.0, 0.03 + rng() * 0.006, 1.075);
     }
+    add(hairGroup, mergeGeos(hairGeos), M.hair, { shadow: true });
   } else {
     // beanie with folded cuff
     const bn = loft(curve([new V3(0, 0.01, -0.008), new V3(0, 0.07, -0.004), new V3(0, 0.12, 0)], 10), (t) => {
