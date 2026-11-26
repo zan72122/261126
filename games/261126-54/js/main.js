@@ -814,7 +814,7 @@ function frame(now) {
   }
   if (state.bubble2 && phase === 'shopwork') {
     const f = shots.work.fit;
-    state.bubble2.position.set(WORK.x - 0.16, COUNTER_Y + 0.27, WORK.z + 0.02);
+    state.bubble2.position.set(WORK.x - 0.2, COUNTER_Y + 0.24, WORK.z + 0.12);
     state.bubble2.scale.setScalar(0.17);
   }
 
