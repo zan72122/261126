@@ -152,6 +152,7 @@ export function createWorld(scene, tier, shared) {
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
   sun.position.set(-1.8, 5.5, 3.2);
   sun.target.position.set(0.2, 0, 0.5);
+  const sunOffset = sun.position.clone().sub(sun.target.position);
   group.add(sun, sun.target);
   if (tier.shadows) {
     sun.castShadow = true;
@@ -161,12 +162,40 @@ export function createWorld(scene, tier, shared) {
     c.updateProjectionMatrix();
     sun.shadow.bias = -0.0008;
     sun.shadow.normalBias = 0.015;
+    sun.shadow.radius = 1.6; // PCF の5点を少し広げて、寄った時の影の縁を柔らかく
+  }
+
+  // 影の範囲をカメラの注視点に合わせる（影の画像 512² は変えずに、寄った時は狭い範囲へ細かく使う）。
+  // 動いても影がちらつかないよう、光から見た平面で影の画素の格子にそろえる。
+  const lz = sunOffset.clone().normalize();
+  const lx = new THREE.Vector3(0, 1, 0).cross(lz).normalize();
+  const ly = lz.clone().cross(lx);
+  const _c = new THREE.Vector3();
+  let shadowExt = 2.4;
+  function followShadow(focus, visibleHalf) {
+    if (!tier.shadows) return;
+    const ext = THREE.MathUtils.clamp(visibleHalf * 1.55, 1.25, 2.6);
+    if (Math.abs(ext - shadowExt) > 1e-3) {
+      shadowExt = ext;
+      const c = sun.shadow.camera;
+      c.left = -ext; c.right = ext; c.top = ext * 0.92; c.bottom = -ext * 0.92;
+      c.updateProjectionMatrix();
+    }
+    const texel = (2 * shadowExt) / tier.shadowMapSize;
+    const x = Math.round(focus.dot(lx) / texel) * texel, y = Math.round(focus.dot(ly) / texel) * texel, z = focus.dot(lz);
+    _c.copy(lx).multiplyScalar(x).addScaledVector(ly, y).addScaledVector(lz, z);
+    sun.target.position.copy(_c);
+    sun.position.copy(_c).add(sunOffset);
+    sun.target.updateMatrixWorld();
+    sun.updateMatrixWorld();
   }
 
   return {
     group,
     sun,
     fitBackdrop,
+    // 毎フレーム、カメラを動かした後に呼ぶ
+    followView(camera, focus, visibleHalf) { fitBackdrop(camera); followShadow(focus, visibleHalf); },
     dispose() {
       for (const d of disposables) d.dispose?.();
       scene.remove(group);

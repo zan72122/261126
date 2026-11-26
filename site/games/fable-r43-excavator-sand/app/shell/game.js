@@ -1,6 +1,6 @@
 // 遊びの流れ（shell）：掘る → 入れる → 出発 → 渡す（友だちが喜ぶ）→ お城が育つ → 4回でできあがり → もう1回。
 // 手順は強制しない。止まったら次に触れる物を光らせる。音は hero のイベントと状態から鳴らす。
-import { LAYOUT, BED, DEBUG } from './config.js';
+import { LAYOUT, BED, DEBUG, params } from './config.js';
 import { loadTex, cloneTex } from './assets.js';
 import { createWorld } from './world.js';
 import { createTruck } from './truck.js';
@@ -10,6 +10,7 @@ import { createFx } from './fx.js';
 import { createAudio } from './audio.js';
 import { createInput } from './input.js';
 import { createUI } from './ui.js';
+import { createCameraRig } from './camera.js';
 
 const COMPLETE_AT = 4;     // お城ができあがる配達回数
 const IDLE_HINT = 2.5;     // 秒：手が止まったら光らせる
@@ -71,6 +72,45 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
     list.push({ obj: castle.pick, owner: 'friend' }); // お城をトンしても友だちと同じ（渡す）
     return list;
   });
+  // ---- カメラ（主役中心の構図。camera.js）----
+  const T = LAYOUT.truck, EX = LAYOUT.excavator;
+  const parkedBed = new THREE.Vector3();
+  truck.anchor.getWorldPosition(parkedBed); parkedBed.y += 0.08;
+  const exCenter = new THREE.Vector3(EX.x, 0.22, EX.z);
+  const rig = createCameraRig(camera, {
+    machineCenter: (out) => out.copy(exCenter),
+    bucketTip: (out) => hero.getPoint('bucketTip', out),
+    bedPoint: (out) => out.copy(parkedBed),
+    machineObject: () => hero.root.getObjectByName('excavator'),
+    // 引きのショットで入れる物（決まった位置）。[x, y, z, 物の半径]
+    fixedPoints: {
+      // 渡す：止まる所のトラック・お城・友だち（荷台が上がって砂が落ちるところが大きく見える）
+      deliver: [[T.park.x, 0.25, T.stopZ, 0.4], [castlePos.x, 0.25, castlePos.z, 0.42], [friendPos.x, 0.4, friendPos.z, 0.3]],
+      // お客さん：友だちと吹き出し・お城の場所・ショベル・トラックが一度に見える
+      guest: [[EX.x, 0.25, EX.z, 0.45], [castlePos.x, 0.2, castlePos.z, 0.42], [friendPos.x, 0.55, friendPos.z, 0.35], [T.park.x, 0.25, T.park.z, 0.4]],
+      // 完成：お城（土台の丸ごと）と友だち
+      finale: [[castlePos.x, 0.35, castlePos.z, 0.52], [friendPos.x, 0.5, friendPos.z, 0.38]],
+    },
+  });
+  const forcedShot = DEBUG ? params.get('shot') : null;
+  const CAM = { guestT: 1.6, finale: false, loadHold: 0 };
+  function wantShot(dt) {
+    if (forcedShot) return forcedShot;
+    const st = hero.getState();
+    const touching = input.state.down && input.state.owner === 'hero';
+    if (touching) { CAM.guestT = 0; CAM.finale = false; }
+    if (truck.state.mode !== 'parked') return 'deliver';
+    if (CAM.guestT > 0) { CAM.guestT -= dt; return 'guest'; }
+    if (CAM.finale) return 'finale';
+    // 荷台へ積む：荷台へあけている／バケットが荷台の近く／満杯で次は荷台へ運ぶ番
+    hero.getPoint('bucketTip', v3c);
+    const nearBed = Math.hypot(v3c.x - parkedBed.x, v3c.z - parkedBed.z) < 0.5;
+    if ((st.phase === 'pour' && st.pourTarget === 'bed') || nearBed) CAM.loadHold = 1.2;
+    else if (st.bucketFill >= 0.6 && st.phase !== 'pour') CAM.loadHold = Math.max(CAM.loadHold, 0.4);
+    CAM.loadHold -= dt;
+    return CAM.loadHold > 0 ? 'load' : 'work';
+  }
+
   // iOS は版によって touchstart／touchend のどちらかでしか音を解放しないので両方で試す
   for (const ev of ['pointerdown', 'pointerup', 'touchend']) window.addEventListener(ev, () => audio.unlock(), { capture: true, passive: true });
   input.state.lastInput = performance.now() / 1000 - IDLE_HINT - 0.1; // 最初の1秒から光らせる（手の絵は数秒後）
@@ -81,7 +121,7 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
     pendingDepart: false, beepT: 0, complete: false, celebrateT: -1, hintLevel: 0, hintTarget: '',
     replaying: 0, time: 0, roundsPlayed: 0,
   };
-  const v3 = new THREE.Vector3(), v3b = new THREE.Vector3(), pourDir = new THREE.Vector3();
+  const v3 = new THREE.Vector3(), v3b = new THREE.Vector3(), v3c = new THREE.Vector3(), pourDir = new THREE.Vector3();
 
   function depart() {
     if (!truck.isParked()) return false;
@@ -118,6 +158,7 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
     G.roundsPlayed++;
     hero.reset({ seed: 1 + round * 7919 });
     G.deliveries = 0; G.complete = false; G.celebrateT = -1;
+    CAM.finale = false;
     input.poke();
   }
 
@@ -136,6 +177,7 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
         castle = createCastle(scene, tier, castlePos, shellSandWet, FRIENDS[round % FRIENDS.length], shellSandDry);
         audio.play('boing');
         G.replaying = 0;
+        CAM.guestT = 1.6; // 新しいお客さんを見せてから寄る
       }
     }
   }
@@ -175,7 +217,7 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
         fx.heartBurst(v3b, 5);
         audio.play('thud'); audio.play('boing'); audio.play('squeak');
         setTimeout(() => audio.play('happy'), 250);
-        if (G.deliveries >= COMPLETE_AT && !G.complete) { G.complete = true; G.celebrateT = 0; friend.setBubble(0); }
+        if (G.deliveries >= COMPLETE_AT && !G.complete) { G.complete = true; G.celebrateT = 0; friend.setBubble(0); CAM.finale = true; }
       }
       if (t > 2.6) { ts.dumpAngle = 0; ts.gate = 0; truck.goBack(); }
     }
@@ -271,6 +313,7 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
   }
 
   let lastHeroMs = 0;
+  let heroScreen = 0, measureT = 0;
   return {
     update(dt, time) {
       G.time = time;
@@ -291,11 +334,17 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
       fx.update(dt, camera);
       ui.update(dt);
       updateHints(dt);
+      // カメラは最後に動かす（次のフレームの指の判定は、このカメラで描いた画面に対して行う）
+      rig.update(dt, wantShot(dt), input.state.down && input.state.owner === 'hero');
+      rig.focus(v3);
+      world.followView(camera, v3, rig.visibleHalf());
       const st = hero.getState();
       audio.updateLoops({ armSpeed: st.armSpeed, digRate: st.digRate, pourRate: st.pourRate + (G.drainRate || 0) * 0.5, truckMoving: truck.state.mode === 'out' || truck.state.mode === 'back' });
       input.endFrame();
+      if (DEBUG && (measureT -= dt) <= 0) { measureT = 0.5; heroScreen = rig.measure(canvas.clientWidth, canvas.clientHeight); }
     },
-    onResize() { world.fitBackdrop(camera); },
+    onResize(w, h) { rig.resize(w, h); rig.update(0, wantShot(0), false); world.followView(camera, rig.focus(v3), rig.visibleHalf()); },
+    rig,
     onContextLost() { audio.suspend(); },
     onContextRestored() { hero.onContextRestored(); audio.resume(); },
     onHidden() { audio.suspend(); },
@@ -304,7 +353,8 @@ export function createGame({ THREE, renderer, scene, camera, canvas, container, 
     debugReplay() { replay(); },
     debugLine() {
       const s = hero.getState();
-      return `hero ${s.phase} bucket ${s.bucketFill.toFixed(2)} bed ${s.bedFill.toFixed(2)} upd ${lastHeroMs.toFixed(2)}ms\n` +
+      return rig.debugLine() + `  hero ${(heroScreen * 100).toFixed(0)}% of short side\n` +
+        `hero ${s.phase} bucket ${s.bucketFill.toFixed(2)} bed ${s.bedFill.toFixed(2)} upd ${lastHeroMs.toFixed(2)}ms\n` +
         `truck ${truck.state.mode} deliveries ${G.deliveries} round ${round} hint ${G.hintTarget}`;
     },
     // ---- 煙テスト用の読み取り ----

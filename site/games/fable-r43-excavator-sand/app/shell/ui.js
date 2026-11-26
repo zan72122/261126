@@ -2,7 +2,7 @@
 export function createUI(container, onReplay) {
   const style = document.createElement('style');
   style.textContent = `
-  .r43-replay{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:max(24px,env(safe-area-inset-bottom));
+  .r43-replay{position:absolute;right:calc(20px + env(safe-area-inset-right, 0px));bottom:calc(20px + env(safe-area-inset-bottom, 0px));
     width:120px;height:120px;border-radius:50%;border:0;padding:0;background:#3cc46a;box-shadow:0 8px 0 #23914a,0 12px 24px rgba(0,0,0,.25);
     display:none;align-items:center;justify-content:center;touch-action:none;-webkit-tap-highlight-color:transparent;cursor:pointer;z-index:5}
   .r43-replay.show{display:flex;animation:r43pop .5s cubic-bezier(.2,1.6,.4,1) both, r43pulse 1.2s ease-in-out .5s infinite}

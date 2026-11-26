@@ -123,7 +123,7 @@ const fmtMs = (v) => (v ? Math.round(v) + 'ms' : '-');
 
 export function createOverlay(stats, renderer, tier, actions) {
   const el = document.createElement('div');
-  el.style.cssText = 'position:absolute;left:6px;top:6px;z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none;max-width:46vw;overflow:hidden';
+  el.style.cssText = 'position:absolute;left:calc(6px + env(safe-area-inset-left, 0px));top:calc(6px + env(safe-area-inset-top, 0px));z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none;max-width:46vw;overflow:hidden';
   document.body.appendChild(el);
   const btns = document.createElement('div');
   btns.style.cssText = 'margin-top:4px;display:flex;gap:4px;flex-wrap:wrap';

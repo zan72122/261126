@@ -15,7 +15,20 @@ export const LAYOUT = {
   },
   castle: { x: 0.6, z: 1.76 },
   friend: { x: 1.3, z: 1.66 },
-  camera: { pos: [0.25, 2.65, 3.62], look: [0.25, 0.0, 0.62], vfov: 44, minHFovAspect: 4 / 3 },
+  // カメラ（camera.js）：主役中心の構図。距離は主役の大きさ（heroRadius）と短い辺に占める割合（fill）から決める。
+  // 以前は作業場全体（砂場の幅 約4.3m）を 4:3 の横幅で収めていて、ショベルは画面の2〜3割しかなかった。
+  camera: {
+    heroRadius: 0.5,      // 主役（ショベル＋腕）を包む球の半径 m
+    fill: 0.61,           // その球が画面の短い辺に占める割合（ショベル本体の見た目で 55〜70% になるよう合わせた値）
+    follow: 0.35,         // work でバケットの先を追う割合（0＝ショベルの中心、1＝バケットの先）
+    groupFill: 0.9,       // 引きのショットで、物の集まりが画面の縦・横に占める割合（画面に写して合わせる）
+    loadFill: 0.92,       // 荷台へ積むショット（ショベル＋荷台＋バケット）。work より近づかない
+    yaw: 8,               // 真後ろ（+Z）から右へ回す角度（度）
+    landscape: { shortFov: 40, pitch: 38, screenY: -0.06, screenYWide: 0.0, loadPitch: 4 },
+    // 縦長：主役を指の届く下寄りに置く（注視点を画面の下 35% あたりへ）。上から見下ろし気味にして砂の面を広く見せる
+    portrait: { shortFov: 38, pitch: 46, screenY: -0.32, screenYWide: -0.12, loadPitch: 2 },
+    smooth: { work: 0.45, load: 0.7, deliver: 1.1, guest: 1.0, finale: 1.3 }, // ばねの時間（秒）：引く場面はゆっくり
+  },
 };
 
 export const BED = {

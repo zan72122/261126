@@ -1,6 +1,6 @@
 // 起動：レンダラ・カメラ・ティア・ループ・コンテキスト喪失。遊びの流れは game.js。
 import * as THREE from '../vendor/three/three.module.js';
-import { LAYOUT, DEBUG, pickTier, params } from './config.js';
+import { DEBUG, pickTier, params } from './config.js';
 import { createStats, createOverlay } from './debug.js';
 import { createGame } from './game.js';
 
@@ -26,41 +26,61 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.setClearColor(0xcfe9fb, 1);
 
 const scene = new THREE.Scene();
-const C = { ...LAYOUT.camera };
-if (DEBUG && params.get('cam')) { const a = params.get('cam').split(',').map(Number); C.pos = a.slice(0, 3); C.look = a.slice(3, 6); if (a[6]) C.vfov = a[6]; }
-const camera = new THREE.PerspectiveCamera(C.vfov, 4 / 3, 0.1, 80);
-camera.position.fromArray(C.pos);
-camera.lookAt(new THREE.Vector3().fromArray(C.look));
+// 位置・画角は camera.js（主役中心の構図）が毎フレーム決める
+const camera = new THREE.PerspectiveCamera(40, 4 / 3, 0.1, 80);
 
-let pixelRatio = tier.pixelRatio;
+// 内部の描画解像度の倍率（重い時の自動降格で 1 → 0.85 → 0.75）。表示の大きさ（CSS）は常に全画面のまま
+const SCALES = [1, 0.85, 0.75];
+let scaleLevel = 0;
+if (DEBUG && params.get('scale')) { const v = +params.get('scale'); const i = SCALES.indexOf(v); if (i >= 0) scaleLevel = i; }
 // ?debug=1&fast=N：煙テスト用に1フレームで N 回進める
 const FAST = DEBUG ? Math.max(1, Math.min(6, parseInt(params.get('fast') || '1', 10) || 1)) : 1;
 let game = null;
-function resize() {
-  const w = Math.max(1, container.clientWidth), h = Math.max(1, container.clientHeight);
-  // 画素数の上限（GPU メモリ）
-  let pr = pixelRatio;
+let lastW = 0, lastH = 0, lastPr = 0;
+// 全画面：#app は 100dvh（予備 100vh）。その大きさに canvas を合わせる（黒い帯・余白を作らない）
+function viewSize() {
+  let w = container.clientWidth, h = container.clientHeight;
+  if (!(w > 0 && h > 0)) { w = window.innerWidth; h = window.innerHeight; }
+  return [Math.max(1, Math.round(w)), Math.max(1, Math.round(h))];
+}
+function resize(force) {
+  const [w, h] = viewSize();
+  // 画素数の上限（GPU メモリ）。内部の解像度だけを下げ、表示は全画面のまま
+  let pr = tier.pixelRatio * SCALES[scaleLevel];
   if (w * h * pr * pr > tier.maxPixels) pr = Math.sqrt(tier.maxPixels / (w * h));
+  if (!force && w === lastW && h === lastH && pr === lastPr) return;
+  lastW = w; lastH = h; lastPr = pr;
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h, false);
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-  const aspect = w / h;
-  camera.aspect = aspect;
-  // 4:3 の横の画角は必ず入るように（縦長なら縦の画角を広げる）
-  const hHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(C.vfov / 2)) * C.minHFovAspect);
-  const vNeeded = 2 * Math.atan(Math.tan(hHalf) / aspect);
-  camera.fov = Math.max(C.vfov, THREE.MathUtils.radToDeg(vNeeded));
-  camera.updateProjectionMatrix();
-  if (game) game.onResize();
+  if (game) game.onResize(w, h);
+  else { camera.aspect = w / h; camera.updateProjectionMatrix(); }
 }
-resize();
-window.addEventListener('resize', resize);
+resize(true);
+// 大きさの変化に追従：resize・向きの変化・visualViewport（Safari のツールバーの出入り）・要素の大きさ
+let resizeQueued = false;
+function queueResize() {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { resizeQueued = false; resize(false); });
+}
+window.addEventListener('resize', queueResize);
+window.addEventListener('orientationchange', () => {
+  queueResize();
+  // iOS は向きが変わった直後の大きさが古いことがあるので、少し後にも測り直す
+  setTimeout(queueResize, 120); setTimeout(queueResize, 450);
+});
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', queueResize);
+  window.visualViewport.addEventListener('scroll', queueResize);
+}
+if (typeof ResizeObserver === 'function') new ResizeObserver(queueResize).observe(container);
 
 const stats = createStats(renderer, scene, tier);
 game = createGame({ THREE, renderer, scene, camera, canvas, container, tier, stats });
-game.onResize();
+resize(true);
 
-// ---- 性能の自動降格（p95 が 40ms を 4 秒超え続けたら pixelRatio を下げる）----
+// ---- 性能の自動降格（p95 が 40ms を 4 秒超え続けたら、内部の描画解像度を 0.85 → 0.75 倍、その次に影を切る）----
 let slowFor = 0, warm = 0;
 const ADAPT = !(DEBUG && params.get('adapt') === '0');
 function adapt(dt) {
@@ -71,17 +91,16 @@ function adapt(dt) {
   if (f.p95ms > 40) slowFor += dt; else slowFor = 0;
   if (slowFor > 4) {
     slowFor = 0; warm = 0;
-    if (pixelRatio > 1.0) pixelRatio = 1.0;
-    else if (pixelRatio > 0.75) pixelRatio = 0.75;
+    if (scaleLevel < SCALES.length - 1) scaleLevel++;
     else if (renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
     else return;
     tier.name = tier.name.replace(/\*?$/, '*');
-    resize();
+    resize(true);
   }
 }
 
 // ---- ループ ----
-let last = performance.now(), running = true, contextLost = false, firstFrame = true;
+let last = performance.now(), running = true, contextLost = false, firstFrame = true, sizeCheckT = 0;
 function loop(now) {
   if (!running) return;
   requestAnimationFrame(loop);
@@ -102,6 +121,8 @@ function loop(now) {
     window.__r43.scriptStartMs = t0;
   }
   adapt(dt);
+  // 念のため：大きさの通知が来なかった時も 0.5 秒ごとに測る（読むだけなので軽い）
+  if ((sizeCheckT += dt) > 0.5) { sizeCheckT = 0; resize(false); }
   if (overlay) overlay.update(dt, game.debugLine());
 }
 
@@ -124,7 +145,7 @@ canvas.addEventListener('webglcontextrestored', () => {
     }
   });
   renderer.shadowMap.needsUpdate = true;
-  resize();
+  resize(true);
   game.onContextRestored();
   contextLost = false;
   last = performance.now();
