@@ -41,7 +41,7 @@ function topo() {
 function candyCoreMaterial(rimColor) {
   const m = new THREE.MeshPhysicalMaterial({
     vertexColors: true, map: tex('fibre_c', 3, true), normalMap: tex('fibre_n', 3), normalScale: new THREE.Vector2(0.45, 0.45),
-    roughness: 0.9, metalness: 0, sheen: 1, sheenRoughness: 0.35, sheenColor: new THREE.Color(0.55, 0.42, 0.3),
+    roughness: 0.9, metalness: 0, sheen: 0.35, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.4, 0.3, 0.22),
     clearcoat: 1, clearcoatRoughness: 0.08, transparent: true, depthWrite: true, side: THREE.FrontSide,
   });
   m.userData.uRim = { value: rimColor };
@@ -52,20 +52,20 @@ function candyCoreMaterial(rimColor) {
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim; varying float vWet;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         // wet sugar becomes deeper, more saturated syrup
-        diffuseColor.rgb = mix(diffuseColor.rgb, pow(diffuseColor.rgb, vec3(1.6)) * 1.05, vWet * 0.85);`)
+        diffuseColor.rgb = mix(diffuseColor.rgb, pow(diffuseColor.rgb, vec3(2.2)) * 1.35, smoothstep(0.0, 0.6, vWet));`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = mix(roughnessFactor, 0.1, vWet);`)
+        roughnessFactor = mix(roughnessFactor, 0.06, smoothstep(0.0, 0.5, vWet));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           vec3 vd = normalize(vViewPosition);
           float ndv = clamp(abs(dot(normal, vd)), 0.0, 1.0);
           float rim = pow(1.0 - ndv, 2.2);
           // fluffy: edges dissolve into threads; wet: clearer, glassy
-          diffuseColor.a *= mix(0.12 + 0.88 * smoothstep(0.03, 0.55, ndv), 0.5 + 0.4 * ndv, vWet);
+          diffuseColor.a *= mix(0.12 + 0.88 * smoothstep(0.03, 0.55, ndv), 0.28 + 0.4 * ndv, smoothstep(0.0, 0.6, vWet));
           // lantern light scattering through the thin threads at the rim (golden edge)
-          totalEmissiveRadiance += uRim * rim * (1.0 - 0.6 * vWet) + diffuseColor.rgb * 0.06;
+          totalEmissiveRadiance += uRim * rim * (1.0 - 0.6 * vWet) + diffuseColor.rgb * 0.03;
         }`)
-      .replace('#include <lights_physical_fragment>', THREE.ShaderChunk.lights_physical_fragment.replace('material.clearcoat = clearcoat;', 'material.clearcoat = clearcoat * vWet;'));
+      .replace('#include <lights_physical_fragment>', THREE.ShaderChunk.lights_physical_fragment.replace('material.clearcoat = clearcoat;', 'material.clearcoat = clearcoat * smoothstep(0.0, 0.5, vWet);'));
   };
   m.customProgramCacheKey = () => 'candyCore';
   return m;
@@ -74,7 +74,7 @@ function candyCoreMaterial(rimColor) {
 function candyShellMaterial(offset, rep, rimColor) {
   const m = new THREE.MeshPhysicalMaterial({
     vertexColors: true, alphaMap: tex('fibre_c', rep), transparent: true, depthWrite: false,
-    roughness: 0.95, sheen: 1, sheenRoughness: 0.3, sheenColor: new THREE.Color(0.5, 0.4, 0.28), opacity: 0.85,
+    roughness: 0.95, sheen: 0.2, sheenRoughness: 0.4, sheenColor: new THREE.Color(0.4, 0.3, 0.2), opacity: 0.8,
   });
   m.userData.uRim = { value: rimColor };
   m.onBeforeCompile = (sh) => {
@@ -87,7 +87,7 @@ function candyShellMaterial(offset, rep, rimColor) {
         diffuseColor.a = smoothstep(0.86, 1.0, texture2D(alphaMap, vAlphaMapUv).g) * opacity * (1.0 - vWet);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         { vec3 vd = normalize(vViewPosition); float ndv = clamp(abs(dot(normal, vd)), 0.0, 1.0);
-          totalEmissiveRadiance += uRim * pow(1.0 - ndv, 1.6) * 1.2 + diffuseColor.rgb * 0.08; }`);
+          totalEmissiveRadiance += uRim * pow(1.0 - ndv, 2.2) * 0.6 + diffuseColor.rgb * 0.05; }`);
   };
   m.customProgramCacheKey = () => 'candyShell' + offset;
   return m;
@@ -97,9 +97,9 @@ export function strandMaterial() {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, vertexColors: true,
     uniforms: {
-      uRim: { value: new THREE.Color(1.0, 0.62, 0.25) },
-      uAmb: { value: new THREE.Color(0.35, 0.3, 0.32) },
-      uKey: { value: new THREE.Color(0.9, 0.7, 0.5) },
+      uRim: { value: new THREE.Color(0.75, 0.42, 0.14) },
+      uAmb: { value: new THREE.Color(0.25, 0.22, 0.24) },
+      uKey: { value: new THREE.Color(0.6, 0.48, 0.36) },
       uKeyDir: { value: V(0.2, 0.9, 0.3).normalize() },
       uOpacity: { value: 1 },
     },
@@ -111,7 +111,7 @@ export function strandMaterial() {
       void main(){
         float ndv = abs(dot(vN, vV)); float rim = pow(1.0 - ndv, 2.0);
         float dif = 0.55 + 0.45 * dot(vN, uKeyDir);
-        vec3 c = vC * (uAmb + uKey * dif) + uRim * rim * 1.4;
+        vec3 c = vC * (uAmb + uKey * dif) * 1.1 + uRim * rim * 0.8;
         gl_FragColor = vec4(c, vA * uOpacity * (0.4 + 0.6 * rim));
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -135,7 +135,7 @@ export class Candy {
     for (let i = 0; i < N; i++) { const d = T.dirs[i]; this.lump[i] = Math.sin(d.x * 7 + seed) * Math.sin(d.y * 6 + seed * 1.3) * Math.sin(d.z * 8 - seed) * 0.5 + Math.sin(d.x * 17 + d.z * 13 + seed) * 0.15; }
     this.mass = 0; this.shares = new Map();
     this.group = new THREE.Group();
-    this.rim = opts.rim || new THREE.Color(1.0, 0.58, 0.22).multiplyScalar(0.55);
+    this.rim = opts.rim || new THREE.Color(1.0, 0.55, 0.2).multiplyScalar(0.42);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
     g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
@@ -191,7 +191,17 @@ export class Candy {
 
   // dir: unit vector in candy-local space. vol: m^3 of fluff. col: THREE.Color (linear)
   deposit(dir, vol, col, spread = 0.75, key = 'x') {
+    // big amounts are applied in small steps so growth stays proportional to the surface
+    const Rm = Math.max(0.012, this.radius);
+    const step = Math.max(2e-6, 4.19 * Rm * Rm * Rm * 0.12);
+    if (vol > step * 1.01) { let left = vol; while (left > 1e-9) { const v = Math.min(step, left); this._deposit(dir, v, col, spread, key); left -= v; } return; }
+    this._deposit(dir, vol, col, spread, key);
+  }
+  _deposit(dir, vol, col, spread, key) {
     const T = this.T, N = T.N;
+    // while the cloud is still small the threads wrap all the way round the stick
+    const R0 = this.radius;
+    spread = spread + (2.4 - spread) * (1 - smooth(0.015, 0.07, R0));
     const cs = Math.cos(spread);
     let sumK = 0;
     const K = this._K || (this._K = new Float32Array(N));
@@ -209,7 +219,7 @@ export class Candy {
       K[i] = k; sumK += k;
     }
     if (sumK <= 0) return;
-    const R = Math.max(0.02, this.radius);
+    const R = Math.max(0.006, this.radius);
     const area = 4 * Math.PI * R * R / N;
     for (let i = 0; i < N; i++) {
       if (K[i] <= 0) continue;
@@ -231,6 +241,9 @@ export class Candy {
     this.mass += vol;
     this.shares.set(key, (this.shares.get(key) || 0) + vol);
     this.relax(1);
+    // no spikes: a strand-cloud cannot stick out much further than its body
+    const lim = this.radius * 1.55 + 0.012;
+    for (let i = 0; i < N; i++) if (this.r[i] > lim) this.r[i] = lim;
     // new threads on the surface where it landed
     const nS = Math.max(1, Math.round(vol / 0.0000016));
     for (let s = 0; s < nS; s++) this.addStrand(dir, spread, col);
@@ -273,7 +286,7 @@ export class Candy {
     this.sAnchor[s] = i;
     // colour lighter than the sugar (thin threads scatter light)
     const C = this.sgeo.attributes.color.array;
-    const l = 0.08 + Math.random() * 0.22;
+    const l = 0.02 + Math.random() * 0.14;
     for (let k = 0; k < (this.PTS - 1) * 2; k++) {
       const o = (s * (this.PTS - 1) * 2 + k) * 3;
       C[o] = col.r + (1 - col.r) * l; C[o + 1] = col.g + (1 - col.g) * l; C[o + 2] = col.b + (1 - col.b) * l;
@@ -291,7 +304,7 @@ export class Candy {
       const w = Math.min(1 - this.wet[i], amount * k);
       if (w <= 0) continue;
       this.wet[i] += w;
-      this.r[i] = Math.max(0.006, this.r[i] * (1 - 0.6 * w));
+      this.r[i] = Math.max(0.006, this.r[i] * (1 - 0.85 * w));
       this.tOut[i] *= (1 - 0.6 * w);
     }
     // strands near wet area melt in
@@ -342,14 +355,14 @@ export class Candy {
     if (this.dirty) {
       for (let i = 0; i < N; i++) {
         const d = T.dirs[i];
-        const rr = this.r[i] * (1 + 0.07 * this.lump[i] * smooth(0.01, 0.05, this.r[i]));
+        const rr = this.r[i] * (1 + 0.045 * this.lump[i] * smooth(0.01, 0.05, this.r[i]));
         P[i * 3] = d.x * rr; P[i * 3 + 1] = d.y * rr * this.elong + lift; P[i * 3 + 2] = d.z * rr;
         const o = i * 3;
         const vis = smooth(0, 0.03, this.tOut[i]);
         // core shows the deeper layers through the translucent outer fluff; shells show the newest layer
         for (let c = 0; c < 3; c++) {
-          const v = this.cIn[o + c] + (this.cOut[o + c] - this.cIn[o + c]) * vis * 0.55; C[o + c] = v + (1 - v) * 0.05;
-          if (C2) C2[o + c] = this.cOut[o + c] + (1 - this.cOut[o + c]) * 0.08;
+          const v = this.cIn[o + c] + (this.cOut[o + c] - this.cIn[o + c]) * vis * 0.55; C[o + c] = v;
+          if (C2) C2[o + c] = this.cOut[o + c];
         }
       }
       this.geo.attributes.position.needsUpdate = true;
@@ -367,7 +380,7 @@ export class Candy {
       for (let s = 0; s < this.sCount; s++) {
         const rr = this.sR[s];
         const w = this.wet[this.sAnchor[s]];
-        const alpha = (0.35 + 0.4 * ((s * 7919) % 13) / 13) * (1 - w);
+        const alpha = (0.28 + 0.34 * ((s * 7919) % 13) / 13) * (1 - w);
         for (let k = 0; k < PTS - 1; k++) {
           for (const kk of [k, k + 1]) {
             const o = (s * PTS + kk) * 3;

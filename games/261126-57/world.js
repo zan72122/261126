@@ -78,9 +78,9 @@ export function buildEnvironment(renderer) {
 export function buildLights(scene) {
   const L = {};
   // bare incandescent bulb under the canopy: the key light with soft shadows
-  const key = new THREE.SpotLight(0xffc183, 15, 6, 1.1, 0.9, 2);
-  key.position.set(0.05, 1.98, -0.05);
-  key.target.position.set(-0.05, 0.8, -0.35);
+  const key = new THREE.SpotLight(0xffd9b0, 9, 7, 1.1, 0.9, 2);
+  key.position.set(0.05, 2.0, 0.12);
+  key.target.position.set(-0.08, 0.8, -0.4);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 6;
@@ -92,14 +92,14 @@ export function buildLights(scene) {
   const l2 = new THREE.PointLight(0xffa560, 3.2, 5, 2); l2.position.set(0.95, 2.0, 0.25); scene.add(l2);
   L.lan = [l1, l2];
   // light from the busy street (front fill so faces read) and back rim from the stalls behind
-  const fill = new THREE.DirectionalLight(0xffcf9e, 1.25); fill.position.set(0.8, 1.6, 3); scene.add(fill);
+  const fill = new THREE.DirectionalLight(0xffe4c8, 1.5); fill.position.set(0.8, 1.6, 3); scene.add(fill);
   const street = new THREE.PointLight(0xffb070, 2.2, 6, 1.6); street.position.set(0.4, 1.5, 1.8); scene.add(street); L.street = street;
   const rim = new THREE.DirectionalLight(0xffa65a, 1.4); rim.position.set(-1.5, 2.2, -3); scene.add(rim);
   L.fill = fill; L.rim = rim;
   const hemi = new THREE.HemisphereLight(0x33427a, 0x2a1c12, 0.55); scene.add(hemi);
   L.hemi = hemi;
   // firework flash (scene 3)
-  const flash = new THREE.PointLight(0xffffff, 0, 30, 1.2); flash.position.set(0, 7, -6); scene.add(flash);
+  const flash = new THREE.PointLight(0xffffff, 0, 40, 1.2); flash.position.set(0, 7, -6); scene.add(flash);
   L.flash = flash;
   return L;
 }
@@ -230,11 +230,11 @@ export function buildStall(scene) {
   // bare bulb + cord + small shade
   const bulbM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffd7a0, emissiveIntensity: 6 });
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), bulbM); bulb.scale.y = 1.25;
-  bulb.position.set(0.05, 1.97, -0.05); grp.add(bulb);
+  bulb.position.set(0.05, 1.99, 0.12); grp.add(bulb);
   const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.32, 6), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 }));
-  cord.position.set(0.05, 2.15, -0.05); grp.add(cord);
+  cord.position.set(0.05, 2.17, 0.12); grp.add(cord);
   const shade = new THREE.Mesh(latheGeo([[0.005, 0.04], [0.04, 0.03], [0.09, -0.02], [0.092, -0.025]], 32), new THREE.MeshStandardMaterial({ ...pbr('steel', 1, { metal: true }), color: 0x9aa0a6, metalness: 1, roughness: 1, side: THREE.DoubleSide }));
-  shade.position.set(0.05, 2.03, -0.05); grp.add(shade);
+  shade.position.set(0.05, 2.05, 0.12); grp.add(shade);
   S.bulb = bulb;
   // hook for the happi on the right post
   const hook = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.005, 8, 16, Math.PI * 1.3), new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 1, roughness: 0.4 }));
@@ -250,7 +250,6 @@ export function buildStall(scene) {
     const c2 = sagPlane(2.6, 1.6, 20, 10, 0.05, sx > 0 ? new THREE.MeshStandardMaterial({ ...pbr('canopy', [3, 2]), color: 0x6a8ab0, side: THREE.DoubleSide }) : cm);
     c2.rotation.x = -Math.PI / 2 + 0.1; c2.position.set(0, 2.3, -0.4); ng.add(c2);
     for (let i = 0; i < 4; i++) { const l = chochin(i % 2 ? 0xe9dccb : 0xc8322a, 0.3, 0.11); l.position.set(-0.9 + i * 0.6, 2.0, 0.42); ng.add(l); }
-    const pl = new THREE.PointLight(0xffa560, 2.5, 4, 2); pl.position.set(0, 1.9, 0.3); ng.add(pl);
     // goods on the neighbour counters: rows of glass bottles (ramune-like, no labels)
     const bm = new THREE.MeshPhysicalMaterial({ color: 0x9fd6d0, roughness: 0.05, transmission: 0, transparent: true, opacity: 0.55, clearcoat: 1 });
     for (let i = 0; i < 10; i++) { const b = new THREE.Mesh(latheGeo([[0, 0], [0.03, 0], [0.032, 0.01], [0.032, 0.13], [0.02, 0.17], [0.012, 0.2], [0.013, 0.23], [0, 0.23]], 16), bm); b.position.set(-0.8 + i * 0.17, 0.825, 0.05); ng.add(b); }
@@ -268,8 +267,8 @@ export function buildStall(scene) {
   }
   // far backdrop (photographic bokeh of the festival street)
   const bdTex = tex('backdrop', 1, true); bdTex.wrapS = bdTex.wrapT = THREE.ClampToEdgeWrapping;
-  const bd = new THREE.Mesh(new THREE.PlaneGeometry(46, 23), new THREE.MeshBasicMaterial({ map: bdTex, color: 0xffffff, fog: false }));
-  bd.position.set(0, 7.6, -16); grp.add(bd);
+  const bd = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshBasicMaterial({ map: bdTex, color: 0xffffff, fog: false }));
+  bd.position.set(0, 5.5, -18); grp.add(bd);
   S.backdrop = bd;
   // soft contact shadows helper texture
   S.blob = canvasTex(128, 128, (g, w, h) => {

@@ -8,12 +8,12 @@ import { strandMaterial } from './candy.js';
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 
 export const SUGARS = [
-  { key: 'pink', hex: 0xe8829f },
-  { key: 'blue', hex: 0x78acd8 },
-  { key: 'yellow', hex: 0xecc95a },
-  { key: 'green', hex: 0x8cc47e },
+  { key: 'pink', hex: 0xe2607f },
+  { key: 'blue', hex: 0x3d78d6 },
+  { key: 'yellow', hex: 0xe9b62e },
+  { key: 'green', hex: 0x62b056 },
 ];
-SUGARS.forEach(s => { s.col = new THREE.Color(s.hex); s.fluff = new THREE.Color(s.hex).lerp(new THREE.Color(1, 1, 1), 0.04); });
+SUGARS.forEach(s => { s.col = new THREE.Color(s.hex); s.fluff = new THREE.Color(s.hex); });
 
 export function steelMat(extra = {}) {
   return new THREE.MeshPhysicalMaterial({ ...pbr('steel', 1, { metal: true }), color: 0xd4d7da, metalness: 1, roughness: 1, envMapIntensity: 2.2, ...extra });
@@ -119,7 +119,7 @@ export class Machine {
 
   // returns volume collected for a given sweep length (metres of stick travel)
   collect(sweep, held) {
-    const k = Math.min(this.webAmt, sweep * 0.032 + (held ? 0.00002 : 0));
+    const k = Math.min(this.webAmt, Math.min(0.05, sweep) * 0.03 + (held ? 0.00002 : 0), 0.00018);
     this.webAmt -= k;
     return k;
   }
@@ -169,7 +169,7 @@ export function makeJar(S, sugar) {
   const prof = [[0, 0.001], [jr - 0.01, 0.0], [jr, 0.01], [jr, jh - 0.02], [jr - 0.012, jh - 0.004], [jr - 0.012, jh + 0.008], [jr - 0.009, jh + 0.012]];
   const g = new THREE.Mesh(latheGeo(prof, 40), glass); g.renderOrder = 6; grp.add(g);
   // sugar fill: crystalline surface, colour sugar
-  const fm = new THREE.MeshPhysicalMaterial({ color: sugar.col, ...pbr('sugar', 3), roughness: 1, clearcoat: 0.6, clearcoatRoughness: 0.15, sheen: 0.5, sheenColor: new THREE.Color(1, 1, 1), normalScale: new THREE.Vector2(1.6, 1.6) });
+  const fm = new THREE.MeshPhysicalMaterial({ color: sugar.col, ...pbr('sugar', 3), roughness: 1, clearcoat: 0.5, clearcoatRoughness: 0.12, normalScale: new THREE.Vector2(1.6, 1.6) });
   const fill = new THREE.Mesh(latheGeo([[0, 0.004], [jr - 0.012, 0.004], [jr - 0.004, 0.012], [jr - 0.004, jh * 0.62], [jr * 0.5, jh * 0.66], [0, jh * 0.67]], 40), fm);
   grp.add(fill);
   const cs = contactShadow(S, 0.16, 0.16, 0.6); cs.position.y = 0.001; grp.add(cs);

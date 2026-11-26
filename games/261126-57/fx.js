@@ -148,7 +148,7 @@ export class Particles {
   }
   emit(o) {
     const p = this.p[this.i]; this.i = (this.i + 1) % this.n;
-    p.life = p.max = o.life || 1; p.pos.copy(o.pos); p.vel.copy(o.vel || V());
+    p.life = p.max = o.life || 1; p.pos.copy(o.pos); p.trail = 0; p.tt = 0; p.vel.copy(o.vel || V());
     p.col.copy(o.col || new THREE.Color(1, 1, 1)); p.size = o.size || 0.02; p.grow = o.grow || 0; p.drag = o.drag || 0; p.grav = o.grav || 0; p.a0 = o.alpha ?? 1;
     p.flicker = o.flicker || 0;
     return p;
@@ -173,7 +173,7 @@ export class Particles {
 
 export class FX {
   constructor(scene, renderer) {
-    this.glow = new Particles(scene, 900, glowTex());
+    this.glow = new Particles(scene, 2600, glowTex());
     this.star = new Particles(scene, 200, starTex());
     this.smoke = new Particles(scene, 120, smokeTex(), THREE.NormalBlending);
     this.scene = scene;
@@ -210,11 +210,12 @@ export class FX {
     const kind = Math.random();
     for (let i = 0; i < n; i++) {
       const d = V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-      const sp = kind < 0.5 ? 3.2 : 2.2 + Math.random() * 1.4;
-      this.glow.emit({ pos: pos.clone(), vel: d.multiplyScalar(sp), col: (i % 5 ? col : col2).clone().multiplyScalar(2.2), size: 0.09 + Math.random() * 0.06, life: 1.4 + Math.random() * 0.8, drag: 1.4, grav: 0.9, flicker: kind > 0.5 ? 1 : 0 });
+      const sp = kind < 0.5 ? 4.2 : 3.0 + Math.random() * 1.8;
+      const sp_ = this.glow.emit({ pos: pos.clone(), vel: d.multiplyScalar(sp), col: (i % 5 ? col : col2).clone().multiplyScalar(2.2), size: 0.28 + Math.random() * 0.18, life: 1.5 + Math.random() * 0.9, drag: 1.2, grav: 0.9, flicker: kind > 0.5 ? 1 : 0 });
+      sp_.trail = 0.05 + Math.random() * 0.05;
     }
-    for (let i = 0; i < 20; i++) this.star.emit({ pos: pos.clone(), vel: V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5), col: new THREE.Color(1, 0.95, 0.8).multiplyScalar(2), size: 0.15, life: 1.0, drag: 2, grav: 0.5, flicker: 1 });
-    if (light) { light.color.copy(col).lerp(new THREE.Color(1, 1, 1), 0.3); light.intensity = 260; light.position.copy(pos); }
+    for (let i = 0; i < 20; i++) this.star.emit({ pos: pos.clone(), vel: V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5), col: new THREE.Color(1, 0.95, 0.8).multiplyScalar(2), size: 0.45, life: 1.0, drag: 2, grav: 0.5, flicker: 1 });
+    if (light) { light.color.copy(col).lerp(new THREE.Color(1, 1, 1), 0.3); light.intensity = 900; light.position.copy(pos); }
     sound && setTimeout(() => sound.boom(1.4), 250);
   }
   update(dt) {
@@ -222,8 +223,14 @@ export class FX {
       const r = this.rockets[i];
       r.t -= dt; r.pos.addScaledVector(r.vel, dt);
       r.trail -= dt;
-      if (r.trail <= 0) { r.trail = 0.02; this.glow.emit({ pos: r.pos.clone(), vel: V((Math.random() - 0.5) * 0.2, -0.3, 0), col: new THREE.Color(1, 0.7, 0.4).multiplyScalar(1.5), size: 0.06, life: 0.5 }); }
+      if (r.trail <= 0) { r.trail = 0.02; this.glow.emit({ pos: r.pos.clone(), vel: V((Math.random() - 0.5) * 0.2, -0.3, 0), col: new THREE.Color(1, 0.7, 0.4).multiplyScalar(1.5), size: 0.16, life: 0.5 }); }
       if (r.t <= 0) { this.burst(r.pos, r.col, r.light, r.sound); this.rockets.splice(i, 1); }
+    }
+    // falling sparks leave short glowing trails (like a long exposure in the eye)
+    for (const p of this.glow.p) {
+      if (!p.trail || p.life <= 0) continue;
+      p.tt = (p.tt || 0) - dt;
+      if (p.tt <= 0) { p.tt = p.trail; const q = this.glow.emit({ pos: p.pos.clone(), vel: p.vel.clone().multiplyScalar(0.05), col: p.col.clone().multiplyScalar(0.45), size: p.size * 0.55, life: 0.45, drag: 2 }); q.trail = 0; }
     }
     this.glow.update(dt); this.star.update(dt); this.smoke.update(dt);
   }

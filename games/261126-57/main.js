@@ -17,7 +17,7 @@ const Q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -48,7 +48,7 @@ SUGARS.forEach((s, i) => {
 const scoop = makeScoop(); scene.add(scoop);
 const scoopHome = () => { const j = jars[state.lastJar ?? 0]; return j.position.clone().add(V(0.0, 0.135, 0)); };
 const grains = new Grains(scene, 420);
-const cup = makeStickCup(S); cup.position.set(-0.56, COUNTER, -0.62); scene.add(cup);
+const cup = makeStickCup(S); cup.position.set(0.43, COUNTER, -0.56); scene.add(cup);
 const rack = makeRack(S, S.wood); rack.position.set(0.78, COUNTER, -0.28); rack.rotation.y = -0.25; scene.add(rack);
 // saucer under the hachimaki and the rolled hachimaki
 // crate is part of the stall; girl stands on it
@@ -107,15 +107,15 @@ const sign = signBoard(); sign.position.set(-1.0, 1.9, 0.2); sign.rotation.set(0
 // ---------------------------------------------------------------- people
 const girl = new Human('girl', { top: { kind: 'tshirt', color: 0xffffff }, bottom: { kind: 'pants', color: 0xffffff, shorts: true } });
 girl.root.position.copy(GIRL_HOME); scene.add(girl.root);
-const happiMat = clothMat('happi', 0xffffff, 2.6);
+const happiMat = clothMat('happi', 0xffffff, 1.35);
 const collarMat = new THREE.MeshPhysicalMaterial({ color: 0xa3262b, ...pbr('tshirt', [1, 8]), roughness: 1, sheen: 0.6, sheenColor: new THREE.Color(0.8, 0.3, 0.3) });
 const sashMat = clothMat('tshirt', 0x1c2442, 4);
 const gHappi = girl.buildHappi(happiMat, collarMat, sashMat); gHappi.grp.visible = false; gHappi.sleeves.forEach(s => s.visible = false);
 const gHachi = girl.buildHachimaki(); gHachi.visible = false;
 
-const papa = new Human('papa', { top: { kind: 'happi', color: 0xffffff, rep: 1.4 }, bottom: { kind: 'pants', color: 0x6a6460, shoe: 0x2a2420 } });
+const papa = new Human('papa', { top: { kind: 'happi', color: 0xffffff, rep: 2.6 }, bottom: { kind: 'pants', color: 0x6a6460, shoe: 0x2a2420 } });
 const pHappiCollar = new THREE.MeshPhysicalMaterial({ color: 0xa3262b, roughness: 1, sheen: 0.5 });
-papa.buildHappi(clothMat('happi', 0xffffff, 1.6), pHappiCollar, clothMat('tshirt', 0x1c2442, 4));
+papa.buildHappi(clothMat('happi', 0xffffff, 2.6), pHappiCollar, clothMat('tshirt', 0x1c2442, 4));
 papa.buildHachimaki();
 const PAPA_HOME = V(-0.92, 0, -0.95);
 papa.root.position.copy(PAPA_HOME); papa.root.rotation.y = 0.35; scene.add(papa.root);
@@ -147,7 +147,7 @@ const customers = [
   { kind: 'grandma', opts: { top: { kind: 'cloth2', color: 0xd8d0c4, longSleeve: true }, bottom: { kind: 'pants', color: 0x6a5a5a, skirt: true, len: 0.3 } }, want: ['blue', 'pink'], big: true },
   { kind: 'mama', opts: { top: { kind: 'tshirt', color: 0xc9d6c0 }, bottom: { kind: 'pants', color: 0x8090a8, skirt: true, len: 0.35 } }, want: ['green', 'yellow'], big: true },
 ];
-const CUST_SPOT = V(-0.86, 0, 0.5);
+const CUST_SPOT = V(-0.75, 0, 0.42);
 customers.forEach((c, i) => {
   c.h = new Human(c.kind, { ...c.opts, seed: i + 3 });
   c.h.root.visible = false; scene.add(c.h.root);
@@ -246,11 +246,11 @@ const rolledHachi = (() => {
 const LENS = 38; // mm (35mm equivalent) on the long side
 const shots = {
   dress: { t: V(0.66, 1.3, -0.42), w: 0.68, h: 0.5, dir: V(0.12, 0.12, 1) },
-  make: { t: V(-0.07, 1.08, -0.45), w: 0.5, h: 0.4, dir: V(0.06, 0.45, 1) },
-  lift: { t: V(-0.05, 1.33, -0.68), w: 0.36, h: 0.3, dir: V(0.1, 0.12, 1) },
-  serve: { t: V(-0.42, 1.16, -0.1), w: 0.5, h: 0.44, dir: V(-0.35, 0.28, 1) },
+  make: { t: V(-0.03, 1.08, -0.45), w: 0.52, h: 0.4, dir: V(0.06, 0.45, 1) },
+  lift: { t: V(-0.08, 1.33, -0.68), w: 0.32, h: 0.28, dir: V(0.1, 0.1, 1) },
+  serve: { t: V(-0.33, 1.2, -0.12), w: 0.64, h: 0.46, dir: V(0.25, 0.1, 1) },
   blunder: { t: V(-0.42, 1.42, -0.55), w: 0.42, h: 0.4, dir: V(0.25, 0.08, 1) },
-  fire: { t: V(-0.05, 2.0, -1.0), w: 0.9, h: 1.65, dir: V(0.0, -0.32, 1) },
+  fire: { t: V(-0.05, 2.3, -1.2), w: 0.85, h: 1.9, dir: V(0.0, -0.42, 1) },
 };
 const cam = { pos: V(0.6, 1.5, 2.6), look: V(0, 1.2, 0), tPos: V(), tLook: V(), shot: null, sp: 1.6 };
 function frameShot(sh) {
@@ -348,7 +348,7 @@ function pointerOnBowl() {
 // ---------------------------------------------------------------- game state
 const state = {
   scene: 0, dressed: { happi: false, hachi: false }, busy: false, stickIn: false, windOK: false,
-  lastJar: 0, customer: -1, blunderDone: false, served: 0, goalR: 0.118, made: 0,
+  lastJar: 0, customer: -1, blunderDone: false, served: 0, goalR: 0.105, made: 0,
 };
 const anims = []; // {dur, f(k), done, t}
 const seq = [];   // timeline steps
@@ -409,6 +409,7 @@ jars.forEach((j, i) => {
 scoop.position.copy(scoopHome()); scoop.rotation.set(0, 0, -0.9);
 function scoopSugar(i) {
   const j = jars[i]; const s = j.userData.sugar;
+  state.makeHold = 3;
   state.scooping = true; state.lastJar = i;
   sound.tap();
   const heap = scoop.userData.heap;
@@ -462,9 +463,9 @@ addTarget({ name: 'stick', objs: [proxy(cup, 0.1, V(0, 0.12, 0), V(1, 1.6, 1))],
 function pointerOnBowlDefault() { return machine.bowlCenter(V()).add(V(0.12, -0.005, 0.08)); }
 
 // ---- customers (scene 2)
-const custT = addTarget({ name: 'customer', objs: [], enabled: () => state.scene === 2 && state.customer >= 0 && work && work.candy.radius > 0.05 && !state.busy && state.custReady,
+const custT = addTarget({ name: 'customer', objs: [], enabled: () => state.scene === 2 && state.customer >= 0 && work && work.candy.radius > 0.045 && !state.busy && state.custReady && cam.shot === 'serve',
   glow: [], pos: () => customers[state.customer].h.head.getWorldPosition(V()).add(V(0, -0.15, 0)), tap: () => serve() });
-customers.forEach(c => { custT.objs.push(proxy(c.h.root, 0.32, V(0, c.h.P.H * 0.6, 0), V(0.8, 1.6, 0.8))); });
+customers.forEach(c => { custT.objs.push(proxy(c.h.root, 0.22, V(0, c.h.P.H * 0.72, 0), V(1, 1.7, 1))); });
 
 // ---- papa's face fluff (after the blunder) can be picked off
 let faceFluff = null;
@@ -482,7 +483,7 @@ addTarget({ name: 'papaFace', objs: [proxy(papa.head, 0.12)], enabled: () => !!f
   } });
 
 // ---- rack (scene 3: plant finished candy)
-addTarget({ name: 'rack', objs: [proxy(rack, 0.2, V(0, 0.1, 0), V(1.8, 1, 0.8))], enabled: () => state.scene === 3 && work && work.candy.radius > 0.07 && !state.busy, glow: [S.wood], pos: () => rack.position.clone().add(V(0, 0.12, 0)),
+addTarget({ name: 'rack', objs: [proxy(rack, 0.2, V(0, 0.1, 0), V(1.8, 1, 0.8))], enabled: () => state.scene === 3 && work && work.candy.radius > 0.05 && !state.busy, glow: [S.wood], pos: () => rack.position.clone().add(V(0, 0.12, 0)),
   tap() {
     finishToRack();
   } });
@@ -499,7 +500,7 @@ function finishFirstCandy() {
   state.busy = true; state.windOK = false; state.stickIn = false;
   setShot('lift', 1.4);
   const from = work.tip.clone();
-  const to = girl.head.getWorldPosition(V()).add(V(-0.2, -0.03, 0.12));
+  const to = girl.head.getWorldPosition(V()).add(V(-0.22, 0.0, 0.1));
   anims.push({ dur: 1.0, f: k => { work.tip.lerpVectors(from, to, ease(k)); }, done: () => {
     girl.setExpr('laugh', 2.5); sound.yay(); fx.sparkle(work.tip.clone().add(V(0, 0.12, 0)), 24, new THREE.Color(1, 0.85, 0.6), 0.2); hopOnce(girl, 0.04, 0.5);
     papa.setExpr('happy', 2); papa.lookAt(work.tip);
@@ -509,7 +510,7 @@ function finishFirstCandy() {
 }
 
 function startScene2() {
-  state.scene = 2; state.customer = -1;
+  state.scene = 2; state.customer = -1; state.makeOK = true;
   setShot('serve', 1.0);
   nextCustomer();
 }
@@ -526,12 +527,12 @@ function nextCustomer() {
     h.walking = false;
     // stand turned between the girl and the street (so we see the face)
     const face = Math.atan2(girl.root.position.x - CUST_SPOT.x, girl.root.position.z - CUST_SPOT.z);
-    const yaw0 = h.root.rotation.y; anims.push({ dur: 0.5, f: k => { h.root.rotation.y = lerp(yaw0, 1.05, ease(k)); } });
+    const yaw0 = h.root.rotation.y; anims.push({ dur: 0.5, f: k => { h.root.rotation.y = lerp(yaw0, 0.95, ease(k)); } });
     h.lookAt(girl.head.getWorldPosition(V())); h.setExpr('smile');
     // thought bubble with the wanted cotton candy
     setBubbleOrder(c);
-    bubble.visible = true; popScale(bubble, 0.5); sound.pop();
-    state.custReady = true;
+    bubble.visible = true; bubble.scale.setScalar(1); popScale(bubble, 0.5); sound.pop();
+    state.custReady = true; state.showCust = 2.5;
     girl.lookAt(h.head.getWorldPosition(V())); girl.setExpr('smile');
   } });
 }
@@ -553,7 +554,7 @@ function serve() {
 function judge(c, w) {
   const keys = w.candy.colorKeys(0.18);
   const R = w.candy.radius;
-  const sizeOK = c.big ? R > 0.1 : R < 0.115;
+  const sizeOK = c.big ? R > 0.09 : R < 0.105;
   const colOK = c.want.every(k => keys.includes(k)) && keys.every(k => c.want.includes(k));
   const h = c.h;
   bubble.visible = false;
@@ -610,9 +611,11 @@ function papaBlunder() {
       // stuck fluff on papa's face: a small piece of the same pink candy
       const c = new Candy({ seed: 3, strands: 400 });
       for (let i = 0; i < 18; i++) c.deposit(V(Math.random() - 0.5, Math.random() - 0.5, 1).normalize(), 0.000012, SUGARS[0].fluff, 1.2, 'pink');
-      c.group.scale.set(1.5, 0.9, 0.45); c.group.position.set(0.012, -0.03, papa.hs.c * 1.02); c.update();
+      c.group.scale.set(0.9, 0.6, 0.35); c.group.position.set(0.018, -0.045, papa.hs.c * 1.0); c.update();
       papa.head.add(c.group);
       faceFluff = { c, left: 3 };
+      // if nobody helps, papa rubs it off himself after a while (laughing)
+      after(9, () => { if (faceFluff && faceFluff.c === c) { const f = faceFluff; f.left = 0; anims.push({ dur: 0.5, f: k => f.c.group.scale.multiplyScalar(0.9), done: () => { papa.head.remove(f.c.group); if (faceFluff === f) faceFluff = null; papa.setExpr('laugh', 1.4); } }); } });
       uchiwa.visible = false; P.arms[0].ikW = 0;
     } });
   });
@@ -628,8 +631,7 @@ function papaBlunder() {
       towel.position.copy(tp); towel.rotation.set(0.3, 0.4, Math.sin(tt * 14) * 0.3);
       P.reach(P.arms[0], tp, P.root.localToWorld(V(0.4, 0.9, -0.3)), 1);
       const d = w.candy.group.worldToLocal(tp.clone()).normalize();
-      w.candy.wetAt(d, 0.045, 0.75);
-      w.candy.wetAt(cdir, 0.02, 1.2);
+      w.candy.wetAt(d, 0.06, 0.62);
       if (Math.random() < 0.3) fx.droplets(tp, V(0, -0.5, 0.3), 2);
       if (Math.random() < 0.1) sound.drip();
     }, done: () => { towel.visible = false; P.arms[0].ikW = 0; sound.oops(); P.setExpr('sorry', 2.5); P.exT.tilt = -0.15; girl.setExpr('huh', 1.2); } });
@@ -648,7 +650,7 @@ function papaBlunder() {
 }
 
 function startScene3() {
-  state.scene = 3; state.busy = false;
+  state.scene = 3; state.busy = false; state.makeOK = true;
   setShot('fire', 0.8);
   sound.chime();
   girl.setExpr('wow', 2); girl.lookAt(V(0, 7, -8));
@@ -658,17 +660,17 @@ function startScene3() {
 }
 function fireworks(n = 1) {
   for (let i = 0; i < n; i++) setTimeout(() => {
-    const x = (Math.random() - 0.5) * 9, y = 6.5 + Math.random() * 3.5, z = -9 - Math.random() * 3;
+    const x = (Math.random() - 0.5) * 10, y = 9.5 + Math.random() * 4, z = -12 - Math.random() * 3;
     const col = new THREE.Color().setHSL(Math.random(), 0.75, 0.6);
-    fx.launch(V(x * 0.6, 1.5, z), V(x, y, z), col, L.flash, sound);
+    fx.launch(V(x * 0.6, 2.5, z), V(x, y, z), col, L.flash, sound);
   }, i * 450);
 }
 function launchAt(ndc) {
   raycaster.setFromCamera(ndc, camera);
-  const p = V(); raycaster.ray.intersectPlane(new THREE.Plane(V(0, 0, 1), 10), p);
-  if (p.y < 4) p.y = 4 + Math.random() * 2;
-  p.z = -10;
-  fx.launch(V(p.x * 0.6, 1.5, -10), p, new THREE.Color().setHSL(Math.random(), 0.75, 0.6), L.flash, sound);
+  const p = V(); raycaster.ray.intersectPlane(new THREE.Plane(V(0, 0, 1), 13), p);
+  if (p.y < 8) p.y = 8 + Math.random() * 2;
+  p.z = -13;
+  fx.launch(V(p.x * 0.6, 2.5, -13), p, new THREE.Color().setHSL(Math.random(), 0.75, 0.6), L.flash, sound);
   girl.setExpr('happy', 1.2);
 }
 function finishToRack() {
@@ -686,7 +688,7 @@ function currentHint() {
   if (state.scene === 0) return !state.dressed.happi ? happiT : (!state.dressed.hachi ? hachiT : null);
   if (state.scene >= 1) {
     if (state.scene === 2 && work && state.custReady && custReady()) return custT;
-    if (state.scene === 3 && work && work.candy.radius > 0.08 && !state.scooping) return targets.find(t => t.name === 'rack');
+    if (state.scene === 3 && work && work.candy.radius > 0.065 && !state.scooping) return targets.find(t => t.name === 'rack');
     if (machine.sugar <= 0.0002 && machine.webAmt < 0.0002 && !state.scooping) return targets.find(t => t.name === 'jar' + suggestJar());
     if (!work && !state.scooping) return targets.find(t => t.name === 'stick');
     if (work && state.stickIn) return WIND_HINT;
@@ -698,7 +700,7 @@ function custReady() {
   const c = customers[state.customer]; if (!c) return false;
   if (state.needRewind && work.candy.radius < state.needRewind) return false;
   const R = work.candy.radius;
-  return c.big ? R > 0.105 : R > 0.075;
+  return c.big ? R > 0.095 : R > 0.065;
 }
 function suggestJar() {
   if (state.scene === 2 && state.customer >= 0) {
@@ -837,7 +839,7 @@ function step(dt) {
       }
       // girl reactions while making
       const R = work.candy.radius;
-      if (R > 0.08 && !work.saidWow) { work.saidWow = true; girl.setExpr('wow', 1.0); sound.sparkle(); }
+      if (R > 0.07 && !work.saidWow) { work.saidWow = true; girl.setExpr('wow', 1.0); sound.sparkle(); }
       if (state.scene === 1 && R > state.goalR && !state.busy) finishFirstCandy();
     }
     work.candy.update();
@@ -865,11 +867,28 @@ function step(dt) {
   girl.update(dt, t); papa.update(dt, t);
   for (const c of customers) if (c.h.root.visible) c.h.update(dt, t);
 
-  // thought bubble above the current customer
+  // automatic camera: making close-up vs. serving / fireworks wide shots
+  if (state.scene === 2 && !state.busy) {
+    const want = (!state.custReady || (work && custReady()) || state.showCust > 0) ? 'serve' : 'make';
+    if (cam.shot !== want && cam.shot !== 'blunder') setShot(want, 1.3);
+    state.showCust = (state.showCust || 0) - dt;
+  }
+  if (state.scene === 3 && !state.busy) {
+    const making = state.scooping || (work && state.stickIn) || state.makeHold > 0;
+    state.makeHold = (state.makeHold || 0) - dt;
+    if (making) state.makeHold = 2.5;
+    const want = making ? 'make' : 'fire';
+    if (cam.shot !== want) setShot(want, want === 'fire' ? 0.8 : 1.3);
+  }
+  // thought bubble above the current customer (or floating near the stall while making)
   if (bubble.visible && state.customer >= 0) {
     const h = customers[state.customer].h;
     const hp = h.head.getWorldPosition(V());
-    bubble.position.copy(hp).add(V(0.12, 0.3 + Math.sin(t * 2) * 0.01, 0.05));
+    const nearCust = hp.add(V(0.12, 0.3 + Math.sin(t * 2) * 0.01, 0.05));
+    const nearStall = V(-0.36, 1.5 + Math.sin(t * 2) * 0.01, -0.28);
+    state.bubbleK = lerp(state.bubbleK || 0, cam.shot === 'make' ? 1 : 0, 1 - Math.exp(-dt * 3));
+    bubble.position.lerpVectors(nearCust, nearStall, state.bubbleK);
+    bubble.scale.setScalar(lerp(1, 0.8, state.bubbleK));
     bubble.quaternion.copy(camera.quaternion);
     if (bubbleCandy) { bubbleCandy.o.rotation.y = 0; bubbleCandy.cd.group.rotation.y = t * 0.8; }
   }
@@ -907,6 +926,9 @@ window.__game = { state, setShot, anims, girl, papa, machine, scoopSugar, jars, 
   ff(sec, dt = 1 / 30) { for (let i = 0; i < sec / dt; i++) step(dt); },
   snap() { const f = frameShot(shots[cam.shot]); cam.pos.copy(f.pos); cam.look.copy(f.look); updateCamera(0, simT); },
   idle(v) { idle = v; },
+  shotDebug(t, w, h, dir) { shots.debug = { t: V(...t), w, h, dir: V(...dir) }; setShot('debug'); const f = frameShot(shots.debug); cam.pos.copy(f.pos); cam.look.copy(f.look); updateCamera(0, simT); },
+  screenPos(name) { const t = targets.find(q => q.name === name); if (!t) return null; const p = t.pos().project(camera); const r = canvas.getBoundingClientRect(); return [(p.x * 0.5 + 0.5) * r.width, (-p.y * 0.5 + 0.5) * r.height, t.enabled()]; },
+  bowlScreen() { const p = machine.bowlCenter(V()).project(camera); const r = canvas.getBoundingClientRect(); return [(p.x * 0.5 + 0.5) * r.width, (-p.y * 0.5 + 0.5) * r.height]; },
   papaBlunder, camera, renderer, scene, L, S, setDPR(v) { DPR = v; renderer.setPixelRatio(v); resize(); } };
 
 requestAnimationFrame(frame);

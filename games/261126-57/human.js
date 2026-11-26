@@ -3,6 +3,7 @@
 import * as THREE from './three.module.min.js';
 import { loftGeo, clumpGeo, ribbonGeo, mergeGeos, M4, rand } from './geo.js';
 import { pbr, tex, canvasTex } from './tex.js';
+import { strandMaterial } from './candy.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const tmpV = V(), tmpV2 = V(), tmpQ = new THREE.Quaternion(), tmpM = new THREE.Matrix4();
@@ -92,7 +93,7 @@ function eyeTexture(irisColor) {
 export function preset(kind) {
   if (kind === 'girl') return { H: 1.10, child: true, female: true, skin: 0xf3cdb6, hair: 0x2b1810, hairStyle: 'pigtails', iris: 0x5a3418, headScale: 1.0 };
   if (kind === 'boy') return { H: 1.18, child: true, female: false, skin: 0xedc4a8, hair: 0x1d1410, hairStyle: 'short', iris: 0x4a2c16, headScale: 1.0 };
-  if (kind === 'papa') return { H: 1.76, child: false, female: false, skin: 0xe6b996, hair: 0x1a120d, hairStyle: 'short', iris: 0x3e2614, headScale: 1.0 };
+  if (kind === 'papa') return { H: 1.76, child: false, female: false, skin: 0xe6b996, hair: 0x1a120d, hairStyle: 'crop', iris: 0x3e2614, headScale: 1.0 };
   if (kind === 'grandma') return { H: 1.50, child: false, female: true, old: true, skin: 0xeec4a6, hair: 0xb9b5ae, hairStyle: 'bun', iris: 0x4a3324, headScale: 1.0 };
   if (kind === 'mama') return { H: 1.60, child: false, female: true, skin: 0xf1c8ae, hair: 0x3a2214, hairStyle: 'bob', iris: 0x4a2c18, headScale: 1.0 };
 }
@@ -117,7 +118,8 @@ function makeHeadShape(P) {
   B(0, -0.82, 0.58, 0.2, child ? 0.002 : 0.006);
   // temple hollows
   B(0.85, 0.25, 0.4, 0.2, -0.003); B(-0.85, 0.25, 0.4, 0.2, -0.003);
-  const jaw = child ? 0.3 : (P.female ? 0.36 : 0.26);
+  const jaw = child ? 0.3 : (P.female ? 0.34 : 0.1);
+  if (!child && !P.female) { B(0.62, -0.62, 0.45, 0.22, 0.004); B(-0.62, -0.62, 0.45, 0.22, 0.004); }
   function shape(d, out) {
     let x = d.x * a, y = d.y * b, z = d.z * c;
     if (d.y < 0) { const k = d.y * d.y; x *= 1 - jaw * k; z *= 1 - 0.18 * k * (d.z > 0 ? 1 : 0.4); }
@@ -165,7 +167,7 @@ export class Human {
       waistW: H * (child ? 0.085 : (P.female ? 0.077 : 0.09)), chestW: H * (child ? 0.09 : (P.female ? 0.095 : 0.11)),
       depth: H * (child ? 0.07 : 0.07),
       upper: H * (child ? 0.17 : 0.18), fore: H * (child ? 0.15 : 0.155), hand: H * (child ? 0.075 : 0.1),
-      armR: H * (child ? 0.026 : 0.027), neckR: H * (child ? 0.032 : 0.03),
+      armR: H * (child ? 0.026 : 0.027), neckR: H * (child ? 0.032 : (P.female ? 0.029 : 0.034)),
     };
     this.buildTorso();
     this.buildLegs();
@@ -616,8 +618,8 @@ export class Human {
     const pos = g.attributes.position; const d = V(), o = V();
     const hairline = (dd) => {
       // 1 => hair, 0 => skin
-      if (style === 'bun' || style === 'short') {
-        const front = smooth(0.42, 0.52, dd.y + 0.25 * Math.max(0, -dd.z) + 0.12 * Math.abs(dd.x));
+      if (style === 'bun' || style === 'short' || style === 'crop') {
+        const front = smooth(style === 'crop' ? 0.5 : 0.42, style === 'crop' ? 0.6 : 0.52, dd.y + 0.25 * Math.max(0, -dd.z) + 0.12 * Math.abs(dd.x));
         const nape = smooth(-0.62, -0.45, dd.y);
         const ear = 1 - Math.exp(-((Math.abs(dd.x) - 0.95) ** 2 + (dd.y + 0.12) ** 2 + (dd.z + 0.05) ** 2) / 0.04);
         return Math.min(dd.z > 0.1 ? front : nape, ear);
@@ -631,7 +633,7 @@ export class Human {
       d.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
       hs.shape(d, o);
       const m = hairline(d);
-      const vol = (style === 'short' ? 0.75 : 1) * thick * (0.65 + 0.35 * smooth(-0.2, 0.7, d.y));
+      const vol = (style === 'short' ? 0.75 : style === 'crop' ? 0.6 : 1) * thick * (0.65 + 0.35 * smooth(-0.2, 0.7, d.y));
       const k = m > 0.01 ? (vol * m) : -0.004;
       o.addScaledVector(d, k);
       pos.setXYZ(i, o.x, o.y, o.z);
@@ -709,6 +711,22 @@ export class Human {
         geos.push(clumpGeo([surf(u * 0.4, 0.85, 0.4), surf(u * 0.8, 0.62, 0.78, 0.004), surf(u * 0.9 + 0.05, 0.5, 0.88, 0.003)], 0.012, 0.0035, out, { uOff: R() }));
       }
     }
+    if (style === 'crop') {
+      for (let i = 0; i < 30; i++) {
+        const a = R() * Math.PI * 2, el = 0.45 + R() * 0.45;
+        const x = Math.cos(a) * Math.sqrt(1 - el * el), z = Math.sin(a) * Math.sqrt(1 - el * el);
+        if (z > 0.6 && el < 0.6) continue;
+        const p0 = surf(x, el, z, 0.0);
+        const p1 = surf(x * 0.9, el + 0.08, z * 0.9 - 0.12, 0.003);
+        const p2 = surf(x * 0.85, el + 0.02, z * 0.85 - 0.3, 0.002);
+        geos.push(clumpGeo([p0, p1, p2], 0.011, 0.0035, out, { uOff: R() }));
+      }
+      // front quiff rising from the hairline and swept back
+      for (let i = 0; i < 7; i++) {
+        const u = (i / 6 - 0.5) * 1.0;
+        geos.push(clumpGeo([surf(u * 0.7, 0.56, 0.8, 0.001), surf(u * 0.65, 0.75, 0.62, 0.007), surf(u * 0.5, 0.9, 0.3, 0.004)], 0.013, 0.004, out, { uOff: R() }));
+      }
+    }
     if (style === 'bun') {
       const bun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 28, 20), this.hairM);
       bun.position.copy(surf(0, 0.55, -0.85, 0.018)); bun.scale.set(1, 0.85, 0.85); this.head.add(bun);
@@ -721,6 +739,37 @@ export class Human {
     if (geos.length) {
       const hm = new THREE.Mesh(mergeGeos(geos), this.hairM);
       this.head.add(hm);
+    }
+    // fine flyaway hairs: thin lit strands that soften the silhouette and catch the rim light
+    {
+      const NS = style === 'short' ? 520 : 700, PT = 4;
+      const pos = new Float32Array(NS * (PT - 1) * 2 * 3), nor = new Float32Array(pos.length), col = new Float32Array(pos.length), al = new Float32Array(pos.length / 3);
+      const hc = new THREE.Color(P.hair);
+      let v = 0, made = 0, guard = 0;
+      while (made < NS && guard++ < NS * 20) {
+        const dd = V(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1); if (dd.lengthSq() > 1) continue; dd.normalize();
+        if (hairline(dd) < 0.9) continue;
+        const base = hs.shape(dd, V()).addScaledVector(dd, thick * (style === 'short' ? 0.7 : 0.95));
+        // strands flow down & back from the crown, slightly outward
+        const flow = V(dd.x * 0.3, -1, dd.z * 0.3 - 0.25).normalize();
+        flow.addScaledVector(dd, -flow.dot(dd)).normalize();
+        const L = (style === 'short' ? 0.012 : 0.025) * (0.5 + R());
+        const pts = [base];
+        for (let k = 1; k < PT; k++) { const q = pts[k - 1].clone().addScaledVector(flow, L / (PT - 1)).addScaledVector(dd, 0.0012 * k * R()); pts.push(q); }
+        for (let k = 0; k < PT - 1; k++) for (const kk of [k, k + 1]) {
+          pos.set([pts[kk].x, pts[kk].y, pts[kk].z], v * 3); nor.set([dd.x, dd.y, dd.z], v * 3);
+          const l = 0.9 + R() * 0.5; col.set([hc.r * l, hc.g * l, hc.b * l], v * 3); al[v] = 0.55 * (1 - kk / PT * 0.6); v++;
+        }
+        made++;
+      }
+      const g2 = new THREE.BufferGeometry();
+      g2.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, v * 3), 3));
+      g2.setAttribute('aN', new THREE.BufferAttribute(nor.subarray(0, v * 3), 3));
+      g2.setAttribute('color', new THREE.BufferAttribute(col.subarray(0, v * 3), 3));
+      g2.setAttribute('aA', new THREE.BufferAttribute(al.subarray(0, v), 1));
+      Human.hairStrandMat ||= (() => { const m = strandMaterial(); m.uniforms.uRim.value.setRGB(0.55, 0.36, 0.2); m.uniforms.uAmb.value.setRGB(0.5, 0.45, 0.45); m.uniforms.uKey.value.setRGB(0.9, 0.75, 0.6); return m; })();
+      const ls = new THREE.LineSegments(g2, Human.hairStrandMat); ls.renderOrder = 2;
+      this.head.add(ls);
     }
   }
 
