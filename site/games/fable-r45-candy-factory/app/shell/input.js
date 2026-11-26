@@ -124,6 +124,12 @@ export function createInput(canvas, camera, getTargets, handlers) {
     // フレームの始めに hero 入力を組み立てる
     beginFrame(time) {
       hero.time = time;
+      // カメラは毎フレーム動きうるので、押している指の光線を今のカメラで引き直す（指の下の物が指についてくる）
+      if (st.id !== null && !st.pendingDown) {
+        updateRay(st.x, st.y);
+        const t0 = st.target;
+        if (t0 && t0.kind === 'shell' && t0.onDrag) t0.onDrag(raycaster.ray);
+      }
       hero.justGrabbed = false; hero.justReleased = false; hero.tap = null;
       const t = st.target;
       if (st.pendingDown) {

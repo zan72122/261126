@@ -1,6 +1,6 @@
 // 部屋・作業台・光・カメラ（遠景は低ポリ＋写真風テクスチャ、または板）
 import * as THREE from 'three';
-import { LAYOUT } from './config.js';
+import { LAYOUT, CAMERA } from './config.js';
 
 export function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({
@@ -15,24 +15,9 @@ export function createRenderer(canvas) {
   return renderer;
 }
 
+// カメラの位置と画角は camera.js が毎フレーム決める（主役の大きさから距離を解く）
 export function createCamera() {
-  const cam = new THREE.PerspectiveCamera(LAYOUT.baseVFov, LAYOUT.baseAspect, 0.05, 20);
-  cam.position.fromArray(LAYOUT.camPos);
-  cam.lookAt(new THREE.Vector3().fromArray(LAYOUT.camTarget));
-  return cam;
-}
-
-// 横の範囲を保つ：4:3 より縦長なら縦画角を広げる
-export function fitCamera(cam, aspect) {
-  const baseH = THREE.MathUtils.degToRad(LAYOUT.baseVFov);
-  let v = baseH;
-  if (aspect < LAYOUT.baseAspect) {
-    const hHalf = Math.atan(Math.tan(baseH / 2) * LAYOUT.baseAspect);
-    v = 2 * Math.atan(Math.tan(hHalf) / aspect);
-  }
-  cam.fov = THREE.MathUtils.radToDeg(v);
-  cam.aspect = aspect;
-  cam.updateProjectionMatrix();
+  return new THREE.PerspectiveCamera(34, 4 / 3, CAMERA.near, CAMERA.far);
 }
 
 export function createLights(scene) {

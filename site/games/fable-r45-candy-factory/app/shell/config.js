@@ -29,21 +29,42 @@ export const TIERS = {
 };
 
 // 配置（メートル、原点＝作業台の天板中央、+z 手前）
+// トレー・はさみ・袋の置き場所は、画面の向きと大きさに合わせて camera.js が決め直す（ここは初期値）。
 export const LAYOUT = {
-  camPos: [0.28, 1.563, 2.334],
-  camTarget: [0.28, 0.38, 0.20],
-  baseVFov: 34, // 4:3 のときの縦画角
-  baseAspect: 4 / 3,
   table: { x0: -0.98, x1: 0.80, z0: -0.56, z1: 0.64, thick: 0.06, legH: 0.86 },
-  tray: { x: -0.20, z: 0.44, w: 0.86, d: 0.18 },
+  tray: { x: -0.20, z: 0.30, w: 0.86, d: 0.18 },
   lumpXs: [-0.52, -0.36, -0.20, -0.04, 0.12],
-  scissors: [0.56, 0.012, 0.48],
-  bag: [0.38, 0, 0.30],
+  scissors: [0.30, 0.012, 0.32],
+  bag: [0.50, 0, 0.16],
   counter: { x0: 0.80, x1: 1.60, z0: -0.40, z1: 0.50, top: -0.02 },
   customer: [1.06, -0.10, -0.12],
   customerEnter: [1.85, -0.10, -0.12],
   bench: { x: 0.98, z: -1.25, y: 0.02, seats: [0.50, 0.78, 1.34, 1.56] },
   backdropZ: -2.6,
+};
+
+// カメラ（docs/fullscreen.md）。主役の箱を画面の「短い辺」の fill 倍に収める距離を毎フレーム解き、減衰付きで追う。
+//   shortFov: 短い辺の画角（横長なら縦、縦長なら横）。anchor: 主役の中心を置く所（safe-area の内側の割合、0,0＝左上）
+//   fillScale: 縦長では少しだけゆるめる（ねじる車が左の端に掛かりすぎないように）
+//   yaw/pitch: 見る向き（度）。pitch 27° は hero の「帯がカメラから見える向き」（lumpAlpha）に合わせた元の角度。
+export const CAMERA = {
+  near: 0.05, far: 20,
+  maxVFov: 68,
+  orient: {
+    landscape: { shortFov: 34, anchor: [0.46, 0.38], tray: [0.40, 0.81], scissors: [0.86, 0.79] },
+    portrait: { shortFov: 32, anchor: [0.53, 0.58], tray: [0.44, 0.82], scissors: [0.78, 0.71], fillScale: 0.93 },
+  },
+  // 場面ごとの構図。box: 主役の箱 [x0,y0,z0, x1,y1,z1]（hero の点で広がる）、fill: 短い辺に対する割合、
+  // smooth: 追う時定数（秒、大きいほどゆっくり）。
+  shots: {
+    work: { box: [-0.46, 0.15, -0.06, 0.13, 0.47, 0.08], fill: 0.68, yaw: 3, pitch: 27, smooth: 0.65 },
+    finish: { box: [-0.47, 0.0, -0.04, 0.47, 0.36, 0.16], fill: 0.72, yaw: 3, pitch: 30, smooth: 0.9 },
+    give: { box: [0.30, -0.06, -0.30, 1.32, 0.62, 0.30], fill: 0.80, yaw: 0, pitch: 22, smooth: 1.2, ax: 0.5 },
+    thanks: { box: [0.30, -0.06, -1.30, 1.70, 0.80, 0.10], fill: 0.86, yaw: -6, pitch: 18, smooth: 1.4, ax: 0.5 },
+    intro: { box: [-0.70, -0.06, -0.30, 1.32, 0.66, 0.40], fill: 0.90, yaw: 0, pitch: 26, smooth: 1.3, ax: 0.5 },
+  },
+  introHold: 1.1,   // 起動直後、お客さんも見える引きの構図で待つ秒数（触ればすぐ寄る）
+  thanksHold: 2.6,  // 渡した後、お客さんが喜ぶのを見せる秒数
 };
 
 export const TIMING = {

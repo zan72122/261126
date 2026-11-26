@@ -1,7 +1,8 @@
 // 起動・ループ・サイズ・WebGL コンテキスト喪失。起動時に作るのは最初の場面だけ。
 import * as THREE from 'three';
-import { DEBUG, PALETTE, TIERS, LAYOUT, detectTier } from './config.js';
-import { createRenderer, createCamera, fitCamera, createLights, createRoom } from './scene.js';
+import { DEBUG, PALETTE, TIERS, CAMERA, detectTier, params } from './config.js';
+import { createRenderer, createCamera, createLights, createRoom } from './scene.js';
+import { createDirector, computeDock } from './camera.js';
 import { createTextures } from './textures.js';
 import { createTray, createScissors } from './props.js';
 import { createCustomers } from './animals.js';
@@ -61,19 +62,73 @@ function start() {
     },
   });
 
-  // ---------- サイズ（ティア別 DPR・画素上限） ----------
-  function resize() {
-    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+  // ---------- カメラ（主役中心の構図。場面で寄る・引く） ----------
+  const director = createDirector({ camera, hero, flow, scissors, input });
+
+  // ---------- 全画面：サイズ・向き・safe-area（docs/fullscreen.md） ----------
+  // canvas は CSS で 100dvh（100vh は予備）の全面。描画バッファは canvas の実際の大きさに合わせる（黒い帯を作らない）。
+  const safeProbe = document.getElementById('safe');
+  function viewport() {
+    const r = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    const safe = { l: 0, t: 0, r: 0, b: 0 };
+    if (safeProbe) {
+      const cs = getComputedStyle(safeProbe);
+      safe.l = parseFloat(cs.paddingLeft) || 0; safe.t = parseFloat(cs.paddingTop) || 0;
+      safe.r = parseFloat(cs.paddingRight) || 0; safe.b = parseFloat(cs.paddingBottom) || 0;
+    }
+    return { w, h, safe };
+  }
+  // 重い時の自動降格：表示の大きさは変えず、内部の描画解像度だけを 1 → 0.85 → 0.75 倍に
+  const RES_STEPS = [1, 0.85, 0.75];
+  let resStep = 0;
+  const forcedRes = parseFloat(params.get('res'));
+  const resScale = () => (forcedRes > 0 ? Math.min(1, forcedRes) : RES_STEPS[resStep]);
+  let vpKey = '', lastCW = 0, lastCH = 0;
+  function resize(force) {
+    const vp = viewport();
+    const key = `${vp.w}x${vp.h}:${vp.safe.l},${vp.safe.t},${vp.safe.r},${vp.safe.b}:${tier}:${resStep}`;
+    if (!force && key === vpKey) return;
+    vpKey = key;
+    lastCW = canvas.clientWidth; lastCH = canvas.clientHeight;
     const T = TIERS[tier];
     let dpr = T.dpr();
-    if (w * h * dpr * dpr > T.maxPixels) dpr = Math.sqrt(T.maxPixels / (w * h));
-    renderer.setPixelRatio(dpr);
-    renderer.setSize(w, h, true);
-    fitCamera(camera, w / h);
+    if (vp.w * vp.h * dpr * dpr > T.maxPixels) dpr = Math.sqrt(T.maxPixels / (vp.w * vp.h));
+    renderer.setPixelRatio(dpr * resScale());
+    renderer.setSize(vp.w, vp.h, false); // CSS の大きさはそのまま（全面）
+    // トレー・はさみ・袋を、この画面で寄った構図の端に置き直す
+    const dock = computeDock(vp);
+    tray.setLayout(dock.tray);
+    scissors.setRest(dock.scissors);
+    flow.F.bagHome.fromArray(dock.bag);
+    G.dock = dock;
+    director.resize(vp, time);
   }
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-  resize();
+  const requestResize = () => resize();
+  window.addEventListener('resize', requestResize);
+  window.addEventListener('orientationchange', () => { requestResize(); setTimeout(requestResize, 120); setTimeout(requestResize, 400); });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', requestResize);
+    window.visualViewport.addEventListener('scroll', requestResize);
+  }
+  // 全画面ボタン：Fullscreen API がある時だけ出す（iPhone の Safari・ホーム画面から開いた時は出さない）。全画面中は隠す
+  const fsBtn = document.getElementById('fs');
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches));
+  const fsShow = () => { if (fsBtn) fsBtn.classList.toggle('on', fsOk && !fsEl()); };
+  if (fsBtn) {
+    fsBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    fsBtn.addEventListener('click', () => {
+      audio.unlock();
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { const p = req.call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); } catch (_) { /* 断られても遊びは続く */ } }
+    });
+  }
+  fsShow();
+  const onFs = () => { fsShow(); setTimeout(requestResize, 50); setTimeout(requestResize, 300); };
+  document.addEventListener('fullscreenchange', onFs);
+  document.addEventListener('webkitfullscreenchange', onFs);
 
   // ---------- コンテキスト喪失 ----------
   let lost = false;
@@ -89,22 +144,23 @@ function start() {
     // ゲームの状態（JS 側）はそのまま。hero の GPU だけのデータを作り直す。
     for (const k in tex) tex[k].needsUpdate = true;
     try { hero.restoreGPU(); } catch (err) { console.error(err); }
-    resize();
+    resize(true);
     lost = false;
     G.contextRestored = (G.contextRestored || 0) + 1;
     if (veil) veil.classList.remove('on');
   }, false);
 
-  // ---------- 性能の自動調整（mobile で重いときだけ1回 low へ） ----------
-  let slowTime = 0, fpsAcc = 0, fpsN = 0, degraded = false;
-  function autoTier(dt) {
-    if (det.forced || tier !== 'mobile' || degraded) return;
+  // ---------- 性能の自動調整：表示を小さくせず、内部の描画解像度だけを下げる ----------
+  // 1秒ごとの fps が 40 未満の状態が 4 秒続いたら1段下げる（1 → 0.85 → 0.75）。上げ戻しはしない（行ったり来たりしない）。
+  let slowTime = 0, fpsAcc = 0, fpsN = 0;
+  function autoRes(dt) {
+    if (det.forced || forcedRes > 0 || resStep >= RES_STEPS.length - 1) return;
     fpsAcc += dt; fpsN++;
     if (fpsAcc >= 1) {
       const fps = fpsN / fpsAcc;
       slowTime = fps < 40 ? slowTime + fpsAcc : 0;
       fpsAcc = 0; fpsN = 0;
-      if (slowTime >= 5) { degraded = true; tier = 'low'; G.tier = tier; resize(); }
+      if (slowTime >= 4) { slowTime = 0; resStep++; G.resScale = resScale(); resize(true); }
     }
   }
 
@@ -125,8 +181,10 @@ function start() {
   }
 
   // ---------- ループ ----------
-  const dbg = DEBUG ? createDebug(renderer, scene, () => ({ tier, hero, phase: flow.F.phase, stage: hero.getStatus().stage })) : null;
+  const dbg = DEBUG ? createDebug(renderer, scene, () => ({ tier, hero, phase: flow.F.phase, stage: hero.getStatus().stage, res: resScale(), cam: director, vp: director.D.vp, subject: () => director.measure() })) : null;
   let last = performance.now(), time = 0, first = true;
+  G.resScale = resScale();
+  resize(true);
   function frame(now) {
     requestAnimationFrame(frame);
     const rawMs = now - last;
@@ -135,6 +193,9 @@ function start() {
     const dt = Math.min(0.05, Math.max(0, rawMs / 1000));
     time += dt;
     try {
+      // 大きさが変わっていれば合わせる（イベントが来ない・遅れる時の保険）
+      if (canvas.clientWidth !== lastCW || canvas.clientHeight !== lastCH) resize();
+      director.update(dt, time);
       input.beginFrame(time);
       const focus = flow.update(dt, time, input.idleTime);
       hero.update(dt, input.hero);
@@ -148,7 +209,7 @@ function start() {
     } catch (err) {
       console.error(err);
     }
-    autoTier(dt);
+    autoRes(dt);
     if (dbg) dbg.frame(rawMs);
     if (first) {
       first = false;
@@ -162,7 +223,7 @@ function start() {
   requestAnimationFrame(frame);
 
   // ---------- 煙テストと debug 用の口 ----------
-  Object.assign(G, { THREE, renderer, scene, camera, hero, flow, tray, scissors, customers, input, audio });
+  Object.assign(G, { THREE, renderer, scene, camera, hero, flow, tray, scissors, customers, input, audio, director });
   if (DEBUG) {
     G.debug = {
       stats: () => dbg.stats(),

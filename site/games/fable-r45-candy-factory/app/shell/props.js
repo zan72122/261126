@@ -24,7 +24,7 @@ export function createTray(scene, tex) {
   scene.add(group);
 
   // 塊：太く短い棒（カプセル）。geometry は共有、色ごとの material を共有
-  const lumpGeo = new THREE.CapsuleGeometry(0.052, 0.075, 6, 16);
+  const lumpGeo = new THREE.CapsuleGeometry(0.052, 0.075, 8, 24) // 寄っても輪郭が角ばらない分割;
   lumpGeo.rotateZ(Math.PI / 2);
   const mats = PALETTE.map((p) => new THREE.MeshStandardMaterial({
     color: p.color, map: tex.candy, roughness: 0.32, emissive: p.color, emissiveIntensity: 0,
@@ -46,6 +46,7 @@ export function createTray(scene, tex) {
   shadowMesh.count = 0;
   scene.add(shadowMesh);
   const shM = new THREE.Matrix4(), shQ = new THREE.Quaternion(), shP = new V3(), shS = new V3();
+  const lay = { x: T.x, z: T.z, spacing: 0.16, scale: 1 };
   function makeLump() {
     const mesh = new THREE.Mesh(lumpGeo, mats[0]);
     const holder = new THREE.Group();
@@ -53,11 +54,26 @@ export function createTray(scene, tex) {
     const proxy = new THREE.Mesh(proxyGeo, proxyMat);
     holder.add(proxy);
     scene.add(holder);
+    mesh.scale.setScalar(lay.scale);
     const L = { holder, mesh, proxy, colorIndex: 0, state: 'gone', bounce: 0, t: 0, from: new V3(), to: new V3(), home: new V3(), hint: 0, onArrive: null, seed: Math.random() * 10, delay: 0 };
     lumps.push(L);
     return L;
   }
   for (let i = 0; i < 5; i++) makeLump();
+
+  // 置き場所（画面の向き・大きさで camera.js の computeDock が決め直す）
+  function homeOf(i, out) { return out.set(lay.x + (i - 2) * lay.spacing, 0.066, lay.z); }
+  function setLayout(l) {
+    Object.assign(lay, l);
+    group.position.set(lay.x, 0, lay.z);
+    group.scale.set((lay.spacing * 5 + 0.06) / T.w, 1, Math.max(0.75, lay.scale));
+    for (const L of lumps) L.mesh.scale.setScalar(lay.scale);
+    lumps.forEach((L, i) => {
+      if (i >= 5) return;
+      homeOf(i, L.home);
+      if (L.state === 'tray') L.holder.position.copy(L.home);
+    });
+  }
 
   function setColor(L, ci) { L.colorIndex = ci; L.mesh.material = mats[ci]; }
 
@@ -71,7 +87,7 @@ export function createTray(scene, tex) {
     for (let i = 0; i < 5; i++) {
       const L = lumps[i];
       setColor(L, order[i]);
-      L.home.set(LAYOUT.lumpXs[i], 0.066, LAYOUT.tray.z);
+      homeOf(i, L.home);
       if (first) { L.state = 'tray'; L.holder.position.copy(L.home); L.holder.visible = true; L.holder.scale.setScalar(1); }
       else { L.state = 'slideIn'; L.t = 0; L.delay = i * 0.06; L.from.copy(L.home).add(new V3(-1.6, 0.3, 0.2)); L.holder.visible = true; L.holder.position.copy(L.from); L.holder.scale.setScalar(1); }
     }
@@ -85,7 +101,7 @@ export function createTray(scene, tex) {
   function spawnExtra(ci) { // トレーが空のときの予備
     const L = lumps.find((l) => l.state === 'gone') || makeLump();
     setColor(L, ci);
-    L.holder.position.set(LAYOUT.tray.x, 0.3, LAYOUT.tray.z);
+    L.holder.position.set(lay.x, 0.3, lay.z);
     L.holder.visible = true;
     return L;
   }
@@ -134,7 +150,7 @@ export function createTray(scene, tex) {
       if (i < SH_MAX) {
         const on = L.holder.visible && (L.state === 'tray' || L.state === 'slideIn');
         shP.set(L.holder.position.x, 0.016, L.holder.position.z);
-        shS.set(on ? 0.2 : 0, 1, on ? 0.12 : 0);
+        shS.set(on ? 0.2 * lay.scale : 0, 1, on ? 0.12 * lay.scale : 0);
         shadowMesh.setMatrixAt(i, shM.compose(shP, shQ, shS));
       }
     }
@@ -147,7 +163,7 @@ export function createTray(scene, tex) {
   }
 
   return {
-    group, lumps, fill, hop, update, spawnExtra, slideOutRemaining,
+    group, lumps, fill, hop, update, spawnExtra, slideOutRemaining, setLayout,
     available: () => lumps.filter((l) => l.state === 'tray'),
     bounce(L) { L.bounce = 0.45; },
     setHint(level, wave = true) { lumps.forEach((l) => { l.hint = level; }); },
@@ -162,7 +178,7 @@ export function createScissors(scene, tex) {
   blade.moveTo(0, -0.012); blade.lineTo(0.15, -0.002); blade.quadraticCurveTo(0.16, 0.004, 0.15, 0.008); blade.lineTo(0, 0.014); blade.lineTo(0, -0.012);
   const bladeGeo = new THREE.ExtrudeGeometry(blade, { depth: 0.006, bevelEnabled: false, curveSegments: 4 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xeef2f8, metalness: 0.7, roughness: 0.25, map: tex.steel, emissive: 0xffffff, emissiveIntensity: 0 });
-  const ringGeo = new THREE.TorusGeometry(0.034, 0.011, 8, 22);
+  const ringGeo = new THREE.TorusGeometry(0.034, 0.011, 10, 32);
   const pinkMat = new THREE.MeshStandardMaterial({ color: 0xff7fb0, roughness: 0.4, emissive: 0xff5aa0, emissiveIntensity: 0 });
   const aquaMat = new THREE.MeshStandardMaterial({ color: 0x7fd0ff, roughness: 0.4, emissive: 0x58b8ff, emissiveIntensity: 0 });
   function half(mat, sign) {
@@ -226,6 +242,8 @@ export function createScissors(scene, tex) {
     setHint(v) { S.hint = v; },
     get mode() { return S.mode; },
     rest() { S.mode = 'rest'; S.goal.copy(rest); },
+    // 休む場所を変える（画面の向きが変わった時。休んでいればそこへ）
+    setRest(p) { rest.fromArray(p); if (S.mode === 'rest') { S.goal.copy(rest); S.pos.copy(rest); } },
     hover(p) { S.mode = 'hover'; S.goal.copy(p); S.goal.y += 0.14; S.goal.z += 0.02; },
     snipAt(p) { S.mode = 'hover'; S.goal.copy(p).add(new V3(0, 0.07, 0.03)); S.pos.lerp(S.goal, 0.7); S.snipT = 0; },
   };

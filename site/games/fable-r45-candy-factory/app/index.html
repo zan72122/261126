@@ -7,9 +7,20 @@
 <meta name="theme-color" content="#fbe9e4">
 <title>にじいろキャンディ工場</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #fbe9e4; overscroll-behavior: none; }
+  /* 全画面：100dvh（iOS のツールバーの出入りに追従）。古いブラウザは 100vh を使う。黒い帯を作らないよう背景も同じ色 */
+  html, body { margin: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: #fbe9e4; overscroll-behavior: none; }
   body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-  #c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+  #c { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; background: #fbe9e4; }
+  /* safe-area の量を JS が読むための見えない箱（ノッチ・ホームバーの内側に主役と道具を置く） */
+  #safe { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  /* 全画面ボタン（使える時だけ・全画面中は隠す）。safe-area の内側の右上。文字なし */
+  #fs { position: fixed; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px);
+    width: 48px; height: 48px; border: 0; border-radius: 50%; padding: 0; background: rgba(255,255,255,.55); box-shadow: 0 2px 6px rgba(120,60,80,.18);
+    display: none; touch-action: manipulation; cursor: pointer; }
+  #fs.on { display: block; }
+  #fs svg { display: block; width: 26px; height: 26px; margin: 11px; }
+  #debug { left: calc(env(safe-area-inset-left, 0px) + 6px) !important; top: calc(env(safe-area-inset-top, 0px) + 6px) !important; }
   /* 起動中・コンテキスト喪失中：文字なしの、はずむ飴玉 */
   #boot, #veil { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: 18px; background: #fbe9e4; transition: opacity .35s; z-index: 5; pointer-events: none; }
   #boot.off { opacity: 0; }
@@ -22,6 +33,8 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="safe"></div>
+<button id="fs" type="button" aria-label="全画面"><svg viewBox="0 0 24 24" fill="none" stroke="#e2709a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/></svg></button>
 <div id="boot"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
 <div id="veil"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
 <!-- three・shell・hero・テクスチャを束ねた classic script（file:// と GitHub Pages の両方で動く。npm run build で作る） -->

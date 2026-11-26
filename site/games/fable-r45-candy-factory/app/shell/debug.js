@@ -81,6 +81,9 @@ export function createDebug(renderer, scene, getInfo) {
         fps: api.fps(), drawCalls: last.calls, triangles: last.tri, heroTriangles: hs.triangles, heroDrawCalls: hs.drawCalls,
         textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
         gpuMiB: gpu.total / 1048576, gpu, errors: errors.slice(-3), phase: info.phase, stage: info.stage,
+        res: info.res, vp: info.vp ? [info.vp.w, info.vp.h] : null, safe: info.vp ? info.vp.safe : null,
+        cam: info.cam ? { shot: info.cam.D.shot, held: info.cam.D.held, dist: info.cam.rig.pose.dist, vfov: info.cam.rig.pose.vfov, frac: info.cam.goal.frac, goalDist: info.cam.goal.dist } : null,
+        subject: info.subject ? info.subject() : null,
       };
     },
     draw() {
@@ -92,6 +95,9 @@ export function createDebug(renderer, scene, getInfo) {
         `tex ${s.textures} (${s.gpu.textures.length} est)  GPU≈${s.gpuMiB.toFixed(1)} MiB\n` +
         `  tex ${(s.gpu.texBytes / 1048576).toFixed(1)} geo ${(s.gpu.geoBytes / 1048576).toFixed(1)} fb ${(s.gpu.fb / 1048576).toFixed(1)}\n` +
         `phase ${s.phase} / hero ${s.stage}\n` +
+        (s.cam ? `cam ${s.cam.shot}${s.cam.held ? ' (hold)' : ''} d ${s.cam.dist.toFixed(2)}→${s.cam.goalDist.toFixed(2)}m vfov ${s.cam.vfov.toFixed(0)}° fill ${(s.cam.frac * 100).toFixed(0)}%\n` : '') +
+        (s.subject ? `hero on screen ${(s.subject.short * 100).toFixed(0)}% of short side (${s.subject.w}×${s.subject.h}px)\n` : '') +
+        `view ${s.vp ? s.vp.join('×') : '?'} safe ${s.safe ? [s.safe.t, s.safe.r, s.safe.b, s.safe.l].join('/') : '-'}  res ×${(s.res || 1).toFixed(2)}\n` +
         (s.errors.length ? 'ERR ' + s.errors.join('\nERR ') : 'errors 0');
     },
   };

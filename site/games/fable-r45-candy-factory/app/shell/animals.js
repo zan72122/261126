@@ -11,10 +11,10 @@ let GEO = null;
 function geos() {
   if (GEO) return GEO;
   GEO = {
-    body: new THREE.SphereGeometry(1, 18, 14),
-    mid: new THREE.SphereGeometry(1, 12, 9),
-    small: new THREE.SphereGeometry(1, 8, 6),
-    capsule: new THREE.CapsuleGeometry(1, 2.4, 4, 10),
+    body: new THREE.SphereGeometry(1, 24, 18), // 寄った構図でも輪郭がなめらかな分割
+    mid: new THREE.SphereGeometry(1, 16, 12),
+    small: new THREE.SphereGeometry(1, 10, 8),
+    capsule: new THREE.CapsuleGeometry(1, 2.4, 5, 14),
     cone: new THREE.ConeGeometry(1, 1, 12),
     arc: new THREE.TorusGeometry(1, 0.26, 6, 14, Math.PI),
     cyl: new THREE.CylinderGeometry(1, 1, 1, 14),
