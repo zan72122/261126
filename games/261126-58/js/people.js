@@ -613,7 +613,7 @@ export class Person {
     const cl = (t, k, rx, ry) => { const c = t.clone(); c.repeat.set(rx, ry); ht.all[k].push(c); return c; };
     const hairMat = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(cfg.hair), map: cl(ht.map, 'map', 1, 1), normalMap: cl(ht.normalMap, 'normalMap', 1, 1), roughnessMap: cl(ht.ormMap, 'ormMap', 1, 1),
-      roughness: 1, anisotropy: 0.6, anisotropyRotation: 0, sheen: 0.2, sheenRoughness: 0.4,
+      roughness: 1, sheen: 0.2, sheenRoughness: 0.4,
       sheenColor: new THREE.Color(cfg.hair).lerp(new THREE.Color(0x9a6a40), 0.4), side: THREE.DoubleSide, specularIntensity: 0.5,
     });
     const capMat = hairMat.clone(); capMat.anisotropy = 0; capMat.sheen = 0.1; capMat.side = THREE.FrontSide;

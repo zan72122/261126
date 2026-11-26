@@ -37,13 +37,22 @@ export function buildGame() {
   // ------------------------------------------------------------ people
   const girl = new Person('girl');
   girl.root.position.set(-0.4, 0.2, -0.3); girl.root.rotation.y = 0.42;
-  const papa = new Person('papa'); papa.root.position.set(0.66, 0, -0.66); papa.root.rotation.y = -0.5;
-  const mama = new Person('mama'); mama.root.position.set(0.1, 0, -1.04); mama.root.rotation.y = 0.0;
+  const papa = new Person('papa'); papa.root.position.set(0.7, -0.44, -0.62); papa.root.rotation.y = -0.55;
+  const mama = new Person('mama'); mama.root.position.set(0.12, -0.4, -0.78); mama.root.rotation.y = -0.05;
   for (const p of [girl, papa, mama]) E.scene.add(p.root);
   girl.defaultExpr = 'smile'; papa.defaultExpr = 'smile'; mama.defaultExpr = 'smile';
   girl.setExpr('smile'); papa.setExpr('smile'); mama.setExpr('smile');
   const stool = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.28), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.8 }));
   stool.position.set(-0.4, 0.1, -0.3); stool.castShadow = stool.receiveShadow = true; E.scene.add(stool);
+  const chairM = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.6 });
+  const chairs = [[0.7, -0.62, -0.55], [0.12, -0.78, -0.05]].map(([x, z, ry]) => {
+    const c = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.04, 0.42), chairM); seat.position.y = 0.45; c.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.5, 0.03), chairM); back.position.set(0, 0.72, -0.2); c.add(back);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.45, 0.035), chairM); l.position.set(sx * 0.19, 0.225, sz * 0.18); c.add(l); }
+    c.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+    c.position.set(x, 0, z - 0.06); c.rotation.y = ry; E.scene.add(c); return c;
+  });
   const people = [girl, papa, mama];
   const headPos = (p) => { const v = new V3(); p.head.getWorldPosition(v); return v; };
 
@@ -51,7 +60,7 @@ export function buildGame() {
   const bowl = makeBowl(); bowl.position.set(0.46, TY, -0.06); E.scene.add(bowl);
   const pile = new SeedPile(); pile.group.position.set(0.46, TY, -0.06); E.scene.add(pile.group);
   const spoon = makeSpoon(); E.scene.add(spoon);
-  const spoonRest = () => { spoon.position.set(0.3, TY + 0.006, 0.36); spoon.rotation.set(0, -0.9, 0); };
+  const spoonRest = () => { spoon.position.set(0.24, TY + 0.006, 0.24); spoon.rotation.set(0, -0.9, 0); };
   spoonRest();
   const tray = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.012, 0.14), new THREE.MeshStandardMaterial({ color: 0x7a5a3c, roughness: 0.7 }));
   tray.position.set(0.42, TY + 0.006, 0.3); tray.castShadow = tray.receiveShadow = true; tray.visible = false; E.scene.add(tray);
@@ -72,6 +81,8 @@ export function buildGame() {
   const dish = makeDish(); dish.position.set(-0.36, TY, 0.2); E.scene.add(dish);
   const candle = new Candle({ shadow: true, intensity: 4.5, shadowSize: E.mobile ? 512 : 768 });
   candle.group.position.set(-0.36, TY + 0.005, 0.2); E.scene.add(candle.group);
+  // warm bounce from the lantern (light escaping the holes onto nearby faces)
+  const bounce = new THREE.PointLight(0xffa24a, 0, 3.5, 2); bounce.position.set(0, 0.42, 0.1); pk.group.add(bounce);
   const hats = [0, 1, 2].map((k) => {
     const h = makeHat(k, girl.cfg);
     h.position.set(-0.66 + k * 0.25, TY + (k === 2 ? 0.0 : 0.035), 0.12 + (k === 1 ? 0.06 : 0));
@@ -102,14 +113,14 @@ export function buildGame() {
   const glowMats = new Map();
   const setGlow = (obj, k) => {
     if (!obj) return;
-    if (obj === pk) { pk.common.uHint.value = k; return; }
+    if (obj.common && obj.common.uHint) { obj.common.uHint.value = k; return; }
     obj.traverse((o) => {
       if (!o.isMesh || !o.material) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         if (!m.emissive) continue;
         if (!glowMats.has(m)) glowMats.set(m, m.emissive.clone());
-        m.emissive.copy(glowMats.get(m)).add(new THREE.Color(1.0, 0.72, 0.35).multiplyScalar(k * 0.07));
+        m.emissive.copy(glowMats.get(m)).add(new THREE.Color(1.0, 0.72, 0.35).multiplyScalar(k * 0.07 / (E.post.exposure * E.post.exposure)));
       }
     });
   };
@@ -119,8 +130,8 @@ export function buildGame() {
   // ------------------------------------------------------------ shots
   const shots = {
     0: { look: new V3(-0.3, 1.0, -0.02), dir: new V3(0.12, 0.16, 1), w: 1.05, h: 0.78, pw: 0.78, ph: 1.2 },
-    1: { look: new V3(0.0, 0.92, -0.04), dir: new V3(-0.08, 0.72, 1), w: 0.78, h: 0.55, pw: 0.6, ph: 0.98 },
-    2: { look: new V3(0.02, 0.98, -0.1), dir: new V3(0.05, 0.22, 1), w: 1.3, h: 0.78, pw: 0.84, ph: 1.36 },
+    1: { look: new V3(-0.1, 0.97, -0.1), dir: new V3(-0.04, 0.55, 1), w: 0.95, h: 0.6, pw: 0.62, ph: 1.08 },
+    2: { look: new V3(0.04, 1.02, -0.2), dir: new V3(0.05, 0.2, 1), w: 1.45, h: 0.85, pw: 0.88, ph: 1.4 },
     3: { look: new V3(-0.15, 1.22, -0.75), dir: new V3(0.5, 0.1, 1), w: 2.7, h: 1.55, pw: 1.55, ph: 2.6 },
   };
   const shot = (k, speed) => { E.camSpeed = speed || 1.4; applyShot(shots[k]); };
@@ -199,7 +210,7 @@ export function buildGame() {
       girl.reach('L', pk.stem.getWorldPosition(new V3()));
     }, () => {
       girl.reach('L', null); girl.setExpr('grin', 1.2); girl.talk = voice('girl', 'yay');
-      hints([{ obj: spoon, pos: () => spoon.getWorldPosition(new V3()) }, { obj: pk, pos: openingCenter }]);
+      hints([{ obj: pk, pos: openingCenter }, { obj: spoon, pos: () => spoon.getWorldPosition(new V3()) }]);
     });
   }
   const openingCenter = () => toWorld(new V3(0, pk.lidCenter.y - 0.01, 0));
@@ -243,8 +254,8 @@ export function buildGame() {
     const mv = Math.hypot(ptr.x - G.lx, ptr.y - G.ly); G.lx = ptr.x; G.ly = ptr.y;
     const str = Math.min(0.5, 0.03 + mv * 0.005);
     if (mv > 0.5 || Math.random() < 0.15) {
-      pk.scrape(u, v, 0.08, str * 0.9);
-      const removed = pulp.scoop(d, 0.8, str * 0.6);
+      pk.scrape(u, v, 0.1, str * 1.1);
+      const removed = pulp.scoop(d, 0.72, str * 1.0);
       load += removed;
       if (E.t - lastScr > 0.09 && mv > 1) { lastScr = E.t; sfx.scrape(); }
       if (removed > 0.0005 && Math.random() < 0.2) sfx.squish();
@@ -534,8 +545,19 @@ export function buildGame() {
     lightsOff = !lightsOff;
     S.room.rocker.rotation.x = lightsOff ? 0.25 : 0;
     S.darkTarget = lightsOff ? 1 : 0;
-    E.post.exposureT = lightsOff ? 2.0 : 1.0;
+    E.post.exposureT = lightsOff ? 2.4 : 1.0;
     setMusic(lightsOff ? 0.06 : 0.12); setAmbience(lightsOff ? 0.35 : 0);
+    if (lightsOff && !G.parentsMoved) {
+      G.parentsMoved = true;
+      const pp0 = papa.root.position.clone(), mp0 = mama.root.position.clone();
+      const pr0 = papa.root.rotation.y, mr0 = mama.root.rotation.y;
+      after(1.2, () => tween(1.6, (k) => {
+        const e = ease(k);
+        papa.root.position.lerpVectors(pp0, new V3(1.3, 0, -0.75), e); papa.root.rotation.y = pr0 + (-0.9 - pr0) * e;
+        mama.root.position.lerpVectors(mp0, new V3(-1.15, 0, -0.85), e); mama.root.rotation.y = mr0 + (0.75 - mr0) * e;
+        papa.bob = mama.bob = Math.abs(Math.sin(k * Math.PI * 4)) * 0.01;
+      }));
+    }
     if (lightsOff) {
       girl.setExpr('wow', 1.5); girl.talk = voice('girl', 'wow'); papa.setExpr('wow', 1.2); mama.setExpr('wow', 1.2);
       after(1.0, () => { mama.talk = voice('mama', 'ooh'); });
@@ -556,10 +578,11 @@ export function buildGame() {
     after(1.0, () => {
       S.room.group.visible = false; S.hide = true;
       for (const l of Object.values(S.lights)) { if (Array.isArray(l)) l.forEach((c) => { c.group.visible = false; c.light.intensity = 0; }); else l.visible = false; }
-      for (const o of [bowl, pile.group, spoon, tray, mallet, tapeRoll, dish, stool, bigCutter, ...cutters, ...plugs.map((p) => p.m)]) o.visible = false;
+      for (const o of [bowl, pile.group, spoon, tray, mallet, tapeRoll, dish, stool, ...chairs, bigCutter, ...cutters, ...plugs.map((p) => p.m)]) o.visible = false;
       garden = buildGarden({ E, pk, candle, girl, papa, mama, sfx, voice, hints, after, tween, burst });
       setAmbience(0.5); setMusic(0.1);
-      after(0.5, () => veil.classList.add('off'));
+      const done = () => after(0.3, () => veil.classList.add('off'));
+      try { E.renderer.compileAsync(E.scene, E.camera).then(done, done); } catch (_) { done(); }
     });
   }
 
@@ -628,7 +651,7 @@ export function buildGame() {
   // ------------------------------------------------------------ debug hooks for automated playtests
   G.target = () => { const h = hintTargets[0]; if (!h) return null; const s = toScreen(hintPos(h)); return { x: s.x, y: s.y, scene: G.scene }; };
   G.open = () => openingScreen();
-  G.state = () => ({ scene: G.scene, clean: pk.cleanFraction(), rem: pulp.remaining(), holes: girlHoles, tapes, lightsOff, dpr: E.dpr });
+  G.state = () => ({ lid: lidOpen, held: spoonHeld, scene: G.scene, clean: pk.cleanFraction(), rem: pulp.remaining(), holes: girlHoles, tapes, lightsOff, dpr: E.dpr });
   G.jump = (n) => {
     if (n >= 1) { hatChosen = 0; const h = hats[0]; girl.head.add(h); h.position.copy(h.userData.offset); h.rotation.set(0, 0, 0); hats[1].visible = hats[2].visible = false; }
     if (n >= 2) { lidOpen = true; pk.lidPivot.position.set(-0.24, bottomY - pk.lidCenter.y, 0.2); pk.lidPivot.rotation.set(0, 0.6, 0.12); pulp.amt.fill(0); pulp.refresh(); pk.scrape(0.5, 0.6, 2, 1); pile.add(0.08, 120); G.s1done = true; spoon.position.set(0.62, TY + 0.006, 0.14); }
@@ -647,8 +670,11 @@ export function buildGame() {
       pk.body.attach(candle.group); candle.group.position.set(0, bottomY * pk.inner + 0.012, 0); candle.group.rotation.set(0, 0, 0); candleIn = true;
       pk.lidPivot.position.copy(lidHome.pos); pk.lidPivot.rotation.set(0, 0, 0); dish.visible = false; mama.reach('R', null);
       handing = false; applyShot(shots[3], true);
-      if (q.get('dark')) { toggleLights(); S.dark = 1; E.post.exposure = 2.0; }
+      if (q.get('dark')) { toggleLights(); S.dark = 1; E.post.exposure = 2.4; papa.root.position.set(1.3, 0, -0.75); papa.root.rotation.y = -0.9; mama.root.position.set(-1.15, 0, -0.85); mama.root.rotation.y = 0.75; }
       if (q.get('ry')) pk.body.rotation.y = +q.get('ry');
+      if (q.get('nosh')) candle.light.castShadow = false;
+      if (q.get('l0')) candle.light.shadow.camera.layers.enableAll();
+      if (q.get('nopk')) for (const m of pk.meshes) m.castShadow = false;
     }
     if (q.get('garden') && n >= 3) { toGarden(); }
   };
@@ -664,6 +690,8 @@ export function buildGame() {
     pk.common.uGlow.value = candle.lit * (candleIn ? 1 : 0) * (0.85 + 0.15 * candle.light.intensity / Math.max(0.01, candle.baseI));
     if (garden) garden.update(dt, t);
     E.post.exposure += (E.post.exposureT - E.post.exposure) * Math.min(1, dt * 1.5);
+    bounce.intensity = candle.lit * (candleIn ? 1 : 0) * 0.5 * (0.9 + 0.1 * Math.sin(t * 9));
+    E.post.bloom = lightsOff ? 0.12 : 0.22;
     E.post.grade = lightsOff && G.scene === 3 ? [1.0, 0.97, 1.03] : [1, 0.985, 0.975];
     // crack opening
     if (pk.cracked) {

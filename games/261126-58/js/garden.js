@@ -111,8 +111,8 @@ export function buildGarden(ctx) {
   // shrubs (lumpy leaf masses)
   const shrubM = pbr('grass', { repeat: [3, 3], color: 0x51653a, roughness: 1, normal: 2.0 });
   for (const [x, z, s] of [[-1.6, -3.6, 0.6], [1.7, -3.7, 0.55], [-2.1, -1.0, 0.45], [2.1, 0.8, 0.5]]) {
-    const g = new THREE.IcosahedronGeometry(1, 4); const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) { const a = p.getX(i), b = p.getY(i), c = p.getZ(i); const n = 1 + 0.12 * Math.sin(a * 7 + c * 5) * Math.cos(b * 6) + 0.06 * Math.sin(a * 17 + b * 13); p.setXYZ(i, a * n, Math.max(-0.3, b) * n * 0.8, c * n); }
+    const g = new THREE.IcosahedronGeometry(1, 5); const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const a = p.getX(i), b = p.getY(i), c = p.getZ(i); const n = 1 + 0.1 * Math.sin(a * 4 + c * 3) * Math.cos(b * 3.5) + 0.03 * Math.sin(a * 9 + b * 7); p.setXYZ(i, a * n, Math.max(-0.3, b) * n * 0.8, c * n); }
     g.computeVertexNormals();
     const m = new THREE.Mesh(g, shrubM); m.scale.setScalar(s); m.position.set(x, s * 0.5, z); m.castShadow = m.receiveShadow = true; grp.add(m);
   }
@@ -146,7 +146,7 @@ export function buildGarden(ctx) {
   E.scene.environment = E.env.garden; E.scene.environmentIntensity = 1.0;
   E.post.exposureT = 2.2; E.post.exposure = 2.2;
   // the hero lantern sits at the front of the path
-  pk.group.position.copy(O).add(new V3(-0.62, 0.0, 2.0));
+  pk.group.position.copy(O).add(new V3(-0.42, 0.0, 1.9));
   pk.body.rotation.y = 0.35;
   candle.baseI = 4.0;
   // family lanterns
@@ -160,12 +160,12 @@ export function buildGarden(ctx) {
   const spots = [[0.78, 1.0, -0.4], [-0.8, -0.2, 0.4], [0.82, -1.4, -0.3], [-0.78, -2.6, 0.3]];
   const colors = [[0xe8741c, 0xb5470c], [0xd9661a, 0x9a3d0b], [0xe2a43a, 0xa86a1c], [0xdf7a26, 0xa04812]];
   spots.forEach(([x, z, ry], i) => {
-    const p = new Pumpkin({ seed: 50 + i * 13 + Math.floor(Math.random() * 100), R: 0.11 + Math.random() * 0.05, colA: colors[i][0], colB: colors[i][1] });
+    const p = new Pumpkin({ seed: 50 + i * 13 + Math.floor(Math.random() * 100), R: 0.14 + Math.random() * 0.04, colA: colors[i][0], colB: colors[i][1] });
     for (const [u, v, t, s] of faces[i]) { const f = p.frameAt(u, v); const st = p.addStamp(f.p, f.n, f.up, t, s * (p.shape.R / 0.15), (Math.random() - 0.5) * 0.2); st.depth = 1; }
     p.syncStamps();
     p.scrape(0.5, 0.6, 2, 1);
     p.group.position.copy(O).add(new V3(x, 0, z));
-    p.body.rotation.y = Math.PI / 2 * 0 + ry + (x > 0 ? -Math.PI / 2 : Math.PI / 2) * 0.55;
+    p.body.rotation.y = ry * 0.6 + (x > 0 ? -0.3 : 0.3);
     const c = new Candle({ shadow: false, intensity: 2.2, halo: 0.8 });
     c.group.position.set(0, p.shape.bottomY() * p.inner + 0.01, 0);
     p.body.add(c.group);
@@ -173,14 +173,14 @@ export function buildGarden(ctx) {
     lanterns.push({ p, c, lit: false, flare: 0 });
   });
   // people
-  girl.root.position.copy(O).add(new V3(-1.0, 0, 2.35)); girl.root.rotation.y = 0.75;
+  girl.root.position.copy(O).add(new V3(-0.85, 0, 2.05)); girl.root.rotation.y = 0.55;
   papa.root.position.copy(O).add(new V3(0.62, 0.3, -3.75)); papa.root.rotation.y = -0.15;
   mama.root.position.copy(O).add(new V3(-0.35, 0.3, -3.85)); mama.root.rotation.y = 0.2;
   for (const p of [girl, papa, mama]) { p.reach('R', null); p.reach('L', null); p.leanT = 0; p.setExpr('smile'); }
   girl.lookAt(pk.group.position);
   // camera
-  const shotA = { look: O.clone().add(new V3(-0.2, 0.55, 0.4)), dir: new V3(0.35, 0.28, 1), w: 3.2, h: 1.8, pw: 1.7, ph: 3.0 };
-  const shotB = { look: O.clone().add(new V3(0.0, 0.9, -1.0)), dir: new V3(0.2, 0.22, 1), w: 4.6, h: 2.6, pw: 2.6, ph: 4.6 };
+  const shotA = { look: O.clone().add(new V3(-0.25, 0.62, 0.6)), dir: new V3(0.22, 0.14, 1), w: 2.6, h: 1.5, pw: 1.5, ph: 2.6 };
+  const shotB = { look: O.clone().add(new V3(0.0, 1.0, -1.2)), dir: new V3(0.18, 0.16, 1), w: 4.4, h: 2.6, pw: 2.4, ph: 4.4 };
   E.camSpeed = 3; applyShot(shotA, true);
   E.focusPoint = pk.group.position.clone();
   E.post.aperture = 1.6;

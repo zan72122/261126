@@ -281,9 +281,9 @@ export class Pumpkin {
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           float edgeGlow = exp(-max(pkI.x, 0.0) / 0.004) ;
           float thin = texture2D(uScrape, vPuv).r;
-          float trans = (backF ? 1.0 : (edgeGlow * 1.3 + thin * 0.05 * (0.5 + 0.5 * lobe) + pkI.y * 0.5));
+          float trans = (backF ? 1.0 : (edgeGlow * 1.1 + thin * 0.012 * (0.5 + 0.5 * lobe) + pkI.y * 0.4));
           totalEmissiveRadiance += uGlowCol * uGlow * trans * (backF ? 1.2 : 1.0);
-          totalEmissiveRadiance += vec3(1.0, 0.85, 0.5) * uHint * 0.12;`);
+          totalEmissiveRadiance += vec3(1.0, 0.85, 0.5) * uHint * 0.035 * (1.0 - min(uGlow, 1.0) * 0.8);`);
     };
     skin.customProgramCacheKey = () => 'pkskin';
     // ---- inner flesh shell
@@ -315,14 +315,14 @@ export class Pumpkin {
     const dist = new THREE.MeshDistanceMaterial({ side: THREE.DoubleSide });
     dist.onBeforeCompile = (sh) => {
       injectCommon(sh, U, 1);
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'void main() {\n vec3 pkG; vec4 pkI = pk_cut(pkG);');
+      sh.fragmentShader = sh.fragmentShader.replace(/void main\s*\(\)\s*\{/, 'void main() {\n vec3 pkG; vec4 pkI = pk_cut(pkG);');
     };
     dist.customProgramCacheKey = () => 'pkdist';
     this.pkDistKey = true;
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
     depth.onBeforeCompile = (sh) => {
       injectCommon(sh, U, 1);
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'void main() {\n vec3 pkG; vec4 pkI = pk_cut(pkG);');
+      sh.fragmentShader = sh.fragmentShader.replace(/void main\s*\(\)\s*\{/, 'void main() {\n vec3 pkG; vec4 pkI = pk_cut(pkG);');
     };
     depth.customProgramCacheKey = () => 'pkdepth';
     return { skin, inner, dist, depth };

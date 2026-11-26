@@ -46,8 +46,8 @@ export function buildStage() {
     spot.intensity = 9.5 * on;
     up.intensity = 1.4 * on;
     fill.intensity = 5.5 * on + 0.0;
-    moon.intensity = 0.06 + 0.22 * S.dark;
-    hemi.intensity = 0.05 + 0.10 * S.dark;
+    moon.intensity = 0.06 + 0.35 * S.dark;
+    hemi.intensity = 0.05 + 0.16 * S.dark;
     room.shadeM.emissiveIntensity = 0.85 * on;
     room.bulb.material.color.setRGB(4 * on + 0.02, 3 * on + 0.015, 2 * on + 0.01);
     E.scene.environment = S.dark > 0.5 ? E.env.dark : E.env.lit;
