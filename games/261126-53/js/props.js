@@ -217,7 +217,7 @@ export function makeStand(skel) {
   const top = plankBox(3.3, 0.12, 1.15, M.wood, 0.9); top.position.y = 0.06; g.add(top);
   const S = skel.S;
   const curve = new THREE.CatmullRomCurve3(S.spine, false, 'centripetal');
-  const pts = []; for (let i = 0; i <= 30; i++) { const p = curve.getPointAt(0.1 + i / 30 * 0.88); pts.push(V(p.x, p.y - 0.09, 0)); }
+  const pts = []; for (let i = 0; i <= 30; i++) { const t = 0.1 + i / 30 * 0.86; const p = curve.getPointAt(t), tg = curve.getTangentAt(t); pts.push(V(p.x + tg.y * 0.045, p.y - tg.x * 0.045 - 0.015, 0)); }
   g.add(new THREE.Mesh(sweep(pts, { segs: 60, radial: 8, radius: () => 0.008 }), M.darkMetal));
   const posts = [S.hip.x, S.shoulder.x, -1.1, 0.75];
   for (const x of posts) {

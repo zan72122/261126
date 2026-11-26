@@ -356,7 +356,7 @@ export class Fossil {
 }
 
 // ------------------------------------------------------------------ small living dinosaurs (diorama-size)
-const dinoSkin = pbr('dino', { repeat: 1.6, vertexColors: true, ns: 0.7 });
+const dinoSkin = new THREE.MeshStandardMaterial({ vertexColors: true, map: tex('dino', 'c', 5), aoMap: tex('dino', 'orm', 5), aoMapIntensity: 0.6, roughness: 0.72, normalMap: tex('dino', 'n', 5), normalScale: new THREE.Vector2(0.35, 0.35) });
 const eyeMatCache = {};
 function eyeMat(col) {
   if (eyeMatCache[col]) return eyeMatCache[col];
@@ -386,7 +386,7 @@ export class MiniDino {
     const rad = long
       ? t => { const body = Math.exp(-(((t - 0.42) / 0.17) ** 2)) * 0.12; const neck = 0.03 + 0.012 * (1 - t); const tail = t < 0.35 ? 0.006 + t * 0.13 : 0; return Math.max(body, neck, tail) * L / 0.42; }
       : t => { const body = Math.exp(-(((t - 0.47) / 0.18) ** 2)) * 0.105; const neck = 0.036; const tail = t < 0.38 ? 0.008 + t * 0.12 : 0; return Math.max(body, neck, tail) * L / 0.36; };
-    const g = sweep(pts, { segs: 48, radial: 18, radius: t => { const r = rad(t); return [r, r * 1.08]; }, up: V(0, 1, 0), capLen: 0.8 });
+    const g = sweep(pts, { segs: 48, radial: 18, radius: t => { const r = rad(t); return [r, r * 1.08]; }, up: V(0, 1, 0), capLen: 0.8, vScale: 2.2 });
     // head: separate rounded shape at the end
     const tipP = pts[pts.length - 1], tipD = pts[pts.length - 1].clone().sub(pts[pts.length - 2]).normalize();
     const hs = long ? 0.036 : 0.042;
@@ -396,7 +396,7 @@ export class MiniDino {
     xform(head, { r: headQ, p: tipP.clone().addScaledVector(tipD, hs * 0.6).add(V(hs * 0.5, -hs * 0.2, 0)) });
     const bodyGeo = merge([g, (() => { head.setAttribute('aT', new THREE.Float32BufferAttribute(new Float32Array(head.attributes.position.count).fill(1), 1)); return head; })()], true);
     const base = tint || new THREE.Color().setHSL(0.22 + R() * 0.08, 0.32, 0.36);
-    const belly = new THREE.Color(0.85, 0.78, 0.6);
+    const belly = new THREE.Color(0.66, 0.58, 0.42);
     setColor(bodyGeo, (v, c) => {
       const up = clamp((v.y - (0.4 * L)) / (0.1 * L), -1, 1);
       const k = sstep(0.4, -0.6, up);

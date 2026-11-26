@@ -18,7 +18,7 @@ function skinMat(rgb, vc = true) {
   // cheap subsurface: wrap lighting + warm the terminator
   m.onBeforeCompile = sh => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-      reflectedLight.indirectDiffuse *= vec3(1.04, .99, .97);`);
+      reflectedLight.indirectDiffuse *= vec3(1.1, .98, .9);`);
   };
   return m;
 }

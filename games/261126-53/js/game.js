@@ -15,6 +15,14 @@ const PIT_POS = [V(0, 0, 0), V(-3.4, 0, 0.2), V(-6.8, 0, -0.1)];
 const STAND_POS = [V(5.0, 0, -0.95), V(8.7, 0, -0.95)];
 const FLOOR = -0.1;
 const tmpV = V(), tmpV2 = V();
+// blend landscape / phone-portrait framings by aspect (iPad portrait sits in between)
+function mixShot(L, P) {
+  const k = clamp((0.98 - view.aspect) / 0.5, 0, 1);
+  const o = {};
+  for (const key of ['yaw', 'halfW', 'halfH', 'eye', 'minDist']) o[key] = lerp(L[key], P[key], k);
+  o.target = L.target.clone().lerp(P.target, k);
+  return o;
+}
 
 // footprint shape: 3 toes + heel pad, local x forward (toes toward +x)
 export function footShape(lx, lz) {
@@ -308,7 +316,7 @@ export class Game {
     this.tableHat = g.hat.clone(); this.tableHat.visible = true;
     this.table.add(this.tableHat); this.tableHat.position.copy(this.hatSpot); this.tableHat.rotation.set(0, 0.3, 0); this.tableHat.scale.setScalar(1);
     this.reframe = () => { const portrait = view.aspect < 0.9;
-    setShot(portrait ? { target: V(0.62, 0.66, -1.3), yaw: 0.1, halfW: 0.5, halfH: 0.9, eye: 1.25, minDist: 1.4 } : { target: V(0.62, 0.72, -1.3), yaw: 0.05, halfW: 0.78, halfH: 0.68, eye: 1.2, minDist: 1.6 }, 0); }; this.reframe();
+    setShot(mixShot({ target: V(0.62, 0.72, -1.3), yaw: 0.05, halfW: 0.78, halfH: 0.68, eye: 1.2, minDist: 1.6 }, { target: V(0.62, 0.66, -1.3), yaw: 0.1, halfW: 0.5, halfH: 0.9, eye: 1.25, minDist: 1.4 }), 0); }; this.reframe();
     setShadowFocus(V(0.5, 0, -1.2), 3);
     this.handlers = {
       down: (inp) => {
@@ -397,10 +405,10 @@ export class Game {
   camDig(dur) {
     const P = this.pit;
     const portrait = view.aspect < 0.9;
-    const hw = portrait ? 0.62 : 1.08;
+    const hw = mixShot({ target: V(), yaw: 0, halfW: 1.08, halfH: 0, eye: 0, minDist: 0 }, { target: V(), yaw: 0, halfW: 0.62, halfH: 0, eye: 0, minDist: 0 }).halfW;
     const panMax = Math.max(0, 1.05 - hw);
     const tx = P.c.x + clamp(this.dig ? this.dig.workX - P.c.x : 0, -panMax, panMax);
-    setShot(portrait ? { target: V(tx, 0.14, P.c.z - 0.1), yaw: 0, halfW: hw, halfH: 0.8, eye: 1.75, minDist: 1.5 } : { target: V(tx, 0.24, P.c.z - 0.12), yaw: 0, halfW: hw, halfH: 0.56, eye: 1.02, minDist: 1.5 }, dur);
+    setShot(mixShot({ target: V(tx, 0.24, P.c.z - 0.12), yaw: 0, halfW: 1.08, halfH: 0.56, eye: 1.02, minDist: 1.5 }, { target: V(tx, 0.14, P.c.z - 0.1), yaw: 0, halfW: 0.62, halfH: 0.8, eye: 1.75, minDist: 1.5 }), dur);
   }
   placeToolOnCloth() {
     const P = this.pit;
@@ -721,8 +729,7 @@ export class Game {
   camAssemble(dur, wide = false) {
     const sp = this.asm.sp;
     const portrait = view.aspect < 0.9;
-    if (portrait) setShot({ target: V(sp.x - 0.75, wide ? 0.9 : 0.75, sp.z + 0.6), yaw: -0.8, halfW: 1.0, halfH: 1.25, eye: 1.5, minDist: 2.6 }, dur);
-    else setShot({ target: V(sp.x - 0.4, wide ? 0.95 : 0.72, sp.z + 0.75), yaw: -0.06, halfW: wide ? 2.2 : 1.95, halfH: wide ? 1.1 : 0.92, eye: 1.45, minDist: 2.6 }, dur);
+    setShot(mixShot({ target: V(sp.x - 0.4, wide ? 0.95 : 0.72, sp.z + 0.75), yaw: -0.06, halfW: wide ? 2.2 : 1.95, halfH: wide ? 1.1 : 0.92, eye: 1.45, minDist: 2.6 }, { target: V(sp.x - 0.75, wide ? 0.9 : 0.75, sp.z + 0.6), yaw: -0.8, halfW: 1.0, halfH: 1.25, eye: 1.5, minDist: 2.6 }), dur);
   }
   asmDown(inp) {
     const S = this.asm;
@@ -981,7 +988,7 @@ export class Game {
     this.flag.visible = true;
     setShadowFocus(V(sp.x - 0.2, 0, sp.z + 0.9), 3.6);
     const portrait = view.aspect < 0.9;
-    this.reframe = () => { const portrait = view.aspect < 0.9; setShot(portrait ? { target: V(sp.x - 0.75, 0.55, sp.z + 1.0), yaw: -0.65, halfW: 0.95, halfH: 1.2, eye: 1.4, minDist: 2.3 } : { target: V(sp.x - 0.2, 0.62, sp.z + 1.05), yaw: 0.0, halfW: 1.75, halfH: 0.9, eye: 1.3, minDist: 2.3 }, 0); }; this.reframe();
+    this.reframe = () => { const portrait = view.aspect < 0.9; setShot(mixShot({ target: V(sp.x - 0.2, 0.62, sp.z + 1.05), yaw: 0.0, halfW: 1.75, halfH: 0.9, eye: 1.3, minDist: 2.3 }, { target: V(sp.x - 0.75, 0.55, sp.z + 1.0), yaw: -0.65, halfW: 0.95, halfH: 1.2, eye: 1.4, minDist: 2.3 }), 0); }; this.reframe();
     this.handlers = {
       down: inp => this.playDown(inp),
       move: inp => this.playMove(inp),
@@ -1127,6 +1134,8 @@ export class Game {
       py = P.legR * 0.85 + P.thigh * Math.cos(-hipA - 0.08) + 0.012;
       set('pelvis', 0.08 + lean * 0.3, 0, 0); set('spine', lean * 0.55 + breathe, 0, 0); set('chest', lean * 0.35, 0, 0); set('neck', -0.42, 0, 0);
       for (const s of ['L', 'R']) { const sg = s === 'L' ? 1 : -1; set('hip' + s, hipA - (0.08 + lean * 0.3), 0.05 * sg, 0.1 * sg); set('kn' + s, 2.45, 0, 0); set('an' + s, 0.95, 0, 0); }
+      if (!h.armIK.L) { set('shL', -0.45, 0, 0.12); set('elL', 0.55, 0, 0); set('wrL', 0, 0, 0); }
+      if (!h.armIK.R) { set('shR', -0.45, 0, -0.12); set('elR', 0.55, 0, 0); set('wrR', 0, 0, 0); }
     } else if (pose === 'walk') {
       const ph = arg;
       set('pelvis', 0, Math.sin(ph) * 0.08, 0, 20); set('spine', 0.1, 0, 0); set('chest', 0, -Math.sin(ph) * 0.06, 0);
