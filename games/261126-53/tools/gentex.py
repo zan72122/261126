@@ -127,7 +127,7 @@ def sand():
     sp = R.random((n, n))
     col = base * (1 + grain * 0.07 + grain2 * 0.05)[..., None]
     col = np.where((sp > 0.985)[..., None], col * 0.55 + srgb((60, 45, 35)) * 0.45, col)
-    col = np.where((sp < 0.02)[..., None], col * 0.6 + srgb((242, 232, 210)) * 0.4, col)
+    col = np.where((sp < 0.006)[..., None], col * 0.8 + srgb((242, 232, 210)) * 0.2, col)
     col = np.where(((sp > 0.5) & (sp < 0.53))[..., None], col * 0.7 + srgb((170, 88, 52)) * 0.3, col)
     col = blur(col, 0.6)
     pc = lerp3((150, 120, 92), (205, 186, 160), rv[idx])
@@ -168,10 +168,12 @@ def rock():
     grain = fnoise(n, 0.4, fmin=150, seed=35)
     h = low * 0.9 + strata * 0.3 + grain * 0.12 - pits * 0.8
     t = norm01(strata * 0.6 + low * 0.5)
-    col = lerp3((196, 142, 92), (150, 98, 62), t)
+    col = lerp3((200, 172, 138), (150, 118, 88), t)
     col = col * (1 + grain * 0.06)[..., None] * (1 - np.clip(pits, 0, 1) * 0.35)[..., None]
     lich = np.clip(fnoise(n, 2.4, seed=36) - 1.7, 0, 1)
-    col = col * (1 - lich[..., None] * 0.5) + srgb((120, 110, 92)) * lich[..., None] * 0.5
+    col = col * (1 - lich[..., None] * 0.5) + srgb((110, 104, 92)) * lich[..., None] * 0.5
+    iron = np.clip(fnoise(n, 2.2, seed=37) - 0.8, 0, 1)
+    col = col * (1 - iron[..., None] * 0.35) + srgb((168, 96, 58)) * iron[..., None] * 0.35
     rough = 0.88 + grain * 0.03
     ao = ao_from_h(h, 10, 0.3)
     save_set('rock', col, h, 3.5, rough, ao)
@@ -199,7 +201,7 @@ def bone():
     col = col * (1 - crack[..., None] * 0.55) + dark * crack[..., None] * 0.55 * 0.6
     col *= (1 - pores * 0.25)[..., None]
     h = fib * 0.25 + mid * 0.3 - crack * 1.0 - pores * 0.5
-    rough = 0.38 + st * 0.28 + crack * 0.3 + pores * 0.1
+    rough = 0.55 + st * 0.25 + crack * 0.2 + pores * 0.1
     ao = np.clip(1 - crack * 0.5 - pores * 0.2, 0, 1)
     save_set('bone', col, h, 2.2, rough, ao)
 

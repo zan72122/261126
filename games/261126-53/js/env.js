@@ -147,19 +147,19 @@ export function buildLandscape() {
   // dry desert shrubs (instanced)
   const twigs = [];
   const RR = rng(77);
-  for (let i = 0; i < 26; i++) {
-    const a = RR() * 6.28, l = 0.25 + RR() * 0.3, tilt = 0.4 + RR() * 0.7;
-    const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * l * 0.35 * tilt, l * 0.55, Math.sin(a) * l * 0.35 * tilt), new THREE.Vector3(Math.cos(a) * l * 0.8 * tilt, l, Math.sin(a) * l * 0.8 * tilt)];
-    const tg = sweep(pts, { radius: t => 0.008 * (1 - t * 0.8), segs: 4, radial: 4, caps: false });
-    setColor(tg, (v, c) => c.setRGB(0.32, 0.25, 0.18));
+  for (let i = 0; i < 34; i++) {
+    const a = RR() * 6.28, l = 0.18 + RR() * 0.32, tilt = 0.5 + RR() * 0.8;
+    const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * l * 0.3 * tilt, l * 0.5, Math.sin(a) * l * 0.3 * tilt), new THREE.Vector3(Math.cos(a + 0.3) * l * 0.75 * tilt, l, Math.sin(a + 0.3) * l * 0.75 * tilt)];
+    const tg = sweep(pts, { segs: 4, radial: 4, radius: t => 0.006 * (1 - t * 0.8), caps: false });
+    setColor(tg, (v, c) => c.setRGB(0.3, 0.24, 0.18));
     twigs.push(tg);
-    for (let k = 0; k < 3; k++) {
-      const lg = new THREE.IcosahedronGeometry(0.05 + RR() * 0.05, 1);
+    for (let k = 0; k < 7; k++) {
+      const lg = new THREE.IcosahedronGeometry(0.012 + RR() * 0.018, 0);
       lg.deleteAttribute('uv'); lg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(lg.attributes.position.count * 2), 2));
-      const tt = 0.5 + k * 0.25;
-      xform(lg, { p: new THREE.Vector3(Math.cos(a) * l * 0.8 * tilt * tt, l * tt, Math.sin(a) * l * 0.8 * tilt * tt), s: new THREE.Vector3(1, 0.7, 1) });
-      const gc = 0.75 + RR() * 0.3;
-      setColor(lg, (v, c) => c.setRGB(0.42 * gc, 0.45 * gc, 0.33 * gc));
+      const tt = 0.35 + k * 0.1;
+      xform(lg, { p: new THREE.Vector3(Math.cos(a + 0.3 * tt) * l * 0.75 * tilt * tt + (RR() - 0.5) * 0.05, l * tt + (RR() - 0.5) * 0.04, Math.sin(a + 0.3 * tt) * l * 0.75 * tilt * tt + (RR() - 0.5) * 0.05), s: new THREE.Vector3(1.4, 0.6, 1) });
+      const gc = 0.7 + RR() * 0.35;
+      setColor(lg, (v, c) => c.setRGB(0.4 * gc, 0.42 * gc, 0.3 * gc));
       twigs.push(lg);
     }
   }

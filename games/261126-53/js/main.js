@@ -4,6 +4,7 @@ import { setupEnvironment, buildLandscape } from './env.js';
 import { initFx, setFxScale } from './fx.js';
 import { audioUnlock } from './audio.js';
 import { Game } from './game.js';
+import * as CORE from './core.js';
 
 let game;
 try {
@@ -17,7 +18,7 @@ input.handlers = {
   move: i => game.handlers && game.handlers.move && game.handlers.move(i),
   up: i => game.handlers && game.handlers.up && game.handlers.up(i),
 };
-window.addEventListener('resize', () => { resize(); setFxScale(view.h * view.dpr / (2 * Math.tan(camera.fov * Math.PI / 360))); });
+window.addEventListener('resize', () => { resize(); game.reframe && game.reframe(); setFxScale(view.h * view.dpr / (2 * Math.tan(camera.fov * Math.PI / 360))); });
 resize();
 setFxScale(view.h * view.dpr / (2 * Math.tan(camera.fov * Math.PI / 360)));
 startTextureLoading(p => { if (p >= 1) window.__texDone = true; });
@@ -35,4 +36,4 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-window.__game = game; window.THREE = THREE;
+window.__game = game; window.THREE = THREE; window.__core = CORE;

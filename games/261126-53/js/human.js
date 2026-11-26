@@ -36,7 +36,7 @@ function mats() {
     anisotropy: 0.7, anisotropyRotation: Math.PI / 2, sheen: 0.3, sheenColor: new THREE.Color(0.5, 0.35, 0.2), side: THREE.DoubleSide,
   });
   MAT.hairPapa = MAT.hair.clone(); MAT.hairPapa.color = new THREE.Color(0.55, 0.5, 0.48);
-  MAT.brow = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.20, 0.13, 0.08, THREE.SRGBColorSpace), roughness: 0.8 });
+  MAT.brow = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.3, 0.2, 0.13, THREE.SRGBColorSpace), roughness: 0.85 });
   MAT.lash = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.6 });
   MAT.mouthIn = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.36, 0.11, 0.1, THREE.SRGBColorSpace), roughness: 0.6 });
   MAT.tongue = new THREE.MeshPhysicalMaterial({ color: new THREE.Color().setRGB(0.85, 0.42, 0.42, THREE.SRGBColorSpace), roughness: 0.35, clearcoat: 0.5 });
@@ -315,7 +315,7 @@ export class Human {
     const tc = ['pelvis', 'spine', 'chest', 'neck'];
     this.shirt = this.skinned([[shirtG, tc], [sleeve('L'), ['chest', 'shL', 'elL']], [sleeve('R'), ['chest', 'shR', 'elR']]], girl ? M.tee : M.papaShirt, 'shirt');
     // collar
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(P.neckR * 1.25, P.neckR * 0.14, 8, 28), girl ? M.tee : M.papaShirt);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(P.neckR * 1.12, P.neckR * 0.16, 8, 28), girl ? M.tee : M.papaShirt);
     collar.rotation.x = Math.PI / 2 + 0.15; collar.position.set(0, P.torso * 0.34 - 0.012 * k, 0.002);
     J.chest.add(collar); this.meshes.push(collar);
     if (!girl) for (const sd of ['L', 'R']) {
@@ -331,7 +331,7 @@ export class Human {
     const belt = new THREE.Mesh(this.loft([{ y: h + 0.07 * k, w: T[2].w * 1.06 + 0.002, d: T[2].d * 1.08, zo: 0.006, n: 2.4 }, { y: h + 0.095 * k, w: T[2].w * 1.06 + 0.002, d: T[2].d * 1.08, zo: 0.007, n: 2.4 }], { rings: 1, radial: 40 }), M.leather);
     belt.geometry.translate(0, -h, 0); J.pelvis.add(belt); this.meshes.push(belt);
     // vest: offset loft with an open front
-    const VS = T.slice(2, 9).map(s => ({ ...s, w: s.w * 1.05 + 0.005, d: s.d * 1.08 + 0.006 }));
+    const VS = T.slice(2, 9).map(s => ({ ...s, w: s.w * 1.08 + 0.008, d: s.d * 1.12 + 0.009 }));
     VS[VS.length - 1] = { ...VS[VS.length - 1], w: T[8].w * 1.2, d: T[8].d * 1.25 };
     const vestG = this.loft(VS, { radial: 44, rings: 26, arc: [0.42, Math.PI * 2 - 0.42], shape: (t, a) => 1 + 0.02 * Math.sin(a * 7 + t * 4) + 0.01 * Math.sin(t * 30 + a * 2), vS: 5 });
     // cut arm holes: drop triangles near the shoulder joints
@@ -462,10 +462,11 @@ export class Human {
       for (const s of [-1, 1]) {
         dz += bump(n, c.set(0.42 * s, -0.36, 0.78), 0.34, girl ? 0.075 : 0.03); // cheeks
         dx += s * bump(n, c.set(0.6 * s, -0.25, 0.6), 0.4, girl ? 0.03 : 0.01);
-        dz += bump(n, c.set(0.12 * s, -0.36, 0.92), 0.08, 0.025); // nostril wings
+        dz += bump(n, c.set(0.085 * s, -0.355, 0.92), 0.06, 0.022); // nostril wings
       }
       dz += bump(n, c.set(0, -0.12, 0.98), 0.12, girl ? 0.018 : 0.04); // bridge
-      dz += bump(n, c.set(0, -0.29, 0.95), girl ? 0.16 : 0.16, girl ? 0.055 : 0.1); // nose tip
+      dz += bump(n, c.set(0, -0.3, 0.95), girl ? 0.11 : 0.15, girl ? 0.05 : 0.1); // nose tip
+      dz += bump(n, c.set(0, -0.2, 0.97), girl ? 0.07 : 0.1, girl ? 0.015 : 0.03); // nose ridge
       dz += bump(n, c.set(0, 0.12, 0.98), 0.25, girl ? 0.0 : 0.025); // brow ridge
       dz += bump(n, c.set(0, -0.58, 0.82), 0.2, girl ? 0.035 : 0.025); // lips mound
       dz -= bump(n, c.set(0, -0.44, 0.92), 0.05, 0.008); // philtrum
@@ -511,6 +512,10 @@ export class Human {
       }
       const nose = Math.exp(-(((n.x) / 0.1) ** 2 + ((n.y + 0.3) / 0.08) ** 2)) * (n.z > 0 ? 1 : 0);
       gg -= 0.05 * nose; b -= 0.05 * nose;
+      for (const E of this.eyeC) { const de = Math.hypot((tmp.x - E.x) / 1.6, (tmp.y - E.y) / 1.1) / er; if (tmp.z > 0) { const ring = Math.exp(-(((de - 1.25) / 0.35) ** 2)) * 0.12; r -= ring; gg -= ring * 1.1; b -= ring * 1.05; } }
+      const sn = Math.exp(-(((n.x) / 0.1) ** 2 + ((n.y + 0.42) / 0.04) ** 2)) * (n.z > 0.5 ? 0.14 : 0); r -= sn; gg -= sn; b -= sn;
+      const ul = Math.exp(-(((n.x) / 0.16) ** 2 + ((n.y + 0.7) / 0.04) ** 2)) * (n.z > 0.4 ? 0.1 : 0); r -= ul; gg -= ul; b -= ul;
+      const nsd = Math.exp(-(((Math.abs(n.x) - 0.12) / 0.05) ** 2 + ((n.y + 0.25) / 0.12) ** 2)) * (n.z > 0.5 ? 0.06 : 0); r -= nsd; gg -= nsd; b -= nsd;
       const under = sstep(-0.75, -1, n.y) * 0.18;
       r -= under; gg -= under; b -= under;
       if (!girl) { const st = sstep(-0.35, -0.75, n.y) * (n.z > -0.3 ? 1 : 0) * (Math.abs(n.y + 0.55) > 0.07 || Math.abs(n.x) > 0.25 ? 1 : 0); r -= 0.1 * st; gg -= 0.1 * st; b -= 0.06 * st; } // stubble shadow
@@ -587,7 +592,7 @@ export class Human {
     this.mouthC = surf(0, -0.6); this.mouthC.z -= 0.003;
     this.mouthG = new THREE.Group(); this.mouthG.position.copy(this.mouthC); H.add(this.mouthG);
     this.mouthW = hr * (girl ? 0.16 : 0.2);
-    this.lipMat = skinMat(girl ? [0.93, 0.6, 0.56] : [0.8, 0.55, 0.48], false);
+    this.lipMat = skinMat(girl ? [0.86, 0.5, 0.48] : [0.74, 0.5, 0.44], false);
     this.lipMat.roughness = 0.38;
     this.mouthParts = {};
     this.mouthKey = '';
@@ -633,17 +638,27 @@ export class Human {
     cap.computeVertexNormals();
     this.add(H, cap, mat, 'hairCap');
     if (!girl) return;
-    // bangs: overlapping clumps hugging the forehead, uneven tips
+    // bangs: one continuous sheet following the forehead, cut into soft clumps at the tips
     const strands = [];
-    const RB = (i => () => { i = (i * 16807) % 2147483647; return i / 2147483647; })(7);
-    for (let i = 0; i < 13; i++) {
-      const t = i / 12, x = (t - 0.5) * 1.0 + (RB() - 0.5) * 0.04;
-      const len = 0.17 + Math.abs(x) * 0.1 + (RB() - 0.5) * 0.05;
-      const top = V(x * hr * 0.5, hr * 0.97, hr * 0.2);
-      const p1 = this.surf(x * 0.8, 0.55); p1.z += hr * 0.07;
-      const p2 = this.surf(x * 0.86, 0.38); p2.z += hr * 0.06;
-      const p3 = this.surf(x * 0.88 + (RB() - 0.5) * 0.04, len); p3.z += hr * 0.045;
-      strands.push(sweep([top, p1, p2, p3], { segs: 12, radial: 6, radius: q => [hr * 0.105 * (1 - 0.55 * q * q), hr * 0.014 * (1 - 0.5 * q)], up: V(0, 0, 1), vScale: 8, uScale: 0.3, twist: q => (x * 0.4) * q }));
+    {
+      const cols = 40, rows = 14, pos = [], uv = [], idx = [];
+      const RB = (i => () => { i = (i * 16807) % 2147483647; return i / 2147483647; })(11);
+      const clumpLen = []; for (let c = 0; c < 9; c++) clumpLen.push(0.2 + (RB() - 0.5) * 0.06);
+      for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) {
+        const u = c / cols, x = (u - 0.5) * 1.02;
+        const ci = u * 8.999, k = Math.floor(ci), f = ci - k;
+        const tipY = clumpLen[k] + Math.abs(x) * 0.12 + Math.pow(Math.abs(f - 0.5) * 2, 2) * 0.07; // pointed clumps
+        const v = r / rows;
+        const y = lerp(0.62, tipY, v);
+        const p = this.surf(x * (0.82 + 0.06 * v), y);
+        const nrm = p.clone().normalize();
+        p.addScaledVector(nrm, hr * (0.05 - 0.025 * v) + hr * 0.008 * Math.sin(u * 60) * v);
+        pos.push(p.x, p.y, p.z); uv.push(u * 9, v * 1.5);
+      }
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const a = r * (cols + 1) + c, b2 = a + 1, cc = a + cols + 1, d = cc + 1; idx.push(a, cc, b2, b2, cc, d); }
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); bg.setIndex(idx); bg.computeVertexNormals();
+      strands.push(bg);
     }
     // side locks
     for (const s of [1, -1]) for (let i = 0; i < 4; i++) {
@@ -677,26 +692,24 @@ export class Human {
     const g = new THREE.Group();
     const R = hr * 1.06;
     const crownPts = [];
-    for (let i = 0; i <= 12; i++) { const t = i / 12; crownPts.push(new THREE.Vector2(R * (1.02 - 0.12 * t * t) * (t > 0.85 ? Math.cos((t - 0.85) / 0.15 * 1.3) : 1), t * hr * 0.62)); }
-    crownPts.push(new THREE.Vector2(0.001, hr * 0.64));
+    for (let i = 0; i <= 16; i++) { const t = i / 16; const a = t * Math.PI / 2; crownPts.push(new THREE.Vector2(Math.max(0.001, R * (1.0 - 0.1 * t) * Math.cos(Math.max(0, a - 0.55) * 1.3)), hr * 0.5 * Math.sin(a) ** 0.6)); }
     const crown = new THREE.LatheGeometry(crownPts, 40);
-    deform(crown, v => { v.x *= 0.86; v.z *= 1.0; if (v.y > hr * 0.55) v.y -= hr * 0.04 * Math.exp(-(v.x * v.x) / (hr * hr * 0.05)) * Math.abs(v.z / R); });
+    deform(crown, v => { v.x *= 0.86; v.z *= 1.0; v.y -= hr * 0.06 * Math.exp(-(v.x * v.x) / (hr * hr * 0.04)) * sstep(hr * 0.3, hr * 0.5, v.y); });
     const uvc = crown.attributes.uv; for (let i = 0; i < uvc.count; i++) uvc.setXY(i, uvc.getX(i) * 5, uvc.getY(i) * 1.2);
     const cm = new THREE.Mesh(crown, M.khaki); g.add(cm);
-    const inner = new THREE.Mesh(crown, new THREE.MeshStandardMaterial({ color: 0x3a2e22, roughness: 1, side: THREE.BackSide })); g.add(inner);
     // brim with a gentle droop
     const brimPts = [];
-    for (let i = 0; i <= 8; i++) { const t = i / 8; brimPts.push(new THREE.Vector2(R * 0.98 + t * hr * 0.42, -t * t * hr * 0.12)); }
+    for (let i = 0; i <= 8; i++) { const t = i / 8; brimPts.push(new THREE.Vector2(R * 0.98 + t * hr * 0.3, -t * t * hr * 0.09)); }
     const brimOut = new THREE.LatheGeometry(brimPts, 48);
     deform(brimOut, v => { const a = Math.atan2(v.z, v.x); v.y += Math.sin(a) * hr * 0.03 * (Math.hypot(v.x, v.z) / R - 1); v.x *= 0.88; });
     const uvb = brimOut.attributes.uv; for (let i = 0; i < uvb.count; i++) uvb.setXY(i, uvb.getX(i) * 5, uvb.getY(i) * 0.6);
     const bm = new THREE.Mesh(brimOut, M.khaki); g.add(bm);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(R * 0.98 + hr * 0.42, hr * 0.018, 6, 48), M.khakiDark);
-    rim.rotation.x = Math.PI / 2; rim.position.y = -hr * 0.12; rim.scale.set(0.88, 1, 1); g.add(rim);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(R * 0.98 + hr * 0.3, hr * 0.018, 6, 48), M.khakiDark);
+    rim.rotation.x = Math.PI / 2; rim.position.y = -hr * 0.09; rim.scale.set(0.88, 1, 1); g.add(rim);
     const band = sweep([V(0, hr * 0.02, 0), V(0, hr * 0.14, 0)], { segs: 2, radial: 40, caps: false, radius: () => [R * 1.03 * 0.86, R * 1.03 * 1.0] });
     const bandM = new THREE.Mesh(band, M.leather); g.add(bandM);
-    g.position.set(0, hr * 0.4, -hr * 0.03);
-    g.rotation.x = -0.1;
+    g.position.set(0, hr * 0.46, -hr * 0.1);
+    g.rotation.x = -0.32;
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return g;
   }
@@ -744,7 +757,7 @@ export class Human {
       }
     }
     // lips as soft tubes along the edges
-    const lipR = (up) => q => { const k = Math.sin(Math.PI * q); return [hr * (up ? 0.018 : 0.024) * (0.35 + 0.65 * k) * (1 + rd * 0.4), hr * (up ? 0.02 : 0.026) * (0.35 + 0.65 * k)]; };
+    const lipR = (up) => q => { const k = Math.sin(Math.PI * q); const bow = up ? 1 - 0.25 * Math.exp(-(((q - 0.5) / 0.06) ** 2)) : 1; return [hr * (up ? 0.022 : 0.03) * (0.3 + 0.7 * k) * (1 + rd * 0.4) * bow, hr * (up ? 0.024 : 0.03) * (0.3 + 0.7 * k)]; };
     const ul = sweep(upEdge.map(p => V(p.x, p.y + hr * 0.012, p.z + 0.0015)), { segs: 20, radial: 8, radius: lipR(true), up: V(0, 0, 1) });
     const ll = sweep(loEdge.map(p => V(p.x, p.y - hr * 0.016, p.z + 0.0012)), { segs: 20, radial: 8, radius: lipR(false), up: V(0, 0, 1) });
     for (const [k, gg] of [['ul', ul], ['ll', ll]]) {

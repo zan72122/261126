@@ -20,7 +20,7 @@ function longBone(len, r, o = {}) {
   for (let i = 0; i <= 6; i++) { const t = i / 6; pts.push(V(t * len, Math.sin(t * Math.PI) * bow * len, 0)); }
   const e0 = o.e0 ?? 1, e1 = o.e1 ?? 1;
   const g = sweep(pts, {
-    segs: 26, radial: 14, capLen: 0.9,
+    segs: 26, radial: 14, capLen: 0.9, vScale: 3.5, uScale: 0.6,
     radius: t => { const k = 0.55 + 0.6 * e0 * Math.exp(-((t / 0.11) ** 2)) + 0.55 * e1 * Math.exp(-(((1 - t) / 0.11) ** 2)); return [r * k, r * k * (o.flat ?? 0.85)]; },
     shape: (t, a) => 1 + 0.2 * Math.cos(2 * a) * (Math.exp(-((t / 0.08) ** 2)) + Math.exp(-(((1 - t) / 0.08) ** 2))) + 0.05 * Math.sin(3 * a + t * 9),
   });
@@ -181,13 +181,16 @@ export function buildSkeleton(spKey, scale = 1) {
   const curve = new THREE.CatmullRomCurve3(S.spine, false, 'centripetal');
   const bones = [];
   const add = (item, geo, pos, quat, sc = 1) => bones.push({ item, geo, pos: pos.clone(), quat: quat.clone(), scale: typeof sc === 'number' ? V(sc, sc, sc) : sc });
+  const clen = curve.getLength();
   const chain = (item, t0, t1, n, s0, s1, kind) => {
+    const spacing = clen * (t1 - t0) / n;
     for (let i = 0; i < n; i++) {
       const t = lerp(t0, t1, (i + 0.5) / n);
       const p = curve.getPointAt(t), d = curve.getTangentAt(t);
       const s = Array.isArray(s0) ? lerp(s0[0], s0[1], (i + 0.5) / n) : s0;
       const k = kind === 'tail' && i < 4 ? 'tailEnd' : kind;
-      add(item, cachedVert(k), p, basis(d, V(0, 1, 0)), s);
+      const sx = Math.max(s, spacing * 0.9 / 0.84);
+      add(item, cachedVert(k), p, basis(d, V(0, 1, 0)), V(sx, s, s));
     }
   };
   chain('tail', S.tT[0], S.tT[1], S.counts.tail, S.sizes.tail, 0, 'tail');
@@ -280,14 +283,17 @@ export class Fossil {
     let x = 0, z = 0;
     if (chainy) {
       // articulated-ish curved chain
-      const total = ents.reduce((a, e) => a + e.ext.x * 0.92, 0);
-      let s = -total / 2; const bend = (R() - 0.5) * 1.6;
+      // curled 'death pose': the chain lies along an arc so long necks/tails stay compact
+      const total = ents.reduce((a, e) => a + e.ext.x * 0.95, 0);
+      const A = Math.min(3.4, Math.max(0.4, total / 0.24)) * (R() < 0.5 ? 1 : -1);
+      const Rr = total / Math.abs(A);
+      let s = 0;
       for (const e of ents) {
-        const t = (s + e.ext.x * 0.46) / total;
-        const ang = bend * t * 1.5 + (R() - 0.5) * 0.25;
-        e.p = V(s + e.ext.x * 0.46, 0, Math.sin(t * Math.PI) * bend * 0.12 + (R() - 0.5) * 0.015);
-        e.yaw = ang;
-        s += e.ext.x * 0.92;
+        const mid = s + e.ext.x * 0.475;
+        const th = (mid / total - 0.5) * A;
+        e.p = V(Math.sin(th) * Rr, 0, (1 - Math.cos(th)) * Rr * Math.sign(A));
+        e.yaw = -th + (R() - 0.5) * 0.12;
+        s += e.ext.x * 0.95;
       }
     } else {
       // parallel-ish logs, longest first
@@ -304,6 +310,7 @@ export class Fossil {
       }
       const zc = (rowZ + rowW) / 2; for (const e of ents) e.p.z -= zc;
     }
+    if (chainy) { const c = ents.reduce((a, e) => a.add(e.p), V(0, 0, 0)).divideScalar(ents.length); for (const e of ents) e.p.sub(c); }
     // final local transforms; bottom rests at y=0
     let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
     for (const e of ents) {
@@ -349,7 +356,7 @@ export class Fossil {
 }
 
 // ------------------------------------------------------------------ small living dinosaurs (diorama-size)
-const dinoSkin = pbr('dino', { repeat: 3, vertexColors: true, physical: { sheen: 0.25, sheenRoughness: 0.6, sheenColor: new THREE.Color(0.6, 0.7, 0.5) } });
+const dinoSkin = pbr('dino', { repeat: 1.6, vertexColors: true, ns: 0.7 });
 const eyeMatCache = {};
 function eyeMat(col) {
   if (eyeMatCache[col]) return eyeMatCache[col];
@@ -373,16 +380,16 @@ export class MiniDino {
     const L = long ? 0.42 : 0.36;
     // spine of the body (x forward)
     const sp = long
-      ? [V(-0.5, 0.42, 0), V(-0.32, 0.48, 0), V(-0.12, 0.55, 0), V(0.05, 0.6, 0), V(0.2, 0.62, 0), V(0.3, 0.78, 0), V(0.36, 0.98, 0), V(0.42, 1.08, 0)]
-      : [V(-0.55, 0.55, 0), V(-0.32, 0.6, 0), V(-0.1, 0.66, 0), V(0.08, 0.64, 0), V(0.22, 0.6, 0), V(0.32, 0.68, 0), V(0.38, 0.72, 0)];
+      ? [V(-0.62, 0.12, 0), V(-0.4, 0.26, 0), V(-0.15, 0.38, 0), V(0.05, 0.42, 0), V(0.2, 0.42, 0), V(0.32, 0.56, 0), V(0.4, 0.78, 0), V(0.47, 0.9, 0)]
+      : [V(-0.62, 0.3, 0), V(-0.38, 0.4, 0), V(-0.12, 0.46, 0), V(0.08, 0.44, 0), V(0.2, 0.4, 0), V(0.3, 0.5, 0), V(0.38, 0.56, 0)];
     const pts = sp.map(p => p.clone().multiplyScalar(L));
     const rad = long
-      ? t => { const body = Math.exp(-(((t - 0.38) / 0.2) ** 2)) * 0.115; const neck = 0.028 + 0.012 * (1 - t); const tail = t < 0.3 ? 0.01 + t * 0.12 : 0; return Math.max(body, neck, tail) * L / 0.42 * 0.95; }
-      : t => { const body = Math.exp(-(((t - 0.45) / 0.2) ** 2)) * 0.1; const neck = 0.035; const tail = t < 0.35 ? 0.01 + t * 0.11 : 0; return Math.max(body, neck, tail) * L / 0.36; };
+      ? t => { const body = Math.exp(-(((t - 0.42) / 0.17) ** 2)) * 0.12; const neck = 0.03 + 0.012 * (1 - t); const tail = t < 0.35 ? 0.006 + t * 0.13 : 0; return Math.max(body, neck, tail) * L / 0.42; }
+      : t => { const body = Math.exp(-(((t - 0.47) / 0.18) ** 2)) * 0.105; const neck = 0.036; const tail = t < 0.38 ? 0.008 + t * 0.12 : 0; return Math.max(body, neck, tail) * L / 0.36; };
     const g = sweep(pts, { segs: 48, radial: 18, radius: t => { const r = rad(t); return [r, r * 1.08]; }, up: V(0, 1, 0), capLen: 0.8 });
     // head: separate rounded shape at the end
     const tipP = pts[pts.length - 1], tipD = pts[pts.length - 1].clone().sub(pts[pts.length - 2]).normalize();
-    const hs = long ? 0.034 : 0.038;
+    const hs = long ? 0.036 : 0.042;
     const head = new THREE.SphereGeometry(1, 28, 20);
     deform(head, v => { const f = sstep(-0.3, 1, v.x); v.y *= 1 - 0.32 * f; v.z *= 1 - 0.25 * f; if (kind !== 'long') { v.z *= 1 + 0.25 * sstep(0.4, 1, v.x); v.y *= 1 - 0.2 * sstep(0.4, 1, v.x); } v.x *= 1.6; v.multiplyScalar(hs); });
     const headQ = basis(V(1, long ? -0.35 : -0.2, 0), V(0, 1, 0));
@@ -391,7 +398,7 @@ export class MiniDino {
     const base = tint || new THREE.Color().setHSL(0.22 + R() * 0.08, 0.32, 0.36);
     const belly = new THREE.Color(0.85, 0.78, 0.6);
     setColor(bodyGeo, (v, c) => {
-      const up = clamp((v.y - (0.52 * L)) / (0.1 * L), -1, 1);
+      const up = clamp((v.y - (0.4 * L)) / (0.1 * L), -1, 1);
       const k = sstep(0.4, -0.6, up);
       c.copy(base).lerp(belly, k * 0.65);
       // soft back stripes
@@ -406,8 +413,8 @@ export class MiniDino {
     const eye = eyeMat(long ? '#6b4a22' : '#5a3d1a');
     for (const s of [-1, 1]) {
       const eg = new THREE.SphereGeometry(hs * 0.26, 16, 12); eg.rotateY(-Math.PI / 2);
-      const e = new THREE.Mesh(eg, eye);
-      const lp = V(-0.1 * hs, 0.38 * hs, 0.62 * hs * s).applyQuaternion(headQ).add(this.headPos);
+      const e = new THREE.Mesh(eg, eye); e.scale.setScalar(1.3);
+      const lp = V(0.0 * hs, 0.36 * hs, 0.6 * hs * s).applyQuaternion(headQ).add(this.headPos);
       e.position.copy(lp); e.lookAt(lp.clone().add(V(0.35, 0.05, s * 1).normalize()));
       this.body.add(e);
       // eyelid ridge
@@ -424,15 +431,16 @@ export class MiniDino {
     this.legs = [];
     const legMat = dinoSkin;
     const legDefs = long
-      ? [[-0.2, 0.06, 1, 0.5], [-0.2, -0.06, 1, 0], [0.12, 0.06, 0.85, 0], [0.12, -0.06, 0.85, 0.5]]
-      : [[-0.18, 0.06, 1.1, 0.5], [-0.18, -0.06, 1.1, 0], [0.16, 0.055, 0.75, 0], [0.16, -0.055, 0.75, 0.5]];
+      ? [[-0.12, 0.075, 1, 0.5], [-0.12, -0.075, 1, 0], [0.2, 0.07, 0.95, 0], [0.2, -0.07, 0.95, 0.5]]
+      : [[-0.1, 0.07, 1.25, 0.5], [-0.1, -0.07, 1.25, 0], [0.2, 0.06, 0.6, 0], [0.2, -0.06, 0.6, 0.5]];
     for (const [lx, lz, lh, ph] of legDefs) {
-      const hipY = (long ? 0.5 : 0.58) * L;
-      const piv = new THREE.Group(); piv.position.set(lx * L, hipY, lz * L * 1.4);
-      const lg = sweep([V(0, 0.02, 0), V(0.012, -hipY * 0.5, 0), V(-0.005, -hipY + 0.012, 0)], { segs: 10, radial: 10, radius: t => (0.026 - t * 0.008) * lh * L / 0.42 * 1.1 });
+      const hipY = (long ? 0.36 : 0.36) * L;
+      const piv = new THREE.Group(); piv.position.set(lx * L, hipY, lz * L);
+      const lr = (long ? 0.034 : (lh > 1 ? 0.04 : 0.024)) * L / 0.42;
+      const lg = sweep([V(0, 0.05 * L, 0), V(0.01 * L, -hipY * 0.45, 0), V(-0.004, -hipY + 0.012, 0)], { segs: 10, radial: 12, radius: t => lr * (1.35 - 0.55 * Math.min(1, t * 1.6) + 0.1 * Math.exp(-(((t - 0.55) / 0.12) ** 2))) });
       setColor(lg, (v, c) => c.copy(base).multiplyScalar(0.92));
-      const foot = new THREE.SphereGeometry(0.022 * lh * L / 0.42 * 1.2, 12, 8);
-      deform(foot, v => { v.x *= 1.5; v.y *= 0.55; v.y += 0; });
+      const foot = new THREE.SphereGeometry(lr * 1.15, 14, 8);
+      deform(foot, v => { v.x *= long ? 1.15 : 1.7; v.y *= 0.5; if (v.y < 0) v.y *= 0.3; });
       foot.translate(0.008, -hipY + 0.008, 0);
       setColor(foot, (v, c) => c.copy(base).multiplyScalar(0.8));
       const legGeo = merge([lg, foot]);

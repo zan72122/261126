@@ -59,14 +59,19 @@ function rockCrackMat() {
   m.userData.hits = hits;
   m.onBeforeCompile = sh => {
     sh.uniforms.hits = { value: hits };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vObj;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position;');
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vObj; varying vec3 vObjN;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position; vObjN = normal;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vObj; uniform vec4 hits[8]; float crackAmt;
+      varying vec3 vObj; varying vec3 vObjN; uniform vec4 hits[8]; float crackAmt;
       vec3 h3(vec3 p){ p = vec3(dot(p,vec3(127.1,311.7,74.7)), dot(p,vec3(269.5,183.3,246.1)), dot(p,vec3(113.5,271.9,124.6))); return fract(sin(p)*43758.5453); }
       float cell(vec3 p){ vec3 i=floor(p), f=fract(p); float d1=8., d2=8.;
         for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++)for(int z=-1;z<=1;z++){ vec3 g=vec3(float(x),float(y),float(z)); vec3 r=g+h3(i+g)-f; float d=dot(r,r); if(d<d1){d2=d1;d1=d;} else if(d<d2) d2=d; }
         return sqrt(d2)-sqrt(d1); }`)
-      .replace('#include <map_fragment>', `#include <map_fragment>
+      .replace('#include <map_fragment>', `
+        // triplanar sandstone (object space) to avoid stretched uvs
+        vec3 bw = abs(normalize(vObjN)); bw = pow(bw, vec3(4.)); bw /= dot(bw, vec3(1.));
+        vec3 tp = vObj * vec3(.55, .9, .55);
+        vec4 tc = texture2D(map, tp.zy)*bw.x + texture2D(map, tp.xz)*bw.y + texture2D(map, tp.xy)*bw.z;
+        diffuseColor *= tc;
         float reach = 0.;
         for (int i=0;i<8;i++){ if (hits[i].w > 0.) { float d = distance(vObj, hits[i].xyz); reach = max(reach, smoothstep(hits[i].w, hits[i].w*.2, d)); } }
         float e = cell(vObj*5.5 + vec3(3.1));
@@ -94,8 +99,7 @@ export class Game {
     this.round = 0;
     this.speciesOrder = this.R() < 0.5 ? ['long', 'duck'] : ['duck', 'long'];
     // camp scenery
-    const tent = PR.makeTent(); tent.position.set(-3.6, 0, -10.5); tent.rotation.y = 0.25; scene.add(tent);
-    const tent2 = PR.makeTent(); tent2.position.set(3.4, 0, -12.5); tent2.rotation.y = -0.35; tent2.scale.setScalar(0.85); scene.add(tent2);
+    const tent = PR.makeTent(); tent.position.set(-6.5, 0, -17); tent.rotation.y = 0.9; scene.add(tent);
     const crate = PR.makeCrate(); crate.position.set(1.6, 0, -1.55); crate.rotation.y = 0.3; scene.add(crate);
     const crate2 = PR.makeCrate(); crate2.position.set(1.62, 0.3, -1.52); crate2.rotation.y = 0.15; scene.add(crate2);
     const bucket = PR.makeBucket(); bucket.position.set(-1.45, 0, -1.25); scene.add(bucket);
@@ -303,7 +307,8 @@ export class Game {
     // the hat object lives on the table until tapped
     this.tableHat = g.hat.clone(); this.tableHat.visible = true;
     this.table.add(this.tableHat); this.tableHat.position.copy(this.hatSpot); this.tableHat.rotation.set(0, 0.3, 0); this.tableHat.scale.setScalar(1);
-    setShot({ target: V(0.62, 0.72, -1.3), yaw: 0.05, halfW: 0.78, halfH: 0.68, eye: 1.2, minDist: 1.6 }, 0);
+    this.reframe = () => { const portrait = view.aspect < 0.9;
+    setShot(portrait ? { target: V(0.62, 0.66, -1.3), yaw: 0.1, halfW: 0.5, halfH: 0.9, eye: 1.25, minDist: 1.4 } : { target: V(0.62, 0.72, -1.3), yaw: 0.05, halfW: 0.78, halfH: 0.68, eye: 1.2, minDist: 1.6 }, 0); }; this.reframe();
     setShadowFocus(V(0.5, 0, -1.2), 3);
     this.handlers = {
       down: (inp) => {
@@ -373,6 +378,7 @@ export class Game {
   // ---------------------------------------------------------------- SCENE 1: dig
   enterDig() {
     this.state = 'dig';
+    this.girl.armIK.L = this.girl.armIK.R = null; this.reachTo = null; this.handPress = null; this.lookOverride = null;
     const P = this.pit, g = this.girl;
     g.root.position.set(P.c.x, 0, P.c.z - 0.72); g.root.rotation.y = 0;
     g.face('focus');
@@ -381,6 +387,7 @@ export class Game {
     this.placeToolOnCloth();
     setShadowFocus(V(P.c.x, 0, P.c.z), 2.6);
     this.camDig(0);
+    this.reframe = () => this.camDig(0);
     this.handlers = {
       down: inp => this.digDown(inp),
       move: inp => this.digMove(inp),
@@ -393,7 +400,7 @@ export class Game {
     const hw = portrait ? 0.62 : 1.08;
     const panMax = Math.max(0, 1.05 - hw);
     const tx = P.c.x + clamp(this.dig ? this.dig.workX - P.c.x : 0, -panMax, panMax);
-    setShot({ target: V(tx, 0.24, P.c.z - 0.12), yaw: 0, halfW: hw, halfH: portrait ? 0.85 : 0.56, eye: portrait ? 1.35 : 1.15, minDist: 1.5 }, dur);
+    setShot(portrait ? { target: V(tx, 0.14, P.c.z - 0.1), yaw: 0, halfW: hw, halfH: 0.8, eye: 1.75, minDist: 1.5 } : { target: V(tx, 0.24, P.c.z - 0.12), yaw: 0, halfW: hw, halfH: 0.56, eye: 1.02, minDist: 1.5 }, dur);
   }
   placeToolOnCloth() {
     const P = this.pit;
@@ -455,7 +462,7 @@ export class Game {
   }
   swapTool() {
     this.tool = this.tool === 'brush' ? 'hammer' : 'brush';
-    sfx.clack(); this.girl.face('happy'); say.hup();
+    sfx.clack(); this.girl.face('happy'); say.hup(); this.faceCamT = 0.9;
     this.placeToolOnCloth();
     this.later(0.6, () => this.girl.face('focus'));
   }
@@ -500,7 +507,7 @@ export class Game {
     }
     spawnGrains(r.mesh.position.clone().add(V(0, 0.05, 0)), V(0, 1, 0), 140, { speed: 1.3, spread: 0.12, color: [0.68, 0.48, 0.32], size: 0.004 });
     spawnDust(r.mesh.position.clone().add(V(0, 0.04, 0)), 8, { size: 0.12, alpha: 0.25 });
-    this.girl.face('wow'); say.wow();
+    this.girl.face('wow'); say.wow(); this.faceCamT = 1.8;
     this.later(1.0, () => { this.girl.face('happy'); });
     this.later(2.0, () => this.girl.face('focus'));
   }
@@ -508,7 +515,7 @@ export class Game {
     const P = this.pit;
     item.state = 'lifting';
     P.field.removeObject(item.key);
-    sfx.pick(); say.yay(); this.girl.face('laugh');
+    sfx.pick(); say.yay(); this.girl.face('laugh'); this.faceCamT = 1.4;
     this.later(1.4, () => this.girl.face('focus'));
     const from = item.group.position.clone();
     const n = P.found++;
@@ -551,11 +558,11 @@ export class Game {
     if (it.state === 'buried') {
       const before = it.revealed;
       it.revealed = f.exposure(it.samples);
-      if (before < 0.5 && it.revealed >= 0.5 && !(it.rock && !it.rock.broken)) { sfx.reveal(); g.face('wow'); say.wow(); this.later(1.0, () => g.face('happy')); this.later(2.2, () => g.face('focus')); }
+      if (before < 0.5 && it.revealed >= 0.5 && !(it.rock && !it.rock.broken)) { sfx.reveal(); this.faceCamT = 1.6; g.face('wow'); say.wow(); this.later(1.0, () => g.face('happy')); this.later(2.2, () => g.face('focus')); }
     }
     for (const fp of P.fps) {
       if (!fp.seen && f.sandAt(fp.x, fp.z) < 0.003 && f.sandAt(fp.x + Math.cos(fp.yaw) * fp.size * 0.6, fp.z - Math.sin(fp.yaw) * fp.size * 0.6) < 0.004) {
-        fp.seen = true; sfx.reveal(); g.face('wow'); say.wow(); this.later(1.2, () => g.face('focus'));
+        fp.seen = true; sfx.reveal(); g.face('wow'); say.wow(); this.faceCamT = 1.5; this.later(1.2, () => g.face('focus'));
       }
     }
     // rocks wobble
@@ -586,7 +593,8 @@ export class Game {
     const work = D.hamAnim >= 0 && D.hamCur ? D.hamCur.p : D.tip;
     D.workX = damp(D.workX, clamp(work.x, P.c.x - 0.95, P.c.x + 0.95), 3, dt);
     g.root.position.x = D.workX + 0.12;
-    g.lookAt(this.lookOverride || work, 1);
+    if (this.faceCamT > 0) this.faceCamT -= dt;
+    g.lookAt(this.lookOverride || (this.faceCamT > 0 ? camera.position : work), 1);
     // tools
     this.updateTools(dt, work);
     // camera pan (portrait)
@@ -665,6 +673,7 @@ export class Game {
   // ---------------------------------------------------------------- SCENE 2: assemble
   enterAssemble() {
     this.state = 'assemble';
+    this.girl.armIK.L = this.girl.armIK.R = null; this.reachTo = null; this.handPress = null; this.lookOverride = null;
     const g = this.girl, P = this.pit;
     const si = this.round % STAND_POS.length;
     const sp = STAND_POS[si].clone();
@@ -673,7 +682,7 @@ export class Game {
     const skel = P.fossil.sk;
     const stand = PR.makeStand(skel); stand.position.copy(sp); scene.add(stand);
     const sign = PR.makeSign(skel); sign.position.set(sp.x + 2.0, 0, sp.z - 0.35); sign.rotation.y = -0.35; scene.add(sign);
-    const tarp = PR.makeTarp(1.5, 1.0); tarp.position.set(sp.x - 1.15, 0, sp.z + 1.55); tarp.rotation.y = 0.15; scene.add(tarp);
+    const tarp = PR.makeTarp(1.5, 1.0); tarp.position.set(sp.x - 1.0, 0, sp.z + 1.3); tarp.rotation.y = 0.12; scene.add(tarp);
     const skG = new THREE.Group(); skG.position.set(sp.x, 0.12, sp.z); scene.add(skG);
     const S = { sp, stand, sign, tarp, skG, placed: 0, papaDone: false, items: [], grp: new THREE.Group(), fly: [], tumble: [], complete: false, decoys: [] };
     S.grp.add(stand, sign, tarp, skG);
@@ -699,11 +708,12 @@ export class Game {
     stone.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(stone.geometry.attributes.position.count * 3).fill(0.85), 3));
     [stick, stone].forEach((d, i) => { d.castShadow = d.receiveShadow = true; const lp = V(i ? 0.55 : -0.62, 0.02, i ? -0.3 : 0.35); d.position.copy(lp.applyMatrix4(tarp.matrixWorld)); d.rotation.y = R() * 3; scene.add(d); S.decoys.push({ m: d, state: 'pile' }); S.grp.add(d); });
     // girl stands left of the stand
-    g.root.position.set(sp.x - 1.95, 0, sp.z + 0.75); g.root.rotation.y = 0.6;
+    g.root.position.set(sp.x - 2.0, 0, sp.z + 0.55); g.root.rotation.y = 0.75;
     g.face('happy');
     this.papa.root.visible = false;
     setShadowFocus(V(sp.x - 0.3, 0, sp.z + 0.3), 3.4);
     this.camAssemble(0);
+    this.reframe = () => this.camAssemble(0, S.complete);
     this.handlers = {
       down: inp => this.asmDown(inp),
     };
@@ -711,7 +721,8 @@ export class Game {
   camAssemble(dur, wide = false) {
     const sp = this.asm.sp;
     const portrait = view.aspect < 0.9;
-    setShot({ target: V(sp.x - 0.35, wide ? 0.95 : 0.82, sp.z + 0.55), yaw: -0.08, halfW: portrait ? 1.25 : 2.05, halfH: portrait ? 1.6 : 1.05, eye: 1.5, minDist: 3.0 }, dur);
+    if (portrait) setShot({ target: V(sp.x - 0.75, wide ? 0.9 : 0.75, sp.z + 0.6), yaw: -0.8, halfW: 1.0, halfH: 1.25, eye: 1.5, minDist: 2.6 }, dur);
+    else setShot({ target: V(sp.x - 0.4, wide ? 0.95 : 0.72, sp.z + 0.75), yaw: -0.06, halfW: wide ? 2.2 : 1.95, halfH: wide ? 1.1 : 0.92, eye: 1.45, minDist: 2.6 }, dur);
   }
   asmDown(inp) {
     const S = this.asm;
@@ -842,13 +853,23 @@ export class Game {
     // walks in from the right carrying a crate, trips on the tarp corner
     this.papaCrate = this.papaCrate || PR.makeCrate();
     scene.add(this.papaCrate);
-    this.papaAct = { phase: 'walk', t: 0, from: V(sp.x + 3.2, 0, sp.z + 1.5), to: V(sp.x - 0.65, 0, sp.z + 1.25) };
+    this.papaAct = { phase: 'walk', t: 0, from: V(sp.x + 3.4, 0, sp.z + 1.55), to: V(sp.x - 0.4, 0, sp.z + 1.45) };
     pa.root.position.copy(this.papaAct.from); pa.root.rotation.y = -Math.PI / 2 - 0.15;
     pa.face('happy'); this.girl.face('happy');
   }
   updatePapa(dt) {
     const pa = this.papa, A = this.papaAct, S = this.asm;
     if (!pa.root.visible) return;
+    if (!A && this.papaWalkBack) {
+      const W = this.papaWalkBack; W.t += dt / 1.8;
+      const k = clamp(W.t, 0, 1);
+      pa.root.position.lerpVectors(W.from, W.to, easeInOut(k));
+      pa.root.rotation.y = damp(pa.root.rotation.y, k < 1 ? Math.PI / 2 : -0.85, 5, dt);
+      pa.armIK.L = pa.armIK.R = null;
+      this.poseHuman(pa, dt, k < 1 ? 'walk' : 'stand', this.t * 5.2);
+      if (k >= 1) this.papaWalkBack = null;
+      return;
+    }
     if (!A) {
       // idle: stand near the stand, clap when bones land
       this.poseHuman(pa, dt, 'stand');
@@ -916,7 +937,7 @@ export class Game {
       this.poseHuman(pa, dt, 'stand');
       if (A.t > 0.8) {
         this.papaAct = null; pa.face('happy');
-        pa.root.rotation.y = -0.4;
+        this.papaWalkBack = { from: pa.root.position.clone(), to: V(S.sp.x + 1.85, 0, S.sp.z + 0.85), t: 0 };
         // regroup fallen bones into their items so they can be tapped again
         for (const it of S.items) if (it.state === 'fallen') {
           const c = V(); it.meshes.forEach(m => c.add(m.position)); c.divideScalar(it.meshes.length); c.y = 0;
@@ -937,29 +958,30 @@ export class Game {
   // ---------------------------------------------------------------- SCENE 3: play with the diorama dinosaurs
   enterPlay() {
     this.state = 'play';
+    this.girl.armIK.L = this.girl.armIK.R = null; this.reachTo = null; this.handPress = null; this.lookOverride = null;
     const S = this.asm, g = this.girl;
     const sp = S.sp;
-    g.root.position.set(sp.x - 1.5, 0, sp.z + 1.75); g.root.rotation.y = 0.3;
+    g.root.position.set(sp.x - 0.45, 0, sp.z + 1.85); g.root.rotation.y = -0.35;
     g.face('happy');
-    this.papa.root.position.set(sp.x + 1.4, 0, sp.z + 0.9); this.papa.root.rotation.y = -0.7;
+    this.papa.root.position.set(sp.x + 1.85, 0, sp.z + 0.85); this.papa.root.rotation.y = -0.8;
     if (this.papaCrate) { this.papaCrate.position.set(sp.x + 2.0, 0, sp.z + 0.4); this.papaCrate.rotation.set(0, 0.4, 0); }
     // diorama next to the stand; dinos come alive
-    this.diorama.position.set(sp.x - 1.9, 0, sp.z - 0.1);
+    this.diorama.position.set(sp.x - 1.25, 0, sp.z + 0.95); this.diorama.rotation.y = 0.2;
     if (!this.minis.length) {
       const R = this.R;
       const kinds = ['long', 'duck', 'long'];
       const tints = [new THREE.Color().setRGB(0.36, 0.45, 0.26, THREE.SRGBColorSpace), new THREE.Color().setRGB(0.55, 0.45, 0.3, THREE.SRGBColorSpace), new THREE.Color().setRGB(0.42, 0.5, 0.42, THREE.SRGBColorSpace)];
-      kinds.forEach((k, i) => { const d = new MiniDino(k, R, tints[i]); scene.add(d.root); this.minis.push(d); });
+      kinds.forEach((k, i) => { const d = new MiniDino(k, R, tints[i]); d.root.scale.setScalar(1.45); d.L *= 1.45; scene.add(d.root); this.minis.push(d); });
     }
     this.minis.forEach((d, i) => {
-      const p = this.diorama.position.clone().add(V(-0.25 + i * 0.25, 0.07, (i % 2 ? 0.1 : -0.1)));
+      const p = this.diorama.position.clone().add(V(-0.28 + i * 0.28, 0.07, (i % 2 ? 0.08 : -0.08)));
       d.root.position.copy(p); d.yaw = 0.3 + i * 0.3; d.mode = 'toy'; d.wake = 1.2 + i * 0.7; d.target = null; d.stepAcc = 0;
     });
     this.flag.position.set(sp.x + 2.3, 0, sp.z + 2.0);
     this.flag.visible = true;
     setShadowFocus(V(sp.x - 0.2, 0, sp.z + 0.9), 3.6);
     const portrait = view.aspect < 0.9;
-    setShot({ target: V(sp.x - 0.1, 0.55, sp.z + 1.1), yaw: 0.0, halfW: portrait ? 1.3 : 2.15, halfH: portrait ? 1.5 : 0.95, eye: 1.35, minDist: 2.6 }, 0);
+    this.reframe = () => { const portrait = view.aspect < 0.9; setShot(portrait ? { target: V(sp.x - 0.75, 0.55, sp.z + 1.0), yaw: -0.65, halfW: 0.95, halfH: 1.2, eye: 1.4, minDist: 2.3 } : { target: V(sp.x - 0.2, 0.62, sp.z + 1.05), yaw: 0.0, halfW: 1.75, halfH: 0.9, eye: 1.3, minDist: 2.3 }, 0); }; this.reframe();
     this.handlers = {
       down: inp => this.playDown(inp),
       move: inp => this.playMove(inp),
@@ -1005,7 +1027,7 @@ export class Game {
       d.root.rotation.y = d.yaw;
       if (d.wake < 0) {
         d.mode = 'hop'; d.hopT = 0; d.hopFrom = d.root.position.clone();
-        d.hopTo = d.root.position.clone().add(V(0.25 + R() * 0.3, 0, 0.55 + R() * 0.25));
+        d.hopTo = d.root.position.clone().add(V(0.2 + R() * 0.3, 0, 0.5 + R() * 0.2)); d.hopTo.z = Math.min(d.hopTo.z, this.exField.z0 + this.exField.d - 0.15);
         sfx.chirp();
       }
       return;
@@ -1100,10 +1122,10 @@ export class Game {
       if (!h.armIK.R) { set('shR', 0.05, 0, -0.09); set('elR', 0.15, 0, 0); set('wrR', 0, 0, 0); }
     } else if (pose === 'kneel') {
       // kneeling, sitting back on the heels and leaning in to work
-      const lean = 0.32 + arg + (h === this.girl && this.dig && this.dig.brushing ? 0.12 : 0) + (this.dig && this.dig.hamAnim >= 0 ? 0.08 : 0);
+      const lean = 0.16 + arg + (h === this.girl && this.dig && this.dig.brushing ? 0.08 : 0) + (this.dig && this.dig.hamAnim >= 0 ? 0.06 : 0);
       const hipA = -1.05;
       py = P.legR * 0.85 + P.thigh * Math.cos(-hipA - 0.08) + 0.012;
-      set('pelvis', 0.08 + lean * 0.3, 0, 0); set('spine', lean * 0.55 + breathe, 0, 0); set('chest', lean * 0.35, 0, 0); set('neck', -0.25, 0, 0); set('head', -0.1, 0, 0);
+      set('pelvis', 0.08 + lean * 0.3, 0, 0); set('spine', lean * 0.55 + breathe, 0, 0); set('chest', lean * 0.35, 0, 0); set('neck', -0.42, 0, 0);
       for (const s of ['L', 'R']) { const sg = s === 'L' ? 1 : -1; set('hip' + s, hipA - (0.08 + lean * 0.3), 0.05 * sg, 0.1 * sg); set('kn' + s, 2.45, 0, 0); set('an' + s, 0.95, 0, 0); }
     } else if (pose === 'walk') {
       const ph = arg;
@@ -1152,7 +1174,7 @@ export class Game {
     const d = h.look.clone().sub(hp);
     const inv = new THREE.Quaternion(); J.neck.getWorldQuaternion(inv); inv.invert();
     d.applyQuaternion(inv);
-    const yaw = clamp(Math.atan2(d.x, d.z), -0.8, 0.8) * 0.6, pitch = clamp(-Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.5, 0.6) * 0.6;
+    const yaw = clamp(Math.atan2(d.x, d.z), -0.8, 0.8) * 0.6, pitch = clamp(-Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.5, 0.45) * 0.45;
     J.head.rotation.y = damp(J.head.rotation.y, yaw, 6, dt);
     J.head.rotation.x = damp(J.head.rotation.x, J.head.rotation.x * 0 + pitch, 6, dt);
     h.update(dt);

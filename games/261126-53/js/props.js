@@ -10,8 +10,8 @@ export function propMats() {
   M.wood = pbr('wood', { repeat: 1 });
   M.woodSmall = pbr('wood', { repeat: 0.5 });
   M.metal = pbr('metal', { repeat: 1, metal: true, color: 0xb8b8b8 });
-  M.darkMetal = pbr('metal', { repeat: 2, metal: true, color: 0x4a4a4a });
-  M.canvas = pbr('canvas', { repeat: 3, side: THREE.DoubleSide, color: 0xf0e6d2 });
+  M.darkMetal = pbr('metal', { repeat: 2, metal: true, color: 0x6a6660 });
+  M.canvas = pbr('canvas', { repeat: 3, side: THREE.DoubleSide, color: 0xd8ccb4 });
   M.tarp = pbr('tarp', { repeat: 2, side: THREE.DoubleSide });
   M.string = new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.92, 0.9, 0.84, THREE.SRGBColorSpace), roughness: 0.9 });
   M.bristle = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });
@@ -167,6 +167,10 @@ export function makeTent() {
   geo.setIndex(idx); geo.computeVertexNormals();
   g.add(new THREE.Mesh(geo, M.canvas));
   for (const s of [-1, 1]) {
+    const tri = new THREE.BufferGeometry();
+    tri.setAttribute('position', new THREE.Float32BufferAttribute([s * w / 2, h, 0, s * w / 2, 0, -d / 2, s * w / 2, 0, d / 2], 3));
+    tri.setAttribute('uv', new THREE.Float32BufferAttribute([0.5, 1, 0, 0, 1, 0], 2)); tri.computeVertexNormals();
+    g.add(new THREE.Mesh(tri, M.canvas));
     const pole = plankBox(0.05, h + 0.1, 0.05, M.woodSmall, 2); pole.position.set(s * w / 2 * 0.98, (h + 0.1) / 2, 0); g.add(pole);
   }
   const ridge = new THREE.Mesh(sweep([V(-w / 2 - 0.1, h + 0.02, 0), V(w / 2 + 0.1, h + 0.02, 0)], { segs: 2, radial: 6, radius: () => 0.025 }), M.woodSmall); g.add(ridge);
@@ -214,11 +218,11 @@ export function makeStand(skel) {
   const S = skel.S;
   const curve = new THREE.CatmullRomCurve3(S.spine, false, 'centripetal');
   const pts = []; for (let i = 0; i <= 30; i++) { const p = curve.getPointAt(0.1 + i / 30 * 0.88); pts.push(V(p.x, p.y - 0.09, 0)); }
-  g.add(new THREE.Mesh(sweep(pts, { segs: 60, radial: 8, radius: () => 0.011 }), M.darkMetal));
+  g.add(new THREE.Mesh(sweep(pts, { segs: 60, radial: 8, radius: () => 0.008 }), M.darkMetal));
   const posts = [S.hip.x, S.shoulder.x, -1.1, 0.75];
   for (const x of posts) {
     const p = curve.getPointAt(Math.min(1, Math.max(0, findT(curve, x))));
-    g.add(new THREE.Mesh(sweep([V(x, 0.12, 0), V(x, p.y - 0.09, 0)], { segs: 2, radial: 8, radius: () => 0.013 }), M.darkMetal));
+    g.add(new THREE.Mesh(sweep([V(x, 0.12, 0), V(x, p.y - 0.09, 0)], { segs: 2, radial: 8, radius: () => 0.01 }), M.darkMetal));
     const foot = plankBox(0.1, 0.012, 0.1, M.darkMetal); foot.position.set(x, 0.126, 0); g.add(foot);
   }
   g.userData.top = 0.12;
