@@ -65,6 +65,7 @@ export class Post {
     u.near.value = cam.near; u.far.value = cam.far; u.focus.value = this.focus; u.aperture.value = this.aperture; u.time.value = t % 100;
     this.r.setRenderTarget(this.rt);
     this.r.render(scene, cam);
+    this.stat = [this.r.info.render.calls, this.r.info.render.triangles];
     this.r.setRenderTarget(null);
     this.r.render(this.qs, this.qc);
   }

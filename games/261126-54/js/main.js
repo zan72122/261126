@@ -21,6 +21,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.info.autoReset = true;
 setAniso(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
 const isTouch = navigator.maxTouchPoints > 0;
 let PR = Math.min(window.devicePixelRatio || 1, isTouch ? 1.6 : 1.5);
@@ -150,6 +151,11 @@ shots.work = {
     return p;
   },
   focus: (p) => p.distanceTo(V(WORK.x, COUNTER_Y + 0.12, WORK.z)), margin: 0.88,
+};
+shots.thumb = {
+  tgt: V(WORK.x, COUNTER_Y + 0.15, WORK.z), dir: V(0.12, 0.42, 1),
+  pts: () => [V(WORK.x - 0.12, COUNTER_Y + 0.1, WORK.z), V(WORK.x + 0.12, COUNTER_Y + 0.1, WORK.z), V(WORK.x, COUNTER_Y + 0.06, WORK.z + 0.14), V(GIRL_WORK.x, GIRL_WORK.y + 1.02, GIRL_WORK.z + 0.05)],
+  focus: (p) => p.distanceTo(V(WORK.x, COUNTER_Y + 0.12, WORK.z)), margin: 0.92,
 };
 shots.papa = {
   tgt: V(0.3, 1.2, -0.55), dir: V(0.05, 0.12, 1),
@@ -924,7 +930,7 @@ function updateGuidance(dt) {
 
 function dbg() {
   if (!cake) return;
-  console.log(phase, JSON.stringify(cake.stats), 'load', cake.load.toFixed(4), tool);
+  console.log(phase, 'calls/tris', post.stat, JSON.stringify(cake.stats), tool);
 }
 
 // ================================================================ resize
@@ -955,6 +961,7 @@ window.__screen = (n) => {
     default: return tools[n] ? screenOf(W(tools[n]).add(V(0, 0.03, 0))) : null;
   }
 };
+window.__tris = () => { const a = []; scene.traverse(o => { if (o.isMesh && o.visible) { const g = o.geometry; const n = (g.index ? g.index.count : g.attributes.position.count) / 3; a.push([n | 0, (o.parent && o.parent.type) + ':' + (o.material.type) + ':' + (o.userData.human ? 'human' : '')]); } }); a.sort((x, y) => y[0] - x[0]); return a.slice(0, 25); };
 window.__game = { get phase() { return phase; }, get fps() { return 0; }, startCream, startDeco, startShop, finishGag, finishDeco, girl, papa, get cake() { return cake; }, state, tools, pickTool, setShot, handOver, selectCaseCake, dressUp, nextCustomer, setTool: (t) => { tool = t; }, interactSim: null };
 
 onResize();
@@ -994,8 +1001,8 @@ async function jumpTo(j) {
     if (j === 'deco') return;
     await waitFor(() => state.gag === 'wipe');
     finishGag();
-    for (let a = 0; a < 6.28; a += 0.5) for (let k = 0; k < 10; k++) cake.pour(Math.cos(a) * 0.082, HS, Math.sin(a) * 0.082, 1.2e-7 * (0.5 + rnd()));
-    for (let k = 0; k < 60; k++) cake.pour(0.0, HS, 0.0, 1.2e-7);
+    for (let k = 0; k < 200; k++) { cake.pour((rnd() - .5) * 0.03, HS, (rnd() - .5) * 0.03, 1.1e-7); if (k % 4 === 0) cake.simChoc(1 / 60); }
+    for (let a = 0; a < 6.28; a += 0.2) if (rnd() < 0.5) for (let k = 0; k < 6; k++) cake.pour(Math.cos(a) * 0.084, HS, Math.sin(a) * 0.084, 1.2e-7 * rnd());
     for (let k = 0; k < 5; k++) { const a = k / 5 * 6.28; cake.addBerry(Math.cos(a) * 0.05, Math.sin(a) * 0.05); }
     for (let k = 0; k < 40; k++) cake.sugar((rnd() - .5) * 0.08, (rnd() - .5) * 0.08, 0.03, 0.05);
     if (j === 'decodone') return;

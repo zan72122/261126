@@ -415,7 +415,7 @@ export class Human {
     this.T = T;
     const s = T.headH / 0.22;
     this.s = s;
-    const res = o.kid ? 0.0042 : 0.0055;
+    const res = o.kid ? 0.0049 : 0.0066;
     const g = this.group;
     // hierarchy
     this.hips = new THREE.Group(); this.hips.position.y = T.hipY; g.add(this.hips);
@@ -782,7 +782,7 @@ export class Human {
       d = smax(d, -(Math.max(Math.max(r - 0.08 * S, 0.035 * S - y), y - 0.1 * S)), 0.004);
       return d;
     };
-    const g = meshSDF(f, [-0.13 * S, 0.02 * S, -0.13 * S], [0.13 * S, 0.21 * S, 0.13 * S], 0.004 * S, { uv: (x, y, z) => [(Math.atan2(x, z) / (Math.PI * 2) + 0.5) * 0.6 * S, y] });
+    const g = meshSDF(f, [-0.13 * S, 0.02 * S, -0.13 * S], [0.13 * S, 0.21 * S, 0.13 * S], 0.0056 * S, { uv: (x, y, z) => [(Math.atan2(x, z) / (Math.PI * 2) + 0.5) * 0.6 * S, y] });
     g.scale(1, 0.82, 1);
     const m = new THREE.Mesh(g, clothMat('hat', '#f7f4ee', 'cotton', 7, { sheen: 0.4 }));
     m.castShadow = true; m.receiveShadow = true;
@@ -817,7 +817,7 @@ export class Human {
       d = smax(d, (Y > be[0] - 0.01 * s) ? Math.abs(x) - bibW : -1, 0.01 * s);
       return d;
     };
-    const g = meshSDF(f, [-0.25 * s, bottomY - hy - 0.02, -0.02], [0.25 * s, T.chest[0] + 0.06 * s - hy, 0.22 * s], 0.0045 * s, { uv: (x, y, z) => [x, y] });
+    const g = meshSDF(f, [-0.25 * s, bottomY - hy - 0.02, -0.02], [0.25 * s, T.chest[0] + 0.06 * s - hy, 0.22 * s], 0.0062 * s, { uv: (x, y, z) => [x, y] });
     const m = new THREE.Mesh(g, clothMat('apron', color, 'linen', 9, { sheen: 0.5, ns: 1.2 }));
     m.castShadow = m.receiveShadow = true;
     // neck strap

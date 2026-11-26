@@ -348,8 +348,8 @@ export class Cake {
     { let v = 0; for (let i = 0; i < 4096; i++) { v = v * 0.55 + (rnd() * 2 - 1) * 0.45; this.stN[i] = v; } let mx = 0; for (const x of this.stN) mx = Math.max(mx, Math.abs(x)); for (let i = 0; i < 4096; i++) this.stN[i] /= mx; }
     // per-column drip tendency (fingers)
     this.colY = new Float32Array(NU);
-    for (let i = 0; i < NU; i++) this.colY[i] = 0.12 + 0.3 * Math.pow(rnd(), 2);
-    for (let p = 0; p < 3; p++) for (let i = 0; i < NU; i++) this.colY[i] = (this.colY[i] * 2 + this.colY[(i + 1) % NU] + this.colY[(i + NU - 1) % NU]) / 4;
+    for (let i = 0; i < NU; i++) this.colY[i] = 0.08 + 0.7 * Math.pow(rnd(), 3);
+    for (let p = 0; p < 2; p++) for (let i = 0; i < NU; i++) this.colY[i] = (this.colY[i] * 2 + this.colY[(i + 1) % NU] + this.colY[(i + NU - 1) % NU]) / 4;
     this.dirty = true; this.chocActive = 0;
     this.load = 0;
     this.stats = { cov: 0, smooth: 0, choc: 0, sugar: 0 };
@@ -519,13 +519,13 @@ export class Cake {
         const vol = ex * A[k];
         if (isTop) {
           // viscous spreading (mostly outward towards the rim + isotropic)
-          const f = 0.22 * vol;
+          const f = 0.3 * vol;
           const kn = this.idx(i, j + 1), ks = j > 0 ? this.idx(i, j - 1) : k;
           const ke = this.idx(i + 1, j), kw = this.idx(i - 1, j);
           const wTh = Math.min(1, (S_ALL / NV) / (2 * Math.PI * Math.max(r, 0.003) / NU)) * 0.5;
-          const tot = 1 + 1 + wTh * 2;
+          const tot = 1.7 + 0.5 + wTh * 2;
           out[k] -= f;
-          out[kn] += f * 1 / tot; out[ks] += f * 1 / tot; out[ke] += f * wTh / tot; out[kw] += f * wTh / tot;
+          out[kn] += f * 1.7 / tot; out[ks] += f * 0.5 / tot; out[ke] += f * wTh / tot; out[kw] += f * wTh / tot;
           moved += f;
         } else {
           // gravity: flows down the side; small lateral spread
@@ -593,7 +593,7 @@ export class Cake {
     const h = this.surfaceHeightAt(x, HS, z);
     m.position.set(x, HS + h - 0.0015, z);
     m.rotation.y = rnd() * Math.PI * 2;
-    const sc = 0.85 + rnd() * 0.35; m.scale.set(sc, sc * (0.8 + rnd() * 0.4), sc);
+    const sc = 1.25 + rnd() * 0.4; m.scale.set(sc, sc * (0.85 + rnd() * 0.4), sc);
     m.userData.sc = m.scale.clone(); m.userData.t = 0;
     this.deco.add(m); this.rosettes.push(m);
     return m;
@@ -622,7 +622,7 @@ export class Cake {
     return new THREE.Vector3(this.PX[bk], this.PY[bk], this.PZ[bk]);
   }
   update(dt) {
-    this.simChoc(dt);
+    this.simChoc(dt); this.simChoc(dt);
     for (const b of this.berries) {
       b.userData.t += dt;
       const t = b.userData.t, sc = b.userData.sc;
