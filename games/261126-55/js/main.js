@@ -92,7 +92,7 @@ const later = (async () => {
   const pm = await loadFigureData('tex/fig_papa.bin');
   const pf = new Figure(pm, LOOKS.papa); scene.add(pf.root);
   papa = actors.papa = new Human(pf, { speed: 1.0 });
-  papa.pos.set(1.45, 0, -0.8); papa.yaw = papa.yawT = -0.5;
+  papa.pos.set(1.85, 0, -0.95); papa.yaw = papa.yawT = -0.6;
   papa.helmet = buildHelmet(T, '#d9d6cc', 1.22); attachHelmet(papa, papa.helmet, 1.18);
   papa.f.setExpr('happy');
   const [mm, dm] = await Promise.all([loadFigureData('tex/fig_mama.bin'), loadFigureData('tex/fig_dog.bin')]);
@@ -133,6 +133,7 @@ const SHOTS = {
   work: { c: new THREE.Vector3(0.0, 0.3, -0.2), w: 1.7, h: 1.05, dir: new THREE.Vector3(0.05, -0.4, -1) },
   papa: { c: new THREE.Vector3(0.1, 0.65, -0.1), w: 2.8, h: 1.9, dir: new THREE.Vector3(0.05, -0.3, -1) },
   dry: { c: new THREE.Vector3(-0.2, 0.55, -0.4), w: 3.6, h: 2.0, dir: new THREE.Vector3(0.1, -0.28, -1) },
+  thumb: { c: new THREE.Vector3(0.05, 0.32, -0.15), w: 1.75, h: 1.15, dir: new THREE.Vector3(0.12, -0.45, -1) },
   walk: { c: new THREE.Vector3(0.0, 0.7, -0.1), w: 3.3, h: 2.0, dir: new THREE.Vector3(0.12, -0.3, -1) },
 };
 const cam = { pos: new THREE.Vector3(0, 1.4, 3), tgt: new THREE.Vector3(0, 0.3, 0), shot: 'dress', k: 2.0 };
@@ -142,9 +143,10 @@ function shotPose(name) {
   const vfov = portrait ? 50 : 36;
   camera.fov = lerp(camera.fov, vfov, 1);
   const tv = Math.tan(THREE.MathUtils.degToRad(vfov / 2)), th = tv * aspect;
-  const d = portrait ? Math.max(S.w * 0.6 / 2 / th, S.h * 1.1 / 2 / tv) : Math.max(S.w / 2 / th, S.h / 2 / tv) * 1.04;
+  const d = portrait ? Math.max(S.w * 0.52 / 2 / th, S.h * 0.95 / 2 / tv) : Math.max(S.w / 2 / th, S.h / 2 / tv) * 1.04;
   const dir = S.dir.clone().normalize();
-  return { pos: S.c.clone().addScaledVector(dir, -d), tgt: S.c.clone(), d };
+  const c = S.c.clone(); if (portrait) c.y += S.h * 0.1;
+  return { pos: c.clone().addScaledVector(dir, -d), tgt: c, d };
 }
 function setShot(name, k = 1.6, snap = false) { cam.shot = name; cam.k = k; if (snap || DEV) { const p = shotPose(name); cam.pos.copy(p.pos); cam.tgt.copy(p.tgt); } }
 function updateCamera(dt, t) {
@@ -178,7 +180,7 @@ function updateHint(dt) {
 }
 const glowList = new Set();
 function glow(obj, on) { obj.traverse(m => { if (m.isMesh && m.material && m.material.emissive) { if (on) { m.userData.em = m.userData.em || m.material.emissive.clone(); glowList.add(m); } else { glowList.delete(m); if (m.userData.em) m.material.emissive.copy(m.userData.em); } } }); }
-function updateGlow(t) { const k = 0.18 + 0.14 * Math.sin(t * 4); for (const m of glowList) m.material.emissive.setRGB(k * 1.0, k * 0.85, k * 0.6); }
+function updateGlow(t) { const k = 0.05 + 0.05 * Math.sin(t * 4); for (const m of glowList) m.material.emissive.setRGB(k * 1.0, k * 0.85, k * 0.6); }
 
 // ---------------------------------------------------------------- input
 const input = { down: false, x: 0, y: 0, start: 0, id: null, hit: null };
@@ -380,6 +382,7 @@ const STATES = {
       G.onDown = (x, y) => playTap(x, y);
     },
     update(dt, t) {
+      if (DEV && Q.get('shot')) setShot(Q.get('shot'));
       // hint: the prints glow-tap; rotate between kinds
       const prints = work_.printList.filter(p => !p.big);
       if (prints.length) { const p = prints[Math.floor(G.st / 6) % prints.length]; hintAt(new THREE.Vector3(p.x, 0.1, p.z), 'tap'); }
@@ -590,7 +593,7 @@ function deepestPapaPrint() {
 function removeForms() {
   sfx.whoosh();
   W.forms.children.forEach((b, i) => { b.userData.fly = { t: -i * 0.15, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, 1.2 + Math.random() * 0.4, (b.position.z > 0 ? 1 : -1) * 0.6) }; });
-  W.formsFlying = true;
+  W.formsFlying = true; W.skirt.visible = true;
   // back-fill strip: old panels already sit flush; fill gap at form positions with soil darkening (nothing to do visually)
 }
 function updateForms(dt) {
@@ -764,6 +767,6 @@ async function devJump(s) {
     if (s !== 'stamp') { add('hand', -0.35, -0.08, 0.1, 0.012); add('hand', -0.22, -0.12, -0.1, 0.012); add('dino', 0.15, 0.05, 0.2, 0.02); add('dino', 0.35, -0.1, 0.1, 0.02); add('leaf', -0.5, 0.15, 0.6, 0.005); add('boot', 0.5, 0.15, 0, 0.016); add('boot', 0.58, 0.02, 0.1, 0.016); }
     girl.pos.set(0.1, 0, -0.5); girl.kneelT = 1; work_.side = 'back'; work_.prints = 7;
     if (s === 'papa') { G.st = 20; }
-    if (s === 'dry' || s === 'walk') { G.papaStarted = true; G.papaDone = true; G.fixed = true; go(s === 'dry' ? 'dry' : 'walk'); if (s === 'walk') { setTimeOfDay(1); slab.dryStep(1, 10); W.forms.visible = false; } }
+    if (s === 'dry' || s === 'walk') { G.papaStarted = true; G.papaDone = true; G.fixed = true; go(s === 'dry' ? 'dry' : 'walk'); if (s === 'walk') { setTimeOfDay(1); slab.dryStep(1, 10); W.forms.visible = false; W.skirt.visible = true; } }
   }
 }

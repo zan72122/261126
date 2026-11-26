@@ -271,7 +271,7 @@ export class Slab {
         float agg = 0.0;
         if (lod > 0.5) {
           vec4 d = texture2D(tD, p/0.21);
-          agg = ((d.r)*0.0028 + (d.g-0.5)*0.0011) * (1.0 - s.g) * (0.35 + 0.65*s.r) + (d.a)*-0.0012*s.b;
+          agg = ((d.r)*0.0028 + (d.g-0.5)*0.0011) * (1.0 - s.g) * (0.35 + 0.65*s.r) + (d.a)*-0.0012*s.b + (d.g-0.5)*0.00045*s.b;
         }
         return uBase + h + pr*(imp + L + agg);
       }`;
@@ -310,7 +310,11 @@ export class Slab {
             wetC *= 1.0 - 0.18*gMark; // water pooled in prints
             // dry: pale, powdery, mottled; prints a touch darker; rims chalky
             float dr = smoothstep(0.05, 0.95, gDry + (d2.b-0.5)*0.25);
-            vec3 dryC = vec3(0.33,0.322,0.3) * (0.86 + 0.22*d2.b + 0.08*d.g) * mix(1.0, 0.82, d.r*(1.0-gS)*0.5);
+            vec4 d3 = texture2D(tD, p/2.6 + 0.57);
+            float burn = smoothstep(0.45, 0.8, d3.b) * gS;           // darker trowel-burn blotches on polished areas
+            float speck = smoothstep(0.62, 0.9, texture2D(tD, p/0.09).g);  // sand speckle
+            vec3 dryC = vec3(0.33,0.322,0.3) * (0.8 + 0.34*d2.b + 0.1*d.g) * mix(1.0, 0.82, d.r*(1.0-gS)*0.5);
+            dryC *= 1.0 - 0.16*burn - 0.07*speck + 0.05*d.a;
             dryC *= 1.0 - 0.16*gMark + clamp(gImp*30.0, -0.14, 0.12);
             dryC = mix(dryC, dryC*vec3(1.03,1.0,0.95), uDryTint);
             vec3 c = mix(wetC, dryC, dr);

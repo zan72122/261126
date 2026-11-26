@@ -24,6 +24,14 @@ export function buildWorld(scene, T) {
     const m = new THREE.Mesh(g, oldMat); m.position.set(side * (SLAB.W / 2 + 0.038 + SLAB.W / 2 + i * SLAB.W), 0, 0);
     m.receiveShadow = true; m.castShadow = true; scene.add(m); W.oldPanels.push(m);
   }
+  // concrete edge faces of the new slab (seen once the forms are stripped)
+  W.skirt = new THREE.Group(); W.skirt.visible = false; scene.add(W.skirt);
+  const skMat = makeOldConcreteMat(T, 0.92, '#a19d94');
+  for (const sd of [-1, 1]) {
+    const a = new THREE.Mesh(new THREE.BoxGeometry(SLAB.W + 0.076, 0.11, 0.038), skMat); a.position.set(0, SLAB.top - 0.055, sd * (SLAB.D / 2 + 0.019)); W.skirt.add(a);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.11, SLAB.D), skMat); b.position.set(sd * (SLAB.W / 2 + 0.019), SLAB.top - 0.055, 0); W.skirt.add(b);
+  }
+  W.skirt.traverse(m => { if (m.isMesh) { m.receiveShadow = true; m.castShadow = true; } });
   // curb stones along the road side + asphalt road behind
   const curbMat = makeOldConcreteMat(T, 0.9, '#a9a59b');
   for (let i = 1; i <= 6; i++) {

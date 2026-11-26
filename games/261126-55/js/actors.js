@@ -193,7 +193,7 @@ export class Dog {
     this.root.position.copy(this.pos); this.root.rotation.y = this.yaw;
     const ph = this.phase, w = this.walk;
     B.root.position.y += Math.abs(Math.sin(ph)) * 0.012 * w - this.sit * 0.12;
-    B.root.rotation.x = this.sit * -0.45 + this.sniff * 0.12;
+    B.root.rotation.x = this.sit * -0.42 + this.sniff * 0.12;
     B.spine.rotation.x = this.sit * -0.1 + this.sniff * 0.1;
     B.neck.rotation.x = this.sit * 0.35 + this.sniff * 0.7 - this.bark * 0.2;
     B.head.rotation.x = this.sniff * 0.3 + Math.sin(this.t * 14) * 0.02 * this.sniff - this.bark * 0.15;
@@ -202,8 +202,8 @@ export class Dog {
     const legs = [['flU', 'flL', 0], ['frU', 'frL', Math.PI], ['blU', 'blL', Math.PI], ['brU', 'brL', 0]];
     for (const [u, l, o] of legs) {
       const s = Math.sin(ph + o) * w;
-      B[u].rotation.x = -s * 0.5 + (u[0] === 'b' ? this.sit * 1.2 : this.sit * -0.35);
-      B[l].rotation.x = Math.max(0, Math.cos(ph + o)) * w * (u[0] === 'f' ? -0.7 : 0.6) + (u[0] === 'b' ? this.sit * -1.9 : this.sit * 0.35);
+      B[u].rotation.x = -s * 0.5 + (u[0] === 'b' ? this.sit * -0.9 : this.sit * 0.45);
+      B[l].rotation.x = Math.max(0, Math.cos(ph + o)) * w * (u[0] === 'f' ? -0.7 : 0.6) + (u[0] === 'b' ? this.sit * 1.5 : this.sit * -0.1);
     }
     this.wag = damp(this.wag, 1, 2, dt);
     B.tail1.rotation.y = Math.sin(this.t * 16) * 0.5 * this.wag;

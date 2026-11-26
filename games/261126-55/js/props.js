@@ -26,7 +26,7 @@ export function buildHelmet(T, hex = '#c99a2e', scale = 1) {
 
 export function buildKidBoot(T) {
   const g = new THREE.Group();
-  const rub = new THREE.MeshPhysicalMaterial({ color: sRGB('#9a3a2c'), roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.3, normalMap: T.metalN, normalScale: new THREE.Vector2(0.15, 0.15) });
+  const rub = new THREE.MeshPhysicalMaterial({ color: sRGB('#7a2a20'), roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, normalMap: T.metalN, normalScale: new THREE.Vector2(0.15, 0.15) });
   const sole = new THREE.MeshStandardMaterial({ color: sRGB('#2a2624'), roughness: 0.85 });
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.043, 0.13, 24), rub); shaft.position.set(0, 0.1, -0.02); g.add(shaft);
   const foot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 24, 16), rub); foot.scale.set(0.82, 0.62, 1.7); foot.position.set(0, 0.035, 0.02); g.add(foot);
