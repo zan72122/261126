@@ -272,14 +272,20 @@ def backdrop():
         layer[py.clip(0, H - 1), px] = 1
         layer = nd.grey_dilation(layer, size=(5, 5), mode='wrap')
         layer = nd.gaussian_filter(layer, 2.0, mode='wrap') * 1.3
-        col = mix(col, np.broadcast_to(cc, (H, W, 3)), np.clip(layer, 0, 1) * (1 - smooth(0.8, 0.86, v)))
-    # neighbour wooden fence (horizontal boards) + hedge in front
-    fence_top = 0.62 * H
-    fm = smooth(-2, 2, yy - fence_top) * (1 - smooth(0.83 * H - 2, 0.83 * H + 2, yy))
-    fc = np.broadcast_to(np.array([0.36, 0.26, 0.17]), (H, W, 3)) * (0.85 + 0.15 * (np.sin(yy / 9.0) > 0.7))[..., None]
-    fc = fc * (0.9 + 0.2 * fbm(H, W, 20, 3)[..., None])
-    col = mix(col, fc, fm * 0.9)
-    hedge = 0.74 * H - fbm(1, W, 40, 3)[0] * 0.05 * H
+        col = mix(col, np.broadcast_to(cc, (H, W, 3)), np.clip(layer, 0, 1) * (1 - smooth(0.8, 0.86, v)) * 0.8)
+    # mid-distance garden trees (rounded crowns, lit from the left)
+    for k in range(9):
+        cx = rng.uniform(0, W); cy = rng.uniform(0.38, 0.55) * H; rx = rng.uniform(90, 200); ry = rx * rng.uniform(0.7, 1.0)
+        dx = ((xx - cx + W / 2) % W - W / 2) / rx; dy = (yy - cy) / ry
+        crown = fbm(H, W, 5, 3) * 0.35
+        m = smooth(1.05, 0.85, np.sqrt(dx * dx + dy * dy) + crown)
+        lit = smooth(-0.6, 0.8, -dx * 0.7 - dy * 0.5 + fbm(H, W, 3, 3) * 0.8)
+        tc = mix(np.broadcast_to(np.array([0.05, 0.10, 0.03]), (H, W, 3)), np.broadcast_to(np.array([0.30, 0.44, 0.10]) * rng.uniform(0.8, 1.15), (H, W, 3)), lit)
+        tc = mix(tc, np.broadcast_to(np.array([0.5, 0.6, 0.65]), (H, W, 3)), 0.18)
+        col = mix(col, tc, m)
+        trunk = smooth(6, 3, np.abs(((xx - cx + W / 2) % W - W / 2))) * (yy > cy + ry * 0.5) * (yy < 0.8 * H)
+        col = mix(col, np.broadcast_to(np.array([0.10, 0.08, 0.06]), (H, W, 3)), trunk * 0.8)
+    hedge = 0.68 * H - fbm(1, W, 40, 3)[0] * 0.07 * H
     hm = smooth(-4, 4, yy - hedge[None, :])
     leaf = fbm(H, W, 3, 4) * 0.5 + 0.5
     hc = mix(np.broadcast_to(np.array([0.03, 0.08, 0.02]), (H, W, 3)), np.broadcast_to(np.array([0.22, 0.36, 0.06]), (H, W, 3)), smooth(0.35, 0.85, leaf))
