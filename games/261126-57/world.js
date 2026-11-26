@@ -201,9 +201,9 @@ export function buildStall(scene) {
   const kraft = new THREE.MeshPhysicalMaterial({ ...pbr('cloth2', [2, 2]), color: 0xb88a5a, roughness: 1, sheen: 0.3, sheenColor: new THREE.Color(0.5, 0.4, 0.3) });
   for (const [x, s] of [[-0.95, 1], [-0.72, 0.85]]) {
     const sack = new THREE.Mesh(loftGeo([
-      { y: 0, rx: 0.1 * s, rz: 0.07 * s, p: 2.6, capBulge: 0 }, { y: 0.08 * s, rx: 0.11 * s, rz: 0.08 * s, p: 2.8 },
-      { y: 0.2 * s, rx: 0.105 * s, rz: 0.075 * s, p: 2.8 }, { y: 0.26 * s, rx: 0.09 * s, rz: 0.03 * s, p: 3 }, { y: 0.29 * s, rx: 0.085 * s, rz: 0.01, p: 3 },
-    ], 32, { capStart: true, disp: (v, a) => 0.04 * Math.sin(a * 5 + v * 8) * v + 0.02 * Math.sin(a * 13) }), kraft);
+      { y: 0, rx: 0.1 * s, rz: 0.065 * s, p: 3, capBulge: 0 }, { y: 0.06 * s, rx: 0.112 * s, rz: 0.078 * s, p: 3.2 },
+      { y: 0.2 * s, rx: 0.11 * s, rz: 0.074 * s, p: 3.2 }, { y: 0.25 * s, rx: 0.108 * s, rz: 0.05 * s, p: 3.6 }, { y: 0.275 * s, rx: 0.106 * s, rz: 0.018, p: 4, capBulge: 0.004 },
+    ], 36, { capStart: true, capEnd: true, disp: (v, a) => 0.035 * Math.sin(a * 5 + v * 8) * v + 0.018 * Math.sin(a * 13) + 0.01 * Math.sin(a * 29 + v * 17) }), kraft);
     sack.position.set(x, 1.3, -1.36); sack.rotation.y = x; grp.add(sack);
   }
   const steelS = new THREE.MeshPhysicalMaterial({ ...pbr('steel', 1, { metal: true }), color: 0xc8ccd0, metalness: 1, roughness: 1, envMapIntensity: 2 });

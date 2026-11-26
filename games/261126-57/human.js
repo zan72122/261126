@@ -895,10 +895,10 @@ export class Human {
     // lids
     const sq = ex.squint, wide = ex.wide;
     for (const e of this.eyes) {
-      const upOpen = -0.62 - wide * 0.25 + sq * 0.32;
+      const upOpen = -0.8 - wide * 0.2 + sq * 0.42;
       const upClosed = 0.18;
       e.upG.rotation.x = lerp(upOpen, upClosed, Math.max(blink, ex.blink));
-      e.loG.rotation.x = 0.55 - sq * 0.42 - wide * 0.05;
+      e.loG.rotation.x = 0.62 - sq * 0.45 - wide * 0.05;
     }
     // look target
     const head = this.head;

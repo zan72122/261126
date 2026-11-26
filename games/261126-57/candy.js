@@ -132,7 +132,16 @@ export class Candy {
     this.tOut = new Float32Array(N);
     this.lump = new Float32Array(N);
     const seed = opts.seed || Math.random() * 1000;
-    for (let i = 0; i < N; i++) { const d = T.dirs[i]; this.lump[i] = Math.sin(d.x * 7 + seed) * Math.sin(d.y * 6 + seed * 1.3) * Math.sin(d.z * 8 - seed) * 0.5 + Math.sin(d.x * 17 + d.z * 13 + seed) * 0.15; }
+    // billowy puffs: a few soft random blobs + fine noise
+    const blobs = [];
+    let rs = Math.floor(seed * 9301) % 233280 || 7;
+    const rnd = () => { rs = (rs * 9301 + 49297) % 233280; return rs / 233280; };
+    for (let k = 0; k < 16; k++) blobs.push({ d: V(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).normalize(), s: 0.12 + rnd() * 0.25, a: 0.5 + rnd() });
+    for (let i = 0; i < N; i++) {
+      const d = T.dirs[i]; let v = -0.45;
+      for (const b of blobs) v += b.a * Math.exp(-d.distanceToSquared(b.d) / b.s);
+      this.lump[i] = v * 0.8 + Math.sin(d.x * 17 + d.z * 13 + seed) * 0.12;
+    }
     this.mass = 0; this.shares = new Map();
     this.group = new THREE.Group();
     this.rim = opts.rim || new THREE.Color(1.0, 0.55, 0.2).multiplyScalar(0.42);
@@ -245,7 +254,7 @@ export class Candy {
     const lim = this.radius * 1.55 + 0.012;
     for (let i = 0; i < N; i++) if (this.r[i] > lim) this.r[i] = lim;
     // new threads on the surface where it landed
-    const nS = Math.max(1, Math.round(vol / 0.0000016));
+    const nS = Math.max(1, Math.round(vol / 0.0000026));
     for (let s = 0; s < nS; s++) this.addStrand(dir, spread, col);
     this.dirty = true; this.sdirty = true;
     this.core.visible = true; this.shells.forEach(s => s.visible = true);
@@ -355,7 +364,7 @@ export class Candy {
     if (this.dirty) {
       for (let i = 0; i < N; i++) {
         const d = T.dirs[i];
-        const rr = this.r[i] * (1 + 0.045 * this.lump[i] * smooth(0.01, 0.05, this.r[i]));
+        const rr = this.r[i] * (1 + 0.07 * this.lump[i] * smooth(0.01, 0.05, this.r[i]));
         P[i * 3] = d.x * rr; P[i * 3 + 1] = d.y * rr * this.elong + lift; P[i * 3 + 2] = d.z * rr;
         const o = i * 3;
         const vis = smooth(0, 0.03, this.tOut[i]);
@@ -363,6 +372,20 @@ export class Candy {
         for (let c = 0; c < 3; c++) {
           const v = this.cIn[o + c] + (this.cOut[o + c] - this.cIn[o + c]) * vis * 0.55; C[o + c] = v;
           if (C2) C2[o + c] = this.cOut[o + c];
+        }
+      }
+      // soft gradient between colour bands (threads of both colours interleave at the border)
+      const B = this._cb || (this._cb = new Float32Array(N * 3));
+      for (const arr of [C, C2]) {
+        if (!arr) continue;
+        for (let pass = 0; pass < 2; pass++) {
+          for (let i = 0; i < N; i++) {
+            const nb = T.nb[i]; let r = 0, g = 0, b = 0;
+            for (let j = 0; j < nb.length; j++) { const o = nb[j] * 3; r += arr[o]; g += arr[o + 1]; b += arr[o + 2]; }
+            const o = i * 3, n = nb.length;
+            B[o] = arr[o] * 0.4 + r / n * 0.6; B[o + 1] = arr[o + 1] * 0.4 + g / n * 0.6; B[o + 2] = arr[o + 2] * 0.4 + b / n * 0.6;
+          }
+          arr.set(B);
         }
       }
       this.geo.attributes.position.needsUpdate = true;

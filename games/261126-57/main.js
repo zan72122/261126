@@ -22,7 +22,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 setAniso(renderer.capabilities.getMaxAnisotropy());
-let DPR = Math.min(window.devicePixelRatio || 1, Q.get('dpr') ? +Q.get('dpr') : 2);
+let DPR = Math.min(window.devicePixelRatio || 1, Q.get('dpr') ? +Q.get('dpr') : 1.5);
 renderer.setPixelRatio(DPR);
 
 const scene = new THREE.Scene();
@@ -49,7 +49,7 @@ const scoop = makeScoop(); scene.add(scoop);
 const scoopHome = () => { const j = jars[state.lastJar ?? 0]; return j.position.clone().add(V(0.0, 0.135, 0)); };
 const grains = new Grains(scene, 420);
 const cup = makeStickCup(S); cup.position.set(0.43, COUNTER, -0.56); scene.add(cup);
-const rack = makeRack(S, S.wood); rack.position.set(0.78, COUNTER, -0.28); rack.rotation.y = -0.25; scene.add(rack);
+const rack = makeRack(S, S.wood); rack.position.set(0.74, COUNTER, -0.2); rack.rotation.y = -0.35; scene.add(rack);
 // saucer under the hachimaki and the rolled hachimaki
 // crate is part of the stall; girl stands on it
 const GIRL_HOME = V(0.02, 0.3, -0.76);
@@ -164,13 +164,14 @@ function newStick() {
   return { o, stick, candy, tip: V(), handle: V(), spin: 0 };
 }
 let work = null; // current stick
+function disposeStick(w) { w.o.traverse(o => { if (o.geometry && o.geometry !== w.stick.geometry) o.geometry.dispose(); }); w.candy.geo2 && w.candy.geo2.dispose(); }
 
 // display candies in rack
 const displays = [];
 function plantInRack(w) {
   const slots = rack.userData.slots;
   const idx = displays.length % slots.length;
-  if (displays[idx]) { scene.remove(displays[idx].o); }
+  if (displays[idx]) { scene.remove(displays[idx].o); disposeStick(displays[idx]); }
   const p = slots[idx].clone().applyMatrix4(rack.matrixWorld);
   const target = { o: w.o, from: w.o.position.clone(), fromQ: w.o.quaternion.clone(), to: p, t: 0 };
   displays[idx] = w;
@@ -248,8 +249,9 @@ const shots = {
   dress: { t: V(0.66, 1.3, -0.42), w: 0.68, h: 0.5, dir: V(0.12, 0.12, 1) },
   make: { t: V(-0.03, 1.08, -0.45), w: 0.52, h: 0.4, dir: V(0.06, 0.45, 1) },
   lift: { t: V(-0.08, 1.33, -0.68), w: 0.32, h: 0.28, dir: V(0.1, 0.1, 1) },
-  serve: { t: V(-0.33, 1.2, -0.12), w: 0.64, h: 0.46, dir: V(0.25, 0.1, 1) },
+  serve: { t: V(-0.42, 1.2, -0.08), w: 0.58, h: 0.46, dir: V(0.25, 0.1, 1) },
   blunder: { t: V(-0.42, 1.42, -0.55), w: 0.42, h: 0.4, dir: V(0.25, 0.08, 1) },
+  rack: { t: V(0.28, 1.12, -0.38), w: 0.6, h: 0.42, dir: V(0.12, 0.38, 1) },
   fire: { t: V(-0.05, 2.3, -1.2), w: 0.85, h: 1.9, dir: V(0.0, -0.42, 1) },
 };
 const cam = { pos: V(0.6, 1.5, 2.6), look: V(0, 1.2, 0), tPos: V(), tLook: V(), shot: null, sp: 1.6 };
@@ -503,7 +505,7 @@ function finishFirstCandy() {
   const to = girl.head.getWorldPosition(V()).add(V(-0.22, 0.0, 0.1));
   anims.push({ dur: 1.0, f: k => { work.tip.lerpVectors(from, to, ease(k)); }, done: () => {
     girl.setExpr('laugh', 2.5); sound.yay(); fx.sparkle(work.tip.clone().add(V(0, 0.12, 0)), 24, new THREE.Color(1, 0.85, 0.6), 0.2); hopOnce(girl, 0.04, 0.5);
-    papa.setExpr('happy', 2); papa.lookAt(work.tip);
+    papa.setExpr('happy', 2); papa.lookAt(work.tip); girl.lookAt(camera.position.clone());
   } });
   after(3.4, () => { const w = work; work = null; plantInRack(w); state.made++; });
   after(4.5, () => { state.busy = false; startScene2(); });
@@ -538,6 +540,7 @@ function nextCustomer() {
 }
 function serve() {
   const c = customers[state.customer];
+  if (!c || !work) return;
   if (state.customer === 0 && !state.blunderDone) { papaBlunder(); return; }
   state.busy = true; state.windOK = false; state.stickIn = false;
   const h = c.h;
@@ -573,7 +576,7 @@ function judge(c, w) {
     const p0 = h.root.position.clone(), p1 = V(-2.8, 0, 1.6);
     h.root.rotation.y = Math.atan2(p1.x - p0.x, p1.z - p0.z);
     anims.push({ dur: 2.0, f: k => { h.root.position.lerpVectors(p0, p1, k); h.reach(h.arms[1], h.root.localToWorld(V(-0.12, h.P.H * 0.55, 0.25)), h.root.localToWorld(V(-0.3, h.P.H * 0.4, -0.3)), 0.8); }, done: () => {
-      h.root.visible = false; h.walking = false; scene.remove(w.o); work = null; state.busy = false; state.served++;
+      h.root.visible = false; h.walking = false; scene.remove(w.o); disposeStick(w); work = null; state.busy = false; state.served++;
       nextCustomer();
     } });
   });
@@ -874,10 +877,11 @@ function step(dt) {
     state.showCust = (state.showCust || 0) - dt;
   }
   if (state.scene === 3 && !state.busy) {
-    const making = state.scooping || (work && state.stickIn) || state.makeHold > 0;
+    const ready = work && work.candy.radius > 0.065 && !state.scooping;
+    const making = !ready && (state.scooping || (work && state.stickIn) || state.makeHold > 0);
     state.makeHold = (state.makeHold || 0) - dt;
-    if (making) state.makeHold = 2.5;
-    const want = making ? 'make' : 'fire';
+    if (making && (state.scooping || work)) state.makeHold = 2.5;
+    const want = ready ? 'rack' : making ? 'make' : 'fire';
     if (cam.shot !== want) setShot(want, want === 'fire' ? 0.8 : 1.3);
   }
   // thought bubble above the current customer (or floating near the stall while making)
@@ -928,10 +932,11 @@ window.__game = { state, setShot, anims, girl, papa, machine, scoopSugar, jars, 
   idle(v) { idle = v; },
   shotDebug(t, w, h, dir) { shots.debug = { t: V(...t), w, h, dir: V(...dir) }; setShot('debug'); const f = frameShot(shots.debug); cam.pos.copy(f.pos); cam.look.copy(f.look); updateCamera(0, simT); },
   screenPos(name) { const t = targets.find(q => q.name === name); if (!t) return null; const p = t.pos().project(camera); const r = canvas.getBoundingClientRect(); return [(p.x * 0.5 + 0.5) * r.width, (-p.y * 0.5 + 0.5) * r.height, t.enabled()]; },
+  hint() { const h = currentHint(); if (!h || !h.pos) return null; const p = h.pos().project(camera); const r = canvas.getBoundingClientRect(); return { name: h.name, x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, shot: cam.shot }; },
   bowlScreen() { const p = machine.bowlCenter(V()).project(camera); const r = canvas.getBoundingClientRect(); return [(p.x * 0.5 + 0.5) * r.width, (-p.y * 0.5 + 0.5) * r.height]; },
   papaBlunder, camera, renderer, scene, L, S, setDPR(v) { DPR = v; renderer.setPixelRatio(v); resize(); } };
 
 requestAnimationFrame(frame);
 document.getElementById('veil').style.opacity = 0;
 setTimeout(() => document.getElementById('veil').remove(), 1200);
-startLoading();
+startLoading().then(() => { window.__texReady = true; });
