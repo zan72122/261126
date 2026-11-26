@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#bfc3c6">
+<title>ぬれたコンクリートに あしあと</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#bfc3c6;overscroll-behavior:none;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;height:100dvh;display:block;touch-action:none}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 40% 35%,#e4e2dc 0%,#c4c7c9 45%,#9ea3a8 100%);transition:opacity .9s ease;z-index:5}
+#load.gone{opacity:0;pointer-events:none}
+#load svg{width:120px;height:120px;animation:bob 1.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-10px) rotate(4deg)}}
+#hint{position:fixed;left:0;top:0;width:44px;height:58px;pointer-events:none;opacity:0;transition:opacity .4s;z-index:4;
+  filter:drop-shadow(0 3px 4px rgba(0,0,0,.35))}
+#hint svg{width:100%;height:100%;animation:tap 1s ease-in-out infinite;transform-origin:22px 4px}
+#hint.swipe svg{animation:none}
+@keyframes tap{0%,100%{transform:translateY(8px) scale(1)}45%{transform:translateY(0) scale(.92)}}
+#again{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:calc(env(safe-area-inset-left) + 12px);width:56px;height:56px;border-radius:50%;
+  border:0;background:rgba(255,255,255,.55);box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;z-index:6;padding:8px}
+#again.show{display:block}
+#again svg{width:100%;height:100%}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+<script src="../../gf-playlog.js" defer></script>
+
+<script src="/gf-nav.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="load"><svg viewBox="0 0 120 120" aria-hidden="true">
+  <defs><radialGradient id="hg" cx="40%" cy="30%" r="70%"><stop offset="0" stop-color="#f1cf70"/><stop offset=".6" stop-color="#c99a2e"/><stop offset="1" stop-color="#8f6a1c"/></radialGradient></defs>
+  <ellipse cx="60" cy="92" rx="42" ry="7" fill="rgba(0,0,0,.18)"/>
+  <path d="M16 78 Q16 30 60 28 Q104 30 104 78 Z" fill="url(#hg)"/>
+  <path d="M54 29 Q60 24 66 29 L66 78 L54 78 Z" fill="#b88a26" opacity=".7"/>
+  <path d="M8 80 Q60 70 112 80 Q112 88 60 86 Q8 88 8 80 Z" fill="#a67c22"/>
+</svg></div>
+<div id="hint"><svg viewBox="0 0 44 58" aria-hidden="true">
+  <path d="M18 4 q4-4 8 0 v20 q2-3 6-1 q3 1 3 4 q2-2 5 0 q2 2 2 5 v12 q0 12-12 14 h-6 q-8 0-12-8 l-8-13 q-2-4 2-5 q3-1 6 3 l3 4 V4z" fill="#fff" stroke="#6b6f74" stroke-width="2" stroke-linejoin="round"/>
+</svg></div>
+<button id="again" aria-label="again"><svg viewBox="0 0 40 40"><path d="M6 26 Q6 10 20 9 Q34 10 34 26 Z" fill="#c99a2e"/><path d="M3 27 Q20 23 37 27 Q37 30 20 29 Q3 30 3 27Z" fill="#a67c22"/><path d="M28 30 a9 9 0 1 1 -3 -8" fill="none" stroke="#4b5560" stroke-width="3" stroke-linecap="round" transform="translate(-6 4) scale(.5) translate(30 30)"/></svg></button>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
