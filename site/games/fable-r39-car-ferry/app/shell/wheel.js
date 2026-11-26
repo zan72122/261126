@@ -32,11 +32,15 @@ export function createWheel() {
 
   const st = { cx: 0, cy: 0, r: 100, angle: 0, grabbed: false, lastA: 0, total: 0, hint: 0, wiggle: 0, vel: 0 };
 
-  function layout(w, h) {
+  /** w, h: CSS px; insets: safe area (CSS px). Returns the wheel's circle for the camera (CSS px, y down). */
+  function layout(w, h, insets) {
+    const ins = insets || { top: 0, right: 0, bottom: 0, left: 0 };
     camera.left = 0; camera.right = w; camera.top = h; camera.bottom = 0; camera.updateProjectionMatrix();
     st.r = clamp(Math.min(w, h) * 0.16, 70, 190);
-    st.cx = w - st.r * 1.55; st.cy = st.r * 1.55;
+    // bottom-right corner, inside the safe area (the handles reach 1.03 r, the touch area 1.3 r)
+    st.cx = w - ins.right - st.r * 1.42; st.cy = ins.bottom + st.r * 1.42;
     tilt.position.set(st.cx, st.cy, 0); tilt.scale.setScalar(st.r / 1.5);
+    return { x: st.cx, y: h - st.cy, r: st.r * 1.05 };
   }
   /** screen coords (CSS px, y down) */
   function hit(x, y, h) { const dx = x - st.cx, dy = (h - y) - st.cy; return Math.hypot(dx, dy) < st.r * 1.3; }

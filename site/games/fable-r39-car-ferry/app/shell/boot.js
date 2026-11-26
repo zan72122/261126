@@ -70,20 +70,42 @@ export function boot(createHero) {
   hero.dock(world.ports[0].berth, { instant: true });
   for (const [t, d] of pending) game.onHeroEvent(t, d);
 
-  // ---- size ----
-  function resize() {
-    const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+  // ---- size: the canvas fills the screen (CSS 100dvh); follow every change of the visible area ----
+  // renderScale: the automatic step-down of the internal resolution when frames are slow (1 → 0.85 → 0.75).
+  // The canvas stays full screen (CSS size), only the drawing buffer gets smaller; the DPR rule is unchanged.
+  const fixedScale = params.get('scale');
+  let renderScale = fixedScale && +fixedScale > 0 ? Math.min(1, Math.max(0.5, +fixedScale)) : 1;
+  const safeProbe = document.createElement('div');
+  safeProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+    'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  document.body.appendChild(safeProbe);
+  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  let sizeKey = '';
+  function resize(force) {
+    const w = Math.max(1, Math.round(canvas.clientWidth || window.innerWidth)), h = Math.max(1, Math.round(canvas.clientHeight || window.innerHeight));
+    const cs = getComputedStyle(safeProbe);
+    insets.top = parseFloat(cs.paddingTop) || 0; insets.right = parseFloat(cs.paddingRight) || 0;
+    insets.bottom = parseFloat(cs.paddingBottom) || 0; insets.left = parseFloat(cs.paddingLeft) || 0;
     const T = TIERS[tier];
     let dpr = Math.min(window.devicePixelRatio || 1, T.maxDpr);
     if (w * h * dpr * dpr > T.maxPixels) dpr = Math.sqrt(T.maxPixels / (w * h));
     if (touch) dpr = 1.0; // mobile rule: devicePixelRatio fixed at 1.0 (also after an automatic drop to 'low')
-    renderer.setPixelRatio(dpr); renderer.setSize(w, h, false);
-    camera.aspect = w / h; camera.updateProjectionMatrix();
-    wheel.layout(w, h);
+    const key = `${w}x${h}@${dpr}*${renderScale}|${insets.top},${insets.right},${insets.bottom},${insets.left}`;
+    if (key === sizeKey && force !== true) return;
+    sizeKey = key;
+    renderer.setPixelRatio(dpr * renderScale); renderer.setSize(w, h, false);
+    const hud = wheel.layout(w, h, insets);
+    rig.setView(w, h, insets, hud);
+    debug.setScale(renderScale);
   }
   resize();
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+  const later = () => { resize(); setTimeout(resize, 120); setTimeout(resize, 400); }; // iOS reports the new size late
+  window.addEventListener('resize', later);
+  window.addEventListener('orientationchange', later);
+  if (window.visualViewport) { window.visualViewport.addEventListener('resize', later); window.visualViewport.addEventListener('scroll', later); }
+  if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(canvas);
+  document.addEventListener('fullscreenchange', later);
+  document.addEventListener('webkitfullscreenchange', later);
 
   // ---- context loss: keep the game state, rebuild GPU resources ----
   let lost = false;
@@ -100,16 +122,23 @@ export function boot(createHero) {
     for (const t of allTextures()) if (t.image) t.needsUpdate = true;
     touch(scene); touch(wheel.scene);
     if (hero.onContextRestored) try { hero.onContextRestored(); } catch (err) { console.error(err); }
-    lost = false; resize(); debug.warn('webgl context restored');
+    lost = false; resize(true); debug.warn('webgl context restored');
   }, false);
 
-  // ---- auto low tier on slow mobile ----
-  let slowT = 0;
+  // ---- automatic step-down on slow devices ----
+  // 1) 'low' tier on touch devices: one sea texture layer, no clouds (fill cost); 2) then the internal resolution
+  // 0.85×, 3) then 0.75× — the picture stays full screen (never smaller), it only gets a little softer.
+  // Not when the tier was chosen by hand (?tier=) or the scale was fixed (?scale=1).
+  let slowT = 0, stepAt = 0;
   function autoTier(dtMs) {
-    if (tier !== 'mobile' || params.get('tier') || performance.now() - t0 < 6000) return; // not when the tier was chosen by hand
+    const now = performance.now();
+    if (params.get('tier') || fixedScale || now - t0 < 6000 || now - stepAt < 4000) return;
     if (debug.info.fpsAvg > 0 && debug.info.fpsAvg < 40) slowT += dtMs; else slowT = 0;
-    // DPR stays 1.0 on touch devices, so 'low' lowers the fill cost instead: one sea texture layer, no clouds
-    if (slowT > 4000) { tier = 'low'; debug.setTier('low (auto)'); world.setLite(true); resize(); }
+    if (slowT < 4000) return;
+    slowT = 0; stepAt = now;
+    if (tier === 'mobile') { tier = 'low'; debug.setTier('low (auto)'); world.setLite(true); resize(true); }
+    else if (renderScale > 0.85) { renderScale = 0.85; resize(true); }
+    else if (renderScale > 0.75) { renderScale = 0.75; resize(true); }
   }
 
   // ---- loop ----
@@ -129,8 +158,7 @@ export function boot(createHero) {
       heroInput.time = time; heroInput.speed = s.speed; heroInput.turnRate = s.turnRate; heroInput.accel = s.accel; heroInput.docked = s.mode === 'docked';
       hero.update(dt, heroInput);
       game.update(dt, time);
-      const aspect = window.innerWidth / Math.max(1, window.innerHeight);
-      rig.update(dt, nav, aspect);
+      rig.update(dt, nav, hero, game);
       world.update(dt, time, { shipPos: hero.root.position, shipYaw: s.yaw, shipRoot: hero.root, camTarget: rig.target, cameraPos: camera.position, docked: s.mode === 'docked' });
       wheel.update(dt, time);
       wake(dt);
@@ -161,9 +189,13 @@ export function boot(createHero) {
 
   // ---- debug / smoke hooks ----
   if (debugOn || smoke) {
-    debug.setExtra(() => { const d = game.debugInfo(); return `mode ${d.mode} port ${d.port} v ${d.speed}  load ${d.hero.count}  delivered ${d.stats.delivered}`; });
+    debug.setExtra(() => {
+      const d = game.debugInfo(); const c = rig.debug();
+      return `mode ${d.mode} port ${d.port} v ${d.speed}  load ${d.hero.count}  delivered ${d.stats.delivered}\n` +
+        `cam ${c.shot}${c.held ? ' (held)' : ''}  d ${c.dist}→${c.want} m  fill ${c.fill}${c.ok ? '' : '!'}  fov ${c.fov}`;
+    });
     window.__ferry = {
-      THREE, renderer, scene, camera, hero, world, nav, game, debug, wheel,
+      THREE, renderer, scene, camera, hero, world, nav, game, debug, wheel, rig,
       frames: () => renderedFrames,
       info: () => ({ ...debug.info, firstFrameMs: window.__ferryFirstFrameMs, game: game.debugInfo(), errors: debug.errors.slice() }),
       sailTo(i) {

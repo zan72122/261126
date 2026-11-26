@@ -5,7 +5,7 @@ export function createDebug({ enabled, renderer, scene, hud, heroRoot, tier }) {
   const errors = [];
   const frames = new Float32Array(240); let fi = 0, fn = 0;
   let el = null, acc = 0, cache = { tex: 0, texMiB: 0, geoMiB: 0 }, cacheT = 1e9;
-  const info = { startupMs: 0, tier, calls: 0, tris: 0, heroTris: 0, fpsAvg: 0, fpsP95: 0, texCount: 0, gpuMiB: 0, texMiB: 0, geoMiB: 0, fbMiB: 0, canvas: '' };
+  const info = { startupMs: 0, tier, calls: 0, tris: 0, heroTris: 0, fpsAvg: 0, fpsP95: 0, texCount: 0, gpuMiB: 0, texMiB: 0, geoMiB: 0, fbMiB: 0, canvas: '', scale: 1 };
 
   function pushErr(msg) { errors.push(String(msg).slice(0, 160)); if (errors.length > 6) errors.shift(); }
   window.addEventListener('error', (e) => pushErr(e.message || e));
@@ -15,7 +15,7 @@ export function createDebug({ enabled, renderer, scene, hud, heroRoot, tier }) {
 
   if (enabled) {
     el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:6px;right:6px;z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw;overflow:hidden';
+    el.style.cssText = 'position:fixed;top:calc(6px + env(safe-area-inset-top));left:calc(6px + env(safe-area-inset-left));z-index:10;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw;overflow:hidden';
     document.body.appendChild(el);
   }
 
@@ -53,7 +53,7 @@ export function createDebug({ enabled, renderer, scene, hud, heroRoot, tier }) {
     const p95 = arr[Math.min(arr.length - 1, Math.floor(arr.length * 0.95))] || avg;
     info.fpsAvg = avg > 0 ? 1000 / avg : 0; info.fpsP95 = p95 > 0 ? 1000 / p95 : 0;
     const c = renderer.domElement;
-    info.canvas = `${c.width}×${c.height} @${renderer.getPixelRatio().toFixed(2)}`;
+    info.canvas = `${c.width}×${c.height} @${(renderer.getPixelRatio() / info.scale).toFixed(2)}${info.scale < 1 ? ' ×' + info.scale : ''}`;
     info.fbMiB = (c.width * c.height * 12) / 1048576; // color + depth/stencil + displayed buffer, no MSAA
     if (cacheT > 2000) { cache = estimateMemory(); cacheT = 0; info.heroTris = countTriangles(heroRoot); }
     info.texCount = renderer.info.memory.textures; info.texMiB = cache.texMiB; info.geoMiB = cache.geoMiB;
@@ -75,6 +75,7 @@ export function createDebug({ enabled, renderer, scene, hud, heroRoot, tier }) {
     setExtra(f) { extra = f; },
     warn(msg) { pushErr('warn: ' + msg); console.warn(msg); },
     setTier(t) { info.tier = t; },
+    setScale(k) { info.scale = k; }, // internal resolution step-down (1, 0.85, 0.75)
     setStartup(ms) { info.startupMs = ms; }, // navigation start → first frame (cars, ramp and wheel can be touched)
   };
 }

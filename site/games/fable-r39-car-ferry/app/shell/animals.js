@@ -24,10 +24,10 @@ export function animalMaterial() {
 function headParts(species, r, hy) {
   const p = PAL[species]; const parts = [];
   const S = (rad, w, h) => new THREE.SphereGeometry(rad, w, h);
-  parts.push({ geo: S(r, 11, 8), color: p.fur, matrix: mat(0, hy, 0, 0, 0, 0, 1.08, 0.96, 1) });
+  parts.push({ geo: S(r, 16, 12), color: p.fur, matrix: mat(0, hy, 0, 0, 0, 0, 1.08, 0.96, 1) });
   // muzzle
   const mz = species === 'pig' ? 0.34 : 0.42;
-  parts.push({ geo: S(r * mz, 7, 5), color: p.muzzle, matrix: mat(0, hy - r * 0.28, r * 0.78, 0, 0, 0, 1.25, 0.85, 0.7) });
+  parts.push({ geo: S(r * mz, 10, 7), color: p.muzzle, matrix: mat(0, hy - r * 0.28, r * 0.78, 0, 0, 0, 1.25, 0.85, 0.7) });
   // nose
   if (species === 'pig') {
     parts.push({ geo: S(r * 0.07, 5, 4), color: 0x9a3a55, matrix: mat(-r * 0.12, hy - r * 0.26, r * 1.02) });
@@ -49,10 +49,10 @@ function headParts(species, r, hy) {
   // ears
   for (const sx of [-1, 1]) {
     if (species === 'bear' || species === 'panda') {
-      parts.push({ geo: S(r * 0.3, 7, 5), color: species === 'panda' ? p.ear : p.fur, matrix: mat(sx * r * 0.7, hy + r * 0.72, 0, 0, 0, 0, 1, 1, 0.6) });
+      parts.push({ geo: S(r * 0.3, 9, 6), color: species === 'panda' ? p.ear : p.fur, matrix: mat(sx * r * 0.7, hy + r * 0.72, 0, 0, 0, 0, 1, 1, 0.6) });
       if (species === 'bear') parts.push({ geo: S(r * 0.17, 6, 4), color: p.ear, matrix: mat(sx * r * 0.7, hy + r * 0.72, r * 0.12, 0, 0, 0, 1, 1, 0.5) });
     } else if (species === 'rabbit') {
-      parts.push({ geo: S(r * 0.24, 7, 6), color: p.fur, matrix: mat(sx * r * 0.36, hy + r * 1.45, -r * 0.05, 0, 0, -sx * 0.16, 0.85, 3.0, 0.55) });
+      parts.push({ geo: S(r * 0.24, 9, 7), color: p.fur, matrix: mat(sx * r * 0.36, hy + r * 1.45, -r * 0.05, 0, 0, -sx * 0.16, 0.85, 3.0, 0.55) });
       parts.push({ geo: S(r * 0.15, 6, 5), color: p.ear, matrix: mat(sx * r * 0.36, hy + r * 1.42, r * 0.06, 0, 0, -sx * 0.16, 0.7, 2.7, 0.3) });
     } else if (species === 'cat') {
       const c = new THREE.ConeGeometry(r * 0.32, r * 0.55, 4);
@@ -60,7 +60,7 @@ function headParts(species, r, hy) {
       const c2 = new THREE.ConeGeometry(r * 0.18, r * 0.34, 4);
       parts.push({ geo: c2, color: p.ear, matrix: mat(sx * r * 0.54, hy + r * 0.84, r * 0.1, 0, Math.PI / 4, -sx * 0.35) });
     } else if (species === 'dog') {
-      parts.push({ geo: S(r * 0.3, 7, 5), color: p.ear, matrix: mat(sx * r * 0.95, hy + r * 0.05, 0, 0, 0, sx * 0.3, 0.55, 1.35, 0.8) });
+      parts.push({ geo: S(r * 0.3, 9, 6), color: p.ear, matrix: mat(sx * r * 0.95, hy + r * 0.05, 0, 0, 0, sx * 0.3, 0.55, 1.35, 0.8) });
     } else if (species === 'pig') {
       const c = new THREE.ConeGeometry(r * 0.26, r * 0.38, 4);
       parts.push({ geo: c, color: p.ear, matrix: mat(sx * r * 0.55, hy + r * 0.85, r * 0.1, 0.5, Math.PI / 4, -sx * 0.4) });
@@ -76,14 +76,14 @@ function geoFor(species, kind) {
   const p = PAL[species] || PAL.bear; let out;
   if (kind === 'driver') {
     // shoulders + head, origin at the neck base
-    const parts = [{ geo: new THREE.SphereGeometry(0.3, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), color: p.fur, matrix: mat(0, -0.05, 0, 0, 0, 0, 1.1, 0.9, 0.85) }];
+    const parts = [{ geo: new THREE.SphereGeometry(0.3, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), color: p.fur, matrix: mat(0, -0.05, 0, 0, 0, 0, 1.1, 0.9, 0.85) }];
     parts.push(...headParts(species, 0.3, 0.42));
     out = { body: mergeColored(parts) };
   } else {
     // family member: body + head + feet, origin at the feet; arms separately (they wave)
     const r = 0.36;
     const parts = [
-      { geo: new THREE.SphereGeometry(0.36, 12, 8), color: p.fur, matrix: mat(0, 0.48, 0, 0, 0, 0, 1, 1.15, 0.9) },
+      { geo: new THREE.SphereGeometry(0.36, 14, 10), color: p.fur, matrix: mat(0, 0.48, 0, 0, 0, 0, 1, 1.15, 0.9) },
       { geo: new THREE.SphereGeometry(0.24, 8, 6), color: p.muzzle, matrix: mat(0, 0.46, 0.2, 0, 0, 0, 1, 1.15, 0.6) },
       { geo: new THREE.SphereGeometry(0.13, 7, 5), color: species === 'panda' ? 0x2b2b2b : p.fur, matrix: mat(-0.16, 0.08, 0.06, 0, 0, 0, 1.1, 0.7, 1.3) },
       { geo: new THREE.SphereGeometry(0.13, 7, 5), color: species === 'panda' ? 0x2b2b2b : p.fur, matrix: mat(0.16, 0.08, 0.06, 0, 0, 0, 1.1, 0.7, 1.3) },

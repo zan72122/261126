@@ -17,7 +17,7 @@ export function createGame(ctx) {
   const byHandle = new Map();
   const stats = { boarded: 0, unloaded: 0, delivered: 0, departures: 0, arrivals: 0, docked: 0, events: {} };
   let time = 0, lastInputT = -100, touchedOnce = false, hintLevel = 0;
-  let arrivedWithCars = false, dockTimer = 0, undockWait = -1, dockWait = -1;
+  let arrivedWithCars = false, dockTimer = 0, undockWait = -1, dockWait = -1, cheerAt = -100;
   const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -198,7 +198,7 @@ export function createGame(ctx) {
     if (rec.t > 1.6 && rec.state === 'giving') goPark(rec);
   }
   function celebrate(port) {
-    stats.celebrations = (stats.celebrations || 0) + 1;
+    stats.celebrations = (stats.celebrations || 0) + 1; cheerAt = time;
     setTimeout(() => {
       for (const a of port.family) { a.jump(5); a.wave(5); }
       audio.play('fanfare', 1);
@@ -567,11 +567,42 @@ export function createGame(ctx) {
     hero.root.position.set(nav.state.x, 0, nav.state.z); hero.root.rotation.y = nav.state.yaw; hero.root.updateMatrixWorld(true);
     hero.dock(world.ports[0].berth, { instant: true });
     for (const p of world.ports) if (p.built) spawnWaiting(p, true);
-    arrivedWithCars = false; touchedOnce = false;
+    arrivedWithCars = false; touchedOnce = false; cheerAt = -100;
+  }
+
+  // ---------------- what the camera should look at ----------------
+  // deck: hero cars at rest; active: hero cars that are moving (boarding / unloading / dragged); front: the next waiting
+  // car (the one that glows); waiting: the other waiting cars; moving: cars driving to the family or giving presents.
+  const camView = { dragging: false, delivering: false, cheer: false, deck: [], active: [], waiting: [], moving: [], front: null };
+  const camPool = []; let camPi = 0; const lastPos = new WeakMap(); let lastViewT = -1;
+  const camVec = (o) => { if (camPi >= camPool.length) camPool.push(new THREE.Vector3()); return o.getWorldPosition(camPool[camPi++]); };
+  function view() {
+    const v = camView; camPi = 0;
+    v.deck.length = 0; v.active.length = 0; v.waiting.length = 0; v.moving.length = 0; v.front = null;
+    v.dragging = !!drag && (drag.kind === 'car' || drag.kind === 'hero');
+    const port = currentPort();
+    v.cheer = !!port && time - cheerAt < 6;
+    v.delivering = !!port && arrivedWithCars && hero.getState().count > 0;
+    const dt = Math.max(time - lastViewT, 1e-3); lastViewT = time;
+    if (!port) return v;
+    for (const h of hero.getCars()) {
+      const p = camVec(h.object); let lp = lastPos.get(h);
+      const moving = lp && lp.distanceTo(p) / dt > 0.35;
+      if (!lp) { lp = new THREE.Vector3(); lastPos.set(h, lp); }
+      if (moving) { lp.t = time; } lp.copy(p);
+      (moving || time - (lp.t ?? -9) < 0.6 ? v.active : v.deck).push(p);
+    }
+    const fw = frontWaiting(port);
+    for (const rec of cars) {
+      if (rec.port !== port) continue;
+      if (rec.state === 'waiting' || rec.state === 'drag') { const p = camVec(rec.h.object); if (rec === fw) v.front = p; else v.waiting.push(p); }
+      else if (rec.state === 'toFamily' || rec.state === 'giving') { v.moving.push(camVec(rec.h.object)); v.delivering = true; }
+    }
+    return v;
   }
 
   return {
-    update, onHeroEvent, reset, depart, stats, cars,
+    update, onHeroEvent, reset, depart, stats, cars, view,
     get hintLevel() { return hintLevel; },
     debugInfo() { const s = nav.state; return { mode: s.mode, port: s.port ? s.port.index : -1, speed: +nav.speed.toFixed(2), hero: hero.getState(), cars: cars.length, waiting: world.ports.map((p) => p.waiting.length), deco: world.ports.map((p) => p.decorations.length), stats }; },
     // helpers for the smoke test / debug keys
