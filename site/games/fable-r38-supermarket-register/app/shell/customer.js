@@ -21,9 +21,10 @@ let shared = null;
 function sharedGeos(THREE) {
   if (shared) return shared;
   shared = {
-    sphere: new THREE.SphereGeometry(1, 18, 12),
-    sphereLo: new THREE.SphereGeometry(1, 10, 8),
-    arm: new THREE.CapsuleGeometry(D.armR, D.armLen, 4, 10).translate(0, -(D.armLen / 2 + D.armR * 0.3), 0),
+    // 寄った構図で輪郭と模様の境目がカクカクしないよう、分割を細かく（1体 約1万三角形。予算 5万の内）
+    sphere: new THREE.SphereGeometry(1, 28, 18),
+    sphereLo: new THREE.SphereGeometry(1, 20, 14),
+    arm: new THREE.CapsuleGeometry(D.armR, D.armLen, 6, 14).translate(0, -(D.armLen / 2 + D.armR * 0.3), 0),
     arc: new THREE.TorusGeometry(0.024, 0.0075, 6, 14, Math.PI),
     smile: new THREE.TorusGeometry(0.026, 0.006, 6, 14, Math.PI).rotateZ(Math.PI),
     proxy: new THREE.SphereGeometry(1, 8, 6),

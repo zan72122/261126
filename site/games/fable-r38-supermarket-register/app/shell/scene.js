@@ -21,10 +21,11 @@ export function buildEnvironment(THREE, { layout, assets }) {
   const bgTex = assets.texture('assets/store_bg.jpg');
   // カウンターの奥の縁より下は見えないので、床との境目は隠れる。写真の上12%あたりが画面の上端に来る高さに置く。
   // 横長の画面でも端が切れないよう、横に少し伸ばしている（ぼけた写真なので目立たない）。
-  const bgW = 6.2, bgH = 3.5;
+  // 動くカメラ（縦長・引いた構図）でも上の端が見えないよう、上へ高く伸ばしてある（上端 y=2.2）
+  const bgW = 7.4, bgH = 4.7;
   const bg = new THREE.Mesh(keepG(new THREE.PlaneGeometry(bgW, bgH)),
     keepM(new THREE.MeshBasicMaterial({ map: bgTex, toneMapped: false })));
-  bg.position.set(0.06, 1.04 - bgH / 2, -1.6);
+  bg.position.set(0.06, 2.2 - bgH / 2, -1.6);
   bg.name = 'backdrop';
   group.add(bg);
 
@@ -159,7 +160,8 @@ export function buildEnvironment(THREE, { layout, assets }) {
   flying.visible = false;
   group.add(flying);
 
-  const giftSlot = (i, out) => out.set(G.x0 + (G.x1 - G.x0) * (i / (MAX_GIFTS - 1)), 0.11, G.z);
+  // 右（真ん中寄り）から左へ並べる：寄った構図でも、もらったばかりの花が画面に入る
+  const giftSlot = (i, out) => out.set(G.x1 - (G.x1 - G.x0) * (i / (MAX_GIFTS - 1)), 0.11, G.z);
   const gifts = { colors: [], pop: [] };
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.35, 0, 0));

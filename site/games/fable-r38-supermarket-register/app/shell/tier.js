@@ -11,9 +11,9 @@ export function makeTier(name, mobile) {
   const dpr = window.devicePixelRatio || 1;
   const t = { name, mobile };
   if (name === 'desktop') {
-    t.pixelRatio = Math.min(dpr, 2); t.antialias = true; t.msaaSamples = 4; t.detail = 1.0; t.anisotropy = 4;
+    t.pixelRatio = Math.min(dpr, 2); t.antialias = true; t.msaaSamples = 4; t.detail = 1.25; t.anisotropy = 4;
   } else if (name === 'mobile') {
-    t.pixelRatio = 1.0; t.antialias = false; t.msaaSamples = 0; t.detail = 1.0; t.anisotropy = 2;
+    t.pixelRatio = 1.0; t.antialias = false; t.msaaSamples = 0; t.detail = 1.25; t.anisotropy = 2;   // detail：寄った構図用に hero の分割を 1.25 倍（三角形 約1.6倍、予算内）
   } else { // low：手動（?tier=low）だけ
     t.pixelRatio = mobile ? 1.0 : Math.min(dpr, 1); t.antialias = false; t.msaaSamples = 0; t.detail = 0.6; t.anisotropy = 1;
   }

@@ -65,7 +65,7 @@ export function scanGeometry(scene) {
   return { nan, zeroNormals: zeroN, meshes };
 }
 
-export function createDebug({ enabled, renderer, scene, tier, hero, flow, errors, timing, ctxInfo, onLoseContext }) {
+export function createDebug({ enabled, renderer, scene, tier, hero, flow, errors, timing, ctxInfo, rig, perf, onLoseContext }) {
   const frames = new Float32Array(240);
   let fi = 0, fn = 0;
   let acc = 0;
@@ -76,11 +76,11 @@ export function createDebug({ enabled, renderer, scene, tier, hero, flow, errors
   if (enabled) {
     el = document.createElement('div');
     el.id = 'debug';
-    el.style.cssText = 'position:fixed;top:6px;right:6px;z-index:10;background:rgba(0,0,0,.66);color:#bff;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:auto;max-width:46vw;overflow:hidden';
+    el.style.cssText = 'position:fixed;top:calc(6px + env(safe-area-inset-top));right:calc(6px + env(safe-area-inset-right));z-index:10;background:rgba(0,0,0,.66);color:#bff;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:auto;max-width:46vw;overflow:hidden';
     document.body.appendChild(el);
     const btn = document.createElement('button');
     btn.textContent = 'lose ctx';
-    btn.style.cssText = 'position:fixed;top:6px;left:6px;z-index:10;font:11px monospace;opacity:.7';
+    btn.style.cssText = 'position:fixed;top:calc(6px + env(safe-area-inset-top));left:calc(6px + env(safe-area-inset-left));z-index:10;font:11px monospace;opacity:.7';
     btn.addEventListener('click', () => onLoseContext && onLoseContext());
     document.body.appendChild(btn);
   }
@@ -123,7 +123,9 @@ export function createDebug({ enabled, renderer, scene, tier, hero, flow, errors
       el.textContent =
         `build ${window.__R38_BUILD || 'src'}\n` +
         `tier ${tier.name}  dpr ${renderer.getPixelRatio().toFixed(2)}\n` +
-        `canvas ${c.width}x${c.height}\n` +
+        `canvas ${c.width}x${c.height}  css ${c.clientWidth}x${c.clientHeight}\n` +
+        (perf ? `render scale ${perf.scale.toFixed(2)}  (auto ${perf.changes} changes)\n` : '') +
+        (rig ? `cam ${rig.info.shot}  d ${rig.info.dist.toFixed(2)}m  fovV ${rig.info.fovV.toFixed(0)}  hero ${(rig.info.heroFill * 100).toFixed(0)}%\n` : '') +
         `fps avg ${stats.fpsAvg.toFixed(0)}  p95 ${stats.fpsP95.toFixed(0)}\n` +
         `cpu upd ${cpuUpd.toFixed(2)}ms  draw ${cpuDraw.toFixed(2)}ms\n` +
         `draw ${stats.calls}  tris ${stats.tris}\n` +

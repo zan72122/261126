@@ -8,9 +8,11 @@
 <meta name="theme-color" content="#f3ead9">
 <title>スーパーのレジ</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #f3ead9; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #f3ead9; }
+  body { position: fixed; inset: 0; height: 100vh; height: 100dvh; }
   body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
-  #game { display: block; width: 100vw; height: 100vh; touch-action: none; outline: none; }
+  /* 全画面：100dvh（アドレスバーの出入りに追従）。使えない古いブラウザは 100vh。黒い帯・余白は作らない */
+  #game { position: fixed; left: 0; top: 0; display: block; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; touch-action: none; outline: none; background: #f3ead9; }
   #cover { position: fixed; inset: 0; background: #f3ead9; display: flex; align-items: center; justify-content: center; transition: opacity .35s; pointer-events: none; }
   #cover i { width: 64px; height: 64px; border-radius: 50%; background: #ff8fab; animation: b 0.9s ease-in-out infinite; }
   @keyframes b { 0%,100% { transform: scale(.7); } 50% { transform: scale(1); } }
