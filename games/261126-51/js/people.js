@@ -545,22 +545,19 @@ export class Person {
 
   // ---------------- papa's paint layer (also drives hair/cap tint)
   initPaintLayer(color) {
-    this.paintC = canvas(FW, FH); this.paintG = this.paintC.getContext('2d');
+    this.paintC = canvas(FW, FH); this.paintG = this.paintC.getContext('2d', { willReadFrequently: true });
     this.paintCol = color;
     this.wipeTotal = 0;
   }
-  pourPaint(t) { // 0..1 progressive coverage from the crown downward with drips
-    const g = this.paintG; g.fillStyle = this.paintCol;
-    const lat = lerp(1.4, -1.05, t);
-    for (let i = 0; i < 40; i++) {
-      const lon = rand(-1.6, 1.6), la = lat + rand(-0.1, 0.35);
-      g.globalAlpha = 0.9; g.beginPath(); g.ellipse(fx(lon), fy(la), rand(10, 30), rand(8, 22), 0, 0, TAU); g.fill();
+  pourPaint(t) { // 0..1 coverage sweeping from the crown down the face, with drips at the front
+    const g = this.paintG; g.fillStyle = this.paintCol; g.globalAlpha = 1;
+    const lat = lerp(1.5, -1.1, t), y = fy(lat);
+    g.fillRect(0, 0, FW, y);
+    for (let i = 0; i < 26; i++) { const x = (i + 0.5) / 26 * FW; g.beginPath(); g.ellipse(x, y, 22, 10 + 14 * Math.abs(Math.sin(i * 7.3)), 0, 0, TAU); g.fill(); }
+    if (t > 0.2) for (let i = 0; i < 7; i++) {
+      const lon = -1.1 + i * 0.36 + Math.sin(i * 3.1) * 0.08, len = 25 + 50 * Math.abs(Math.sin(i * 5.7)) * t;
+      g.fillRect(fx(lon) - 4, y - 4, 8, len); g.beginPath(); g.arc(fx(lon), y + len, 6, 0, TAU); g.fill();
     }
-    if (t > 0.3) for (let i = 0; i < 6; i++) { // drips
-      const lon = rand(-1.3, 1.3), y0 = fy(lat + 0.3), len = rand(20, 70);
-      g.fillRect(fx(lon) - 3, y0, 6, len); g.beginPath(); g.arc(fx(lon), y0 + len, 5, 0, TAU); g.fill();
-    }
-    g.globalAlpha = 1;
     this.faceDirty = true;
   }
   wipeAt(uv, r = 36) {
@@ -571,7 +568,7 @@ export class Person {
     this.faceDirty = true;
   }
   paintLeft() { // fraction of the visible face still painted
-    const d = this.paintG.getImageData(fx(-1.1), fy(0.9), fx(1.1) - fx(-1.1), fy(-0.95) - fy(0.9)).data;
+    const d = this.paintG.getImageData(fx(-0.8), fy(0.55), fx(0.8) - fx(-0.8), fy(-0.9) - fy(0.55)).data;
     let a = 0, n = 0; for (let i = 3; i < d.length; i += 32) { a += d[i]; n++; }
     return a / (n * 255);
   }

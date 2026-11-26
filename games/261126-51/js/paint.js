@@ -112,7 +112,7 @@ roughnessFactor = mix(roughnessFactor, mix(0.46 - 0.1 * gH, 0.07, gWet), gPV);`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 {
   float sh = 0.5 + 0.5 * sin(pTime * 3.0 - (vPW.x + vPW.y * 0.7 + vPW.z) * 4.0);
-  totalEmissiveRadiance += pHint * (1.0 - gPV) * sh * vec3(0.22, 0.20, 0.14);
+  totalEmissiveRadiance += pHint * (1.0 - gPV) * pow(sh, 6.0) * vec3(0.07, 0.065, 0.045);
 }`)
         .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
 material.clearcoat = gWet * gPV;
@@ -227,7 +227,7 @@ material.clearcoatRoughness = 0.04;`);
     const n = Math.max(1, Math.ceil(L / step));
     const rot = L > 0.01 ? Math.atan2(-dx, dy) : (s.lastRot || 0);
     s.lastRot = rot;
-    const base = tool === 'roller' ? 0.16 : 0.2;
+    const base = tool === 'roller' ? 0.3 : 0.34;
     for (let i = 1; i <= n; i++) {
       const t = i / n;
       this.stampAt(s, x0 + dx * t, y0 + dy * t, rot + rand(-0.03, 0.03), tool, col, base * load * rand(0.8, 1.1));

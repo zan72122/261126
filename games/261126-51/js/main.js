@@ -61,7 +61,7 @@ const stamps = {};
       g = new THREE.Group();
       for (const geo of handGeo(0.06)) { const m = new THREE.Mesh(geo, girl.mats.skin); g.add(m); }
       g.children.forEach(m => { m.castShadow = true; });
-      g.rotation.x = -Math.PI / 2;
+      g.rotation.x = Math.PI / 2;
       const wrap = new THREE.Group(); wrap.add(g); g = wrap;
     } else {
       g = new THREE.Group();
@@ -129,14 +129,19 @@ let stream = null;
 // ---------------------------------------------------------------- camera shots (fit a box at a 35-50mm-ish lens)
 const SHOTS = {
   dress: { c: V3(-1.95, 0.72, 2.1), d: V3(0.6, 0.22, 1), w: 1.45, h: 1.3 },
-  walls: { c: V3(0.0, 1.2, 1.25), d: V3(0.34, 0.05, 1), w: 4.1, h: 3.0 },
-  trim: { c: V3(0.15, 1.48, 1.2), d: V3(0.36, 0.04, 1), w: 4.3, h: 3.35 },
-  play: { c: V3(0.0, 1.3, 1.3), d: V3(0.28, 0.07, 1), w: 4.7, h: 3.4 },
+  walls: { c: V3(0.15, 1.2, 1.2), d: V3(0.72, 0.06, 1), w: 4.2, h: 3.0 },
+  trim: { c: V3(0.25, 1.48, 1.2), d: V3(0.66, 0.05, 1), w: 4.4, h: 3.35 },
+  play: { c: V3(0.15, 1.3, 1.25), d: V3(0.62, 0.08, 1), w: 4.8, h: 3.4 },
   papa: { c: V3(1.3, 0.75, 2.2), d: V3(-0.45, 0.15, 1), w: 0.62, h: 0.62 },
 };
 const camS = { pos: V3(-1.2, 1.0, 4.0), look: V3(-1.9, 0.7, 2.1), tPos: V3(), tLook: V3(), k: 1.5, shot: 'dress' };
+const PORTRAIT = {
+  walls: { c: V3(-0.1, 1.15, 1.6), d: V3(0.6, 0.06, 1), w: 3.0, h: 3.0 },
+  trim: { c: V3(0.1, 1.45, 1.5), d: V3(0.55, 0.05, 1), w: 3.3, h: 3.3 },
+  play: { c: V3(0.05, 1.3, 1.5), d: V3(0.5, 0.08, 1), w: 3.5, h: 3.3 },
+};
 function shotPose(name) {
-  const s = SHOTS[name], asp = cam.aspect, t = Math.tan(cam.fov * Math.PI / 360);
+  const s = (cam.aspect < 0.8 && PORTRAIT[name]) || SHOTS[name], asp = cam.aspect, t = Math.tan(cam.fov * Math.PI / 360);
   const dist = Math.max(s.h / 2 / t, s.w / 2 / (t * asp)) * 1.04;
   const d = s.d.clone().normalize();
   return [s.c.clone().addScaledVector(d, dist), s.c.clone()];
@@ -190,7 +195,7 @@ function enterStage(name) {
     lad.visible = true; A.sfx('clunk');
     papa.express('happy', 1.5);
     papaWalk(V3(1.75, 0, 1.35), () => {
-      papa.root.rotation.y = -1.9; papa.pose.climb = 1;
+      papa.root.rotation.y = -0.5; papa.pose.climb = 1;
       G.papaOnLadder = 0.001;
       after(1.2, () => { bub.userData.draw(COLORS[0]); bub.visible = true; A.voice('papa', 'hmm'); papa.pose.armL = 'wave'; after(1, () => papa.pose.armL = 'rest'); });
     });
@@ -273,9 +278,8 @@ function surfacePose(obj, kind, p, n, dir) {
     const along = dir.clone().sub(n.clone().multiplyScalar(dir.dot(n)));
     if (along.lengthSq() > 1e-4) { X = along.normalize().cross(n).normalize(); if (X.y < 0 || (Math.abs(X.y) < 0.2 && X.x < 0)) X.negate(); }
     const Y0 = n.clone().cross(X).normalize();  // in-plane, perpendicular to axis
-    const Y = Y0.clone().multiplyScalar(Math.cos(0.7)).addScaledVector(n, -Math.sin(0.7)).normalize().negate();
+    const Y = Y0.clone().multiplyScalar(Math.cos(0.7)).addScaledVector(n, -Math.sin(0.7)).normalize();
     const Z = X.clone().cross(Y).normalize();
-    _m.makeBasis(X, Y.clone().negate().negate(), Z);
     _m.makeBasis(X, Y, Z);
     const pos = p.clone().addScaledVector(n, 0.026);
     return [pos, _q.setFromRotationMatrix(_m).clone()];
@@ -321,7 +325,18 @@ cv.addEventListener('pointerdown', (e) => {
   if (G.stage === 'intro') return;
   if (G.wiping) { wipe(e, true); return; }
   const vis = clickables.filter(o => o.visible);
-  const h = pick(e, [...vis, ...paintables()]);
+  let h = pick(e, [...vis, ...paintables()]);
+  // fat-finger help: small things (cans, tools, bird) are easy to hit on a phone
+  if (!h || !h.object.userData.click) {
+    let best = null, bd = Math.min(innerWidth, innerHeight) * 0.07;
+    for (const o of vis) {
+      const wp = o.getWorldPosition(V3()).add(V3(0, 0.08, 0)); const v = wp.clone().project(cam);
+      if (v.z > 1) continue;
+      const d = Math.hypot((v.x * 0.5 + 0.5) * innerWidth - e.clientX, (-v.y * 0.5 + 0.5) * innerHeight - e.clientY);
+      if (d < bd) { bd = d; best = o; }
+    }
+    if (best) { let m = null; best.traverse(x => { if (!m && x.isMesh && x.userData.click) m = x; }); if (m) h = { object: m, point: best.getWorldPosition(V3()) }; }
+  }
   if (!h) return;
   const ck = h.object.userData.click;
   if (ck) { onTap(ck, h); return; }
@@ -398,7 +413,7 @@ function moveStroke(e) {
   const st = G.stroke;
   if (!h) return;
   const s = h.object.userData.surf;
-  if (s !== st.s) { st.s = s; st.last.copy(h.point); toolState.n.copy(s.normal); girlGo(standFor(s, h.point)); return; }
+  if (s !== st.s) { st.s = s; st.last.copy(h.point); toolState.n.copy(s.normal); girlGo(standFor(s, h.point)); if (!stamps[G.tool]) PA.stroke(s, h.point, h.point.clone().addScaledVector(V3(0, 1, 0), 0.004), G.tool, G.color, G.load); return; }
   const seg = h.point.clone().sub(st.last);
   const L = seg.length();
   if (L < 0.004) return;
@@ -449,8 +464,8 @@ function finishSpill() {
   papa.express('oops'); G.spilled = true;
   after(0.8, () => {
     papa.pose.climb = 0; G.papaOnLadder = 0;
-    papaWalk(V3(1.25, 0, 2.25), () => {
-      papa.pose.sit = 1; papa.root.rotation.y = -0.55; papa.express('oops'); papa.pose.armL = 'head';
+    papaWalk(V3(1.45, 0, 1.95), () => {
+      papa.pose.sit = 1; papa.root.rotation.y = -0.35; papa.express('oops'); if (!G.wiping) { papa.pose.armL = 'head'; after(1.5, () => { if (papa.pose.armL === 'head') papa.pose.armL = 'rest'; }); }
       rg.visible = true; rg.position.copy(crateTop(0.0, 0.0)).add(V3(0, 0.02, 0)); rg.rotation.set(-Math.PI / 2, 0, 0.4);
       girl.pose.armR = girl.pose.armL = 'rest'; girl.express('laugh', 1.5); A.voice('girl', 'giggle');
       G.busy = false;
@@ -465,24 +480,24 @@ function startWipe() {
   const toGirl = girl.root.position.clone().sub(papa.root.position).normalize();
   SHOTS.papa.d.set(toGirl.x * 0.4 + Math.sin(papa.root.rotation.y), 0.1, toGirl.z * 0.4 + Math.cos(papa.root.rotation.y));
   setShot('papa', 1.3);
-  girlGo(papa.root.position.clone().add(V3(-0.55, 0, 0.35)));
+  girlGo(papa.root.position.clone().add(V3(-0.5, 0, 0.32)));
   papa.pose.armL = 'rest'; papa.express('happy');
   A.sfx('pick');
 }
-const ragCursor = rag(); ragCursor.scale.setScalar(0.5); ragCursor.visible = false; scene.add(ragCursor);
+const ragCursor = rag(); ragCursor.scale.setScalar(0.38); ragCursor.visible = false; scene.add(ragCursor);
 function wipe(e, first) {
   const h = pick(e, [papa.headMesh]);
   if (!h || !h.uv) return;
-  papa.wipeAt(h.uv, 40);
+  papa.wipeAt(h.uv, 64);
   ragCursor.visible = true; ragCursor.position.copy(h.point).addScaledVector(h.face.normal.clone().transformDirection(papa.headMesh.matrixWorld), 0.02);
-  ragCursor.lookAt(cam.position);
+  ragCursor.lookAt(cam.position); ragCursor.rotateZ(0.6);
   if (first || Math.random() < 0.15) A.sfx('wipe');
   G.wipeTick = (G.wipeTick || 0) + 1;
   if (G.wipeTick % 25 === 0) { papa.express('laugh', 0.9); A.voice('papa', 'laugh'); }
   if (G.wipeTick % 8 === 0) {
     const left = papa.paintLeft();
     papa.paintAmt = Math.min(papa.paintAmt, 0.25 + left * 0.9);
-    if (left < 0.06) wipeDone();
+    if (left < 0.12) wipeDone();
   }
 }
 function wipeDone() {
@@ -563,11 +578,12 @@ const allGlow = [overMat, capMat2, rg.material, ...cans.map(c => c.userData.surf
 
 // ---------------------------------------------------------------- main loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0, lowT = 0;
+const DTMAX = +Q.get('dtmax') || 0.05;
 const _v = V3();
 function frame() {
   requestAnimationFrame(frame);
   const now = performance.now();
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = Math.min(DTMAX, (now - last) / 1000); last = now;
   G.t += dt; G.stageT = (G.stageT || 0) + dt; G.idle += dt;
   // adaptive resolution to hold 30fps+ on phones
   fpsAcc += dt; fpsN++;
@@ -669,6 +685,13 @@ function frame() {
   bub.visible && bub.position.copy(papa.head.getWorldPosition(V3())).add(V3(-0.15, 0.38, 0));
   // camera
   if (Q.get('view')) { const who = Q.get('view') === 'papa' ? papa : girl; const hp = who.root.position; SHOTS.dbg = { c: V3(hp.x, who.P.H * (Q.get('face') ? 0.9 : 0.5), hp.z), d: V3(Math.sin(who.root.rotation.y), 0.05, Math.cos(who.root.rotation.y)), w: who.P.H * (Q.get('face') ? 0.25 : 0.8), h: who.P.H * (Q.get('face') ? 0.25 : 1.05) }; camS.shot = 'dbg'; camS.k = 50; }
+  if (G.wiping) {
+    const hp = papa.head.getWorldPosition(V3());
+    SHOTS.papa.c.copy(hp).add(V3(0, -0.03, 0));
+    const ry = papa.root.rotation.y;
+    SHOTS.papa.d.set(Math.sin(ry) + 0.15, 0.12, Math.cos(ry));
+    papa.look = cam.position.clone(); papa.pose.armL = papa.pose.armL === 'head' ? 'rest' : papa.pose.armL;
+  }
   const [tp, tl] = G.wiping ? shotPose('papa') : shotPose(camS.shot);
   const breathe = V3(Math.sin(G.t * 0.31) * 0.02, Math.sin(G.t * 0.23) * 0.012, 0);
   camS.pos.lerp(tp.add(breathe), 1 - Math.exp(-camS.k * dt));
@@ -862,8 +885,10 @@ if (Q.get('stage')) { // debug jumps for screenshots
   }, 50);
 } else enterStage('dress');
 G.stage = G.stage || 'dress';
+const unveil = () => { document.getElementById('veil').style.opacity = 0; };
+setTimeout(unveil, 2500);   // never hold the first screen hostage to big textures
 loadAll().then(() => {
-  document.getElementById('veil').style.opacity = 0; window.__ready = true;
+  unveil(); window.__ready = true;
   for (const p of [girl, papa]) (p._splats || []).forEach(f => f());
 });
 requestAnimationFrame(frame);
