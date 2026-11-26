@@ -50,11 +50,11 @@ export function buildLights(scene) {
   sun.position.set(-4.2, 2.6, 1.0);
   sun.target.position.set(0.2, 0.9, -0.3);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  const mob = navigator.maxTouchPoints > 0; sun.shadow.mapSize.set(mob ? 1024 : 2048, mob ? 1024 : 2048);
   const sc = sun.shadow.camera;
   sc.left = -2.6; sc.right = 2.6; sc.top = 2.2; sc.bottom = -1.6; sc.near = 0.5; sc.far = 9;
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
-  sun.shadow.radius = 5; sun.shadow.blurSamples = 12;
+  sun.shadow.radius = mob ? 3 : 5; sun.shadow.blurSamples = mob ? 8 : 12;
   scene.add(sun, sun.target);
 
   const hemi = new THREE.HemisphereLight(kelvin(8000), new THREE.Color(0x6a4a34), 0.35);

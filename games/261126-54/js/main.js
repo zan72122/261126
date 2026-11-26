@@ -142,7 +142,7 @@ shots.dress = {
   focus: (p) => p.distanceTo(V(-1.22, 1.0, -1.9)), margin: 0.85,
 };
 shots.work = {
-  tgt: V(WORK.x, COUNTER_Y + 0.17, WORK.z + 0.02), dir: V(0.06, 0.34, 1),
+  tgt: V(WORK.x, COUNTER_Y + 0.17, WORK.z + 0.02), dir: V(0.06, 0.48, 1),
   pts: () => {
     const p = [V(WORK.x - 0.13, COUNTER_Y + 0.12, WORK.z), V(WORK.x + 0.13, COUNTER_Y + 0.12, WORK.z), V(WORK.x, COUNTER_Y + 0.07, WORK.z + 0.12),
       V(GIRL_WORK.x, GIRL_WORK.y + 1.12, GIRL_WORK.z + 0.05)];
@@ -180,7 +180,7 @@ function layoutTools() {
     t.userData.home = h;
     if (!t.userData.busy) t.position.copy(h);
   }
-  bag.userData.home.y = COUNTER_Y + 0.03;
+  bag.userData.home.y = COUNTER_Y + 0.045;
 }
 
 // ================================================================ game state
@@ -217,6 +217,7 @@ async function boot() {
   hat.userData.halo = makeHalo(0.4); scene.add(hat.userData.halo); apron.userData.halo = makeHalo(0.55); scene.add(apron.userData.halo);
   await mama.build(); scene.add(mama.group);
   mama.group.position.set(-0.62, 0, -1.6); mama.group.rotation.y = -0.65; mama.idleExpr = 'smile'; mama.setExpr('smile');
+  mama.wearApron(mama.makeApron('#6e4630'));
   onResize();
   phase = 'dress';
   setShot('dress', true);
@@ -227,6 +228,7 @@ async function boot() {
   // build the rest progressively
   await papa.build(); scene.add(papa.group); papa.group.position.set(0.62, 0, -0.95); papa.group.rotation.y = -0.25; papa.idleExpr = 'smile';
   papa.group.visible = false;
+  papa.wearApron(papa.makeApron('#5e3a26')); papa.wearHat(papa.makeHat());
   for (const c of CUSTOMERS) { const h = new Human(c.opt); await h.build(); h.pitch = c.pitch; h.group.visible = false; h.idleExpr = 'smile'; scene.add(h.group); customers.push(h); }
 }
 
@@ -270,6 +272,7 @@ function finishGag() {
   sfx.sparkle();
   after(1.2, () => {
     papa.setExpr('smile');
+    papa.group.position.set(0.78, 0, -1.3); papa.group.rotation.y = -0.35;
     setShot('work');
     // papa gives the piping bag to the girl's tray
     bag.userData.busy = false; show(bag, true); state.bagGiven = true;
@@ -477,7 +480,7 @@ function onDown(x, y) {
   }
   if (phase === 'cream' || phase === 'deco' || phase === 'shopwork') {
     const th = pick(x, y, toolObjects());
-    if (th) { pickTool(th.object.userData.tool); return; }
+    if (th) { pickTool(th.object.userData.tool); if (th.object.userData.tool !== 'bell') ptr.mode = 'cake'; return; }
     if (phase === 'deco' && state.gag === 'wipe') { ptr.mode = 'wipe'; return; }
     ptr.mode = 'cake';
     return;
@@ -573,10 +576,10 @@ function interact(dt) {
       ptr.px = ptr.x;
     } else {
       // resting: held just in front of the girl, near the cake
-      gp = V(WORK.x + 0.1, COUNTER_Y + 0.22, WORK.z - 0.1);
-      q.setFromEuler(new THREE.Euler(0, Math.PI * 0.75, -0.5));
+      gp = V(WORK.x + 0.13, COUNTER_Y + 0.2, WORK.z - 0.2);
+      q.setFromEuler(new THREE.Euler(0, -Math.PI / 2 + 0.35, -0.18));
     }
-    if (state.scoopAnim > 0) { state.scoopAnim -= dt; gp = bowl.position.clone().add(V(0.02, 0.12, 0)); q.setFromEuler(new THREE.Euler(0, Math.PI * 0.6, -0.25)); }
+    if (state.scoopAnim > 0) { state.scoopAnim -= dt; gp = bowl.position.clone().add(V(0.02, 0.12, 0)); q.setFromEuler(new THREE.Euler(0, -Math.PI / 2 - 0.5, -0.3)); }
     knife.position.lerp(gp, 1 - Math.exp(-dt * 22));
     knife.quaternion.slerp(q, 1 - Math.exp(-dt * 16));
     // glob of cream shrinks as the load is used
@@ -673,7 +676,8 @@ function interact(dt) {
     } else target = V(WORK.x + 0.13, COUNTER_Y + 0.25, WORK.z + 0.03);
     bag.position.lerp(target, 1 - Math.exp(-dt * 12));
     girl.setReach('R', bag.position.clone().add(V(0, 0.14, 0)), 1);
-  } else if (bag.userData.home && !bag.userData.busy && state.gag !== 'squeeze' && state.gag !== 'enter') bag.position.lerp(bag.userData.home, 1 - Math.exp(-dt * 8));
+  } else if (bag.userData.home && !bag.userData.busy && state.gag !== 'squeeze' && state.gag !== 'enter') { bag.position.lerp(bag.userData.home, 1 - Math.exp(-dt * 8)); bag.rotation.set(0, 0.6, Math.PI / 2); }
+  if (tool === 'bag') bag.rotation.set(0, 0, 0);
   if (!tool) girl.setReach('R', null);
 }
 const HAND_OFF = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(0, 1, 0), V(0, 0, 1), V(1, 0, 0)));
@@ -939,7 +943,19 @@ addEventListener('resize', onResize);
 addEventListener('orientationchange', () => setTimeout(onResize, 200));
 
 // test hooks for screenshots
-window.__game = { get phase() { return phase; }, startCream, startDeco, startShop, finishGag, finishDeco, girl, papa, get cake() { return cake; }, state, tools, pickTool, setShot, handOver, selectCaseCake, dressUp, nextCustomer, setTool: (t) => { tool = t; }, interactSim: null };
+function screenOf(v) { const p = v.clone().project(camera); return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight }; }
+window.__screen = (n) => {
+  const W = (o) => o.getWorldPosition(new THREE.Vector3());
+  switch (n) {
+    case 'hat': return screenOf(W(hat).add(V(0, 0.07, 0))); case 'apron': return screenOf(W(apron).add(V(0, 0.1, 0)));
+    case 'cakeTop': return screenOf(plate.localToWorld(V(0, PLATE_TOP + HS, 0)));
+    case 'cakeFront': return screenOf(turntable.localToWorld(V(0, 0.07 + PLATE_TOP + HS * 0.5, CAKE_R + 0.004)));
+    case 'papaFace': return screenOf(papa.head.localToWorld(V(0, -0.02, 0.1)));
+    case 'case0': case 'case1': case 'case2': { const c = state.shopCakes[+n[4]]; return c ? screenOf(W(c.group).add(V(0, 0.04, 0))) : null; }
+    default: return tools[n] ? screenOf(W(tools[n]).add(V(0, 0.03, 0))) : null;
+  }
+};
+window.__game = { get phase() { return phase; }, get fps() { return 0; }, startCream, startDeco, startShop, finishGag, finishDeco, girl, papa, get cake() { return cake; }, state, tools, pickTool, setShot, handOver, selectCaseCake, dressUp, nextCustomer, setTool: (t) => { tool = t; }, interactSim: null };
 
 onResize();
 boot();

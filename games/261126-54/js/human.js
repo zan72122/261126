@@ -320,8 +320,8 @@ class FacePaint {
 // expression presets
 export const EXPR = {
   neutral: { smile: 0.15, open: 0, wide: 0, browL: 0, browR: 0, browTilt: 0, lid: 0, lower: 0, blush: 0, round: 0, skew: 0 },
-  smile: { smile: 0.8, open: 0, wide: 0.15, browL: 0.3, browR: 0.3, browTilt: 0.1, lid: 0.05, lower: 0.35, blush: 0.2, round: 0, skew: 0 },
-  happy: { smile: 1, open: 0.65, wide: 0.3, browL: 0.7, browR: 0.7, browTilt: 0.2, lid: 0, lower: 0.5, blush: 0.5, round: 0, skew: 0 },
+  smile: { smile: 0.8, open: 0, wide: 0.15, browL: 0.3, browR: 0.3, browTilt: 0.1, lid: 0.0, lower: 0.18, blush: 0.2, round: 0, skew: 0 },
+  happy: { smile: 1, open: 0.65, wide: 0.3, browL: 0.7, browR: 0.7, browTilt: 0.2, lid: 0, lower: 0.22, blush: 0.5, round: 0, skew: 0 },
   laugh: { smile: 1, open: 0.9, wide: 0.35, browL: 0.8, browR: 0.8, browTilt: 0.5, lid: 0.85, lower: 0.6, blush: 0.7, round: 0, skew: 0 },
   wow: { smile: 0.2, open: 0.8, wide: -0.2, browL: 1, browR: 1, browTilt: 0.4, lid: -0.15, lower: 0, blush: 0.3, round: 1, skew: 0 },
   focus: { smile: 0.1, open: 0, wide: -0.1, browL: -0.3, browR: -0.3, browTilt: -0.3, lid: 0.08, lower: 0.15, blush: 0, round: 0, skew: 0.4, pout: 1 },
@@ -618,9 +618,9 @@ export class Human {
     f.cream = [];
     for (let i = 0; i < n; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 0.055 * s;
-      f.cream.push({ x: Math.cos(a) * r * 1.1, y: -0.02 * s + Math.sin(a) * r * 1.2, r: (0.009 + rnd() * 0.016) * s, hp: 1, sq: 0.6 + rnd() * 0.5, rot: rnd() * 3 });
+      f.cream.push({ x: Math.cos(a) * r * 1.1, y: -0.02 * s + Math.sin(a) * r * 1.2, r: (0.014 + rnd() * 0.02) * s, hp: 1, sq: 0.6 + rnd() * 0.5, rot: rnd() * 3 });
     }
-    f.cream.push({ x: 0, y: -0.035 * s, r: 0.03 * s, hp: 1, sq: 0.7, rot: 0 });
+    f.cream.push({ x: 0, y: -0.03 * s, r: 0.04 * s, hp: 1, sq: 0.7, rot: 0 }, { x: 0.03 * s, y: 0.01 * s, r: 0.03 * s, hp: 1, sq: 0.8, rot: 1 });
     f.draw(this.expr);
   }
   // uv from a raycast hit on the head mesh -> wipe; returns remaining fraction
@@ -668,10 +668,22 @@ export class Human {
       const thick = { pigtails: 0.013, bob: 0.015, kidshort: 0.011, short: 0.009, bun: 0.011, balding: 0.005 }[st] * S;
       const hl = { pigtails: 0.026, bob: 0.03, kidshort: 0.04, short: 0.052, bun: 0.055, balding: 0.06 }[st] * S;
       const napeY = { pigtails: -0.075, bob: -0.09, kidshort: -0.06, short: -0.065, bun: -0.06, balding: -0.06 }[st] * S;
+      const fringe = [];
+      if (st === 'pigtails' || st === 'bob' || st === 'kidshort') {
+        const n = 0;
+        for (let i = 0; i < n; i++) {
+          const u = (i / (n - 1) - 0.5) * 2; // -1..1
+          const x0 = u * 0.05 * S;
+          const yEnd = hl - 0.006 * S + Math.abs(u) * 0.016 * S + (rnd() - 0.5) * 0.004 * S;
+          const zEnd = surfZ(fp, x0 * 1.05, yEnd) + 0.0035 * S;
+          const yTop = 0.085 * S, zTop = surfZ(fp, x0 * 0.7, yTop) + 0.004 * S;
+          fringe.push([x0 * 0.7, yTop, zTop, x0 * 1.05 + u * 0.004 * S, yEnd, zEnd - 0.001 * S, 0.009 * S, 0.0048 * S]);
+        }
+      }
       f = (x, y, z) => {
         let d = fp(x, y, z) - thick;
         // face region: frontal half below the hairline (bangs edge wavy)
-        const yh = hl + (st === 'pigtails' || st === 'bob' ? Math.abs(x) * 0.25 + Math.sin(x * 260 / S) * 0.0025 * S : x * x * 8 / S);
+        const yh = hl + (st === 'pigtails' || st === 'bob' ? Math.abs(x) * 0.25 + Math.abs(Math.sin(x * 160 / S)) * 0.005 * S : x * x * 8 / S);
         const face = Math.max(-0.012 * S - z, y - yh);
         d = smax(d, -face, 0.005 * S);
         // above / around the ears for short styles
@@ -679,6 +691,8 @@ export class Human {
           const ear = Math.max(Math.max(0.058 * S - Math.abs(x), y + 0.004 * S), -0.03 * S - z);
           d = smax(d, -ear, 0.006 * S);
         }
+        // fringe: separate clumps of hair falling over the forehead (strand separation at the edge)
+        for (const q of fringe) d = smin(d, sdRC(x, y, z, q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7]), 0.004 * S);
         // nape
         d = smax(d, napeY - y, 0.006 * S);
         if (st === 'bob') {
@@ -692,7 +706,7 @@ export class Human {
         }
         if (st === 'balding') d = smax(d, -sdSphere(x, y, z, 0, 0.115 * S, 0.03 * S, 0.07 * S), 0.012 * S);
         if (st === 'bun') d = smin(d, sdSphere(x, y, z, 0, 0.07 * S, -0.075 * S, 0.034 * S) + groove(x, y - 0.07 * S, z + 0.075 * S, 22, 0.002 * S), 0.012 * S);
-        d += groove(x, y, z, st === 'short' || st === 'balding' ? 34 : 26, (st === 'short' || st === 'balding' ? 0.0012 : 0.0022) * S);
+        d += groove(x, y, z, st === 'short' || st === 'balding' ? 34 : 22, (st === 'short' || st === 'balding' ? 0.001 : 0.0015) * S);
         return d;
       };
     }
@@ -847,7 +861,7 @@ export class Human {
     const bl = Math.sin(clamp(this.blink, 0, 1) * Math.PI);
     const lid = clamp(this.expr.lid + bl * (1 - this.expr.lid), -0.3, 1);
     for (const l of this.lids) {
-      l.up.rotation.x = lerp(-0.78, 0.62, clamp(lid * 0.85 + 0.15, 0, 1)) + (this.expr.lid < 0 ? this.expr.lid * 0.5 : 0);
+      l.up.rotation.x = lerp(-0.86, 0.62, clamp(lid, 0, 1)) + (this.expr.lid < 0 ? this.expr.lid * 0.5 : 0);
       l.low.rotation.x = lerp(0.32, 0.05, clamp(this.expr.lower, 0, 1));
     }
     // look

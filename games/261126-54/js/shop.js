@@ -347,9 +347,10 @@ export function buildShop(scene) {
   const sgn = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.48), new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.85 }));
   sgn.position.z = 0.017; sign.add(sgn);
   // ---- hooks with hat and apron (dress-up corner) on the back wall, left
-  const hookBar = box(0.6, 0.06, 0.03, m.walnut, 0.008); hookBar.position.set(-1.75, 1.32, -D / 2 + 0.015); root.add(hookBar);
+  const board = box(0.78, 0.62, 0.02, m.walnut, 0.01); board.position.set(-1.77, 1.08, -D / 2 + 0.01); root.add(board);
+  const hookBar = box(0.7, 0.06, 0.03, m.walnut, 0.008); hookBar.position.set(-1.77, 1.32, -D / 2 + 0.03); root.add(hookBar);
   const hooks = [];
-  for (const x of [-1.95, -1.55]) { const hk = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.004, 8, 16, Math.PI), m.brass); hk.position.set(x, 1.3, -D / 2 + 0.05); hk.rotation.set(0, Math.PI / 2, Math.PI); root.add(hk); hooks.push(new THREE.Vector3(x, 1.28, -D / 2 + 0.07)); }
+  for (const x of [-1.95, -1.55]) { const hk = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.004, 8, 16, Math.PI), m.brass); hk.position.set(x, 1.3, -D / 2 + 0.07); hk.rotation.set(0, Math.PI / 2, Math.PI); root.add(hk); hooks.push(new THREE.Vector3(x, 1.28, -D / 2 + 0.07)); }
   // ---- pendant lamps (brass + warm glass globe)
   const lamps = [];
   for (const x of [-0.6, 0.9]) {
