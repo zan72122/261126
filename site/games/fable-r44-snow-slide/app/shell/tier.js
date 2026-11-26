@@ -4,7 +4,7 @@
 export const TIERS = {
   desktop: { name: 'desktop', dprMax: 2, msaa: true, shadows: true, shadowSize: 512, flakes: 360, renderScale: 1 },
   mobile: { name: 'mobile', dprMax: 1, msaa: false, shadows: true, shadowSize: 512, flakes: 240, renderScale: 1 },
-  low: { name: 'low', dprMax: 1, msaa: false, shadows: false, shadowSize: 512, flakes: 100, renderScale: 0.8 },
+  low: { name: 'low', dprMax: 1, msaa: false, shadows: false, shadowSize: 512, flakes: 100, renderScale: 0.75 },
 };
 
 export function detectTier(params) {
@@ -14,13 +14,23 @@ export function detectTier(params) {
   return { ...base, isMobile };
 }
 
-export function pixelRatioFor(tier) {
-  // mobile: fixed 1.0 (PLAN). desktop: up to 2.
+// Automatic step-down when frames are slow: only the internal drawing resolution goes down first
+// (the canvas still fills the screen; the browser scales the picture up), effects go last.
+export const QUALITY_STEPS = [
+  { scale: 1.0, low: false },
+  { scale: 0.85, low: false },
+  { scale: 0.75, low: false },
+  { scale: 0.75, low: true },   // last resort: tier 'low' (no shadows, fewer flakes)
+];
+
+export function pixelRatioFor(tier, step = 0) {
+  // mobile: fixed 1.0 (PLAN). desktop: up to 2. Times the quality step (never above the tier's own scale).
   const dpr = tier.isMobile ? 1 : Math.min(window.devicePixelRatio || 1, tier.dprMax);
-  return dpr * tier.renderScale;
+  return dpr * Math.min(tier.renderScale, QUALITY_STEPS[step].scale);
 }
 
-// Watches frame times; drops to 'low' once if the average stays under 40 fps for 4 s (after warm-up).
+// Watches frame times; says "step down" when the average stays under 40 fps for 4 s (after warm-up).
+// After each step it warms up again, so the next step is judged on the new setting.
 export class FrameMonitor {
   constructor() {
     this.times = new Float32Array(240); this.n = 0; this.i = 0;
@@ -42,7 +52,8 @@ export class FrameMonitor {
     if (this.windowT >= 4) {
       const fps = this.windowFrames / this.windowT;
       this.windowT = 0; this.windowFrames = 0;
-      return fps < 40;
+      if (fps < 40) { this.warm = 2; return true; }
+      return false;
     }
     return false;
   }

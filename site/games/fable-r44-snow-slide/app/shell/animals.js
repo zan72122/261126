@@ -28,7 +28,8 @@ function piece(geo, color, m) {
 }
 const M = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
-const sph = (r, w = 12, h = 9) => new THREE.SphereGeometry(r, w, h);
+// the camera comes close now: the bigger round parts get more segments so their outlines stay round
+const sph = (r, w = 12, h = 9) => { const k = r >= 0.06 ? 1.45 : 1; return new THREE.SphereGeometry(r, Math.round(w * k), Math.round(h * k)); };
 
 function buildParts(kind) {
   const d = DEF[kind];

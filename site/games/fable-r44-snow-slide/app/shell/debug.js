@@ -78,7 +78,8 @@ export function createOverlay() {
   return {
     show(s) {
       el.textContent =
-        `tier ${s.tier}  canvas ${s.m.canvas}  dpr ${s.dpr.toFixed(2)}\n` +
+        `tier ${s.tier}  canvas ${s.m.canvas} (css ${s.css.w}x${s.css.h})  dpr ${s.dpr.toFixed(2)}  q${s.q}\n` +
+        `cam ${s.cam.shot}  subject ${(s.cam.share * 100).toFixed(0)}% of short side  view ${s.cam.shortM.toFixed(1)}m  d ${s.cam.d.toFixed(1)}m  fov ${s.cam.fov.toFixed(0)}${s.cam.portrait ? ' portrait' : ''}\n` +
         `fps ${s.fps.avg.toFixed(0)} avg / ${s.fps.p95.toFixed(0)} p95  boot ${s.bootMs.toFixed(0)}ms\n` +
         `draw ${s.calls} (shadow incl.)  tris ${s.tris} frame\n` +
         `scene tris ${s.m.totalTris} = hero ${s.m.heroTris} + shell ${s.m.totalTris - s.m.heroTris}\n` +

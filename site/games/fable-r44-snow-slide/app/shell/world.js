@@ -58,7 +58,7 @@ export function createWorld(scene, tex, tier) {
   // --- soft snow banks along the field edge (field is 12 m: x,z in [-6, 6]) (one merged mesh) ---
   const bankParts = [];
   const makeBank = (len) => {
-    const g = new THREE.CapsuleGeometry(0.38, len, 4, 10).rotateZ(Math.PI / 2);
+    const g = new THREE.CapsuleGeometry(0.38, len, 6, 16).rotateZ(Math.PI / 2);   // round when seen up close
     g.scale(1, 0.75, 1);
     const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -104,7 +104,7 @@ export function createWorld(scene, tex, tier) {
   trees.castShadow = false; group.add(trees);
 
   // --- round snowy bushes (instanced) ---
-  const bushGeo = keep(new THREE.IcosahedronGeometry(0.7, 1).scale(1, 0.62, 1));
+  const bushGeo = keep(new THREE.IcosahedronGeometry(0.7, 3).scale(1, 0.62, 1));   // round enough for the close camera
   const bushMat = keep(new THREE.MeshLambertMaterial({ map: tex.ground, color: 0xffffff }));
   const bushSpots = [[-8.6, -5], [-8.8, 5.6], [8.7, -5.2], [9.0, 5.8], [-4, -8.4], [3.6, -8.6], [0.4, -9.2]];
   const bushes = new THREE.InstancedMesh(bushGeo, bushMat, bushSpots.length);
@@ -120,6 +120,7 @@ export function createWorld(scene, tex, tier) {
   sun.shadow.mapSize.set(tier.shadowSize, tier.shadowSize);
   const sc = sun.shadow.camera; sc.left = -8.5; sc.right = 8.5; sc.top = 8.5; sc.bottom = -8.5; sc.near = 2; sc.far = 40;
   sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.03;
+  sun.shadow.radius = 1.6;   // softer edges (same 5 taps): the close camera magnifies the 512 shadow map
   scene.add(sun, sun.target);
 
   scene.fog = new THREE.Fog(0xdfeefc, 34, 95);

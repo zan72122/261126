@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createAnimal } from './animals.js';
 import { createFlag, Bursts, createTouchRing } from './props.js';
+import { createCamRig } from './camrig.js';
 
 // The play flow (docs/PLAN.md §1). No order is enforced; nothing can fail; nothing is timed against the child.
 //  A start  : plow glows + hops, rider waves on the sled at the top, flag glows.
@@ -18,8 +19,6 @@ const SPOTS = [[7.2, -0.4], [-7.2, 2.6], [-7.2, -0.4], [7.2, -3.4]].map(([x, z])
 const FRIEND_AFTER_S = 60;
 const HEART_COLORS = [0xff5c8a, 0xff8fb1, 0xffc93c, 0x7cc8ff, 0xb48cff];
 const STAR_COLORS = [0xffd23f, 0xfff07a, 0xffffff, 0x9fe0ff];
-const LOOK = new THREE.Vector3(0, 0.3, 0.4);
-const VIEW_DIR = new THREE.Vector3(0, 9, 12.5).normalize();
 
 export function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 }) {
   const S = {
@@ -58,24 +57,101 @@ export function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 })
   const bursts = new Bursts(scene, camera);
   const ring = createTouchRing(scene);   // a soft ring on the snow where the finger lands (instant feedback)
 
-  // ---------- camera (one fixed view; tiny pan toward the sled while sliding) ----------
-  let baseDist = 24;
-  const camOff = new THREE.Vector3(), camOffTarget = new THREE.Vector3();
-  function fitCamera(w, h) {
-    camera.aspect = w / h; camera.fov = 42; camera.near = 0.5; camera.far = 200; camera.updateProjectionMatrix();
-    const pts = [[-7.7, 0, -6.4], [7.7, 0, -6.4], [-7.0, 0, 6.6], [7.0, 0, 6.6], [-5, 2.6, -5.5], [5, 2.6, -5.5], [7.6, 0.8, 2.6], [-7.6, 0.8, 2.6]].map((a) => new THREE.Vector3(...a));
-    const v = new THREE.Vector3();
-    let d = 10;
-    for (; d < 80; d += 0.25) {
-      camera.position.copy(LOOK).addScaledVector(VIEW_DIR, d); camera.lookAt(LOOK); camera.updateMatrixWorld();
-      if (pts.every((p) => { v.copy(p).project(camera); return Math.abs(v.x) < 0.97 && Math.abs(v.y) < 0.95; })) break;
-    }
-    baseDist = d;
-    placeCamera();
+  // ---------- camera: subject-centred shots (docs/fullscreen.md) ----------
+  // work   : plow + the snow in front of its blade, about 6 m of the short side; the sled/friend are panned in at the edge
+  // start  : plow and sled with the waving rider (the cast), until the first touch
+  // slide  : beside the sled, along its run (three-quarter side view)
+  // guest  : the friend and the sled (a friend arrives / walks over to ride): slow pull back
+  // finale : the hill and the cheering friend after the ride together: the only wide view, short
+  // look   : after 6 s without touches, the plow and the sled together (where to go next)
+  // carry  : the sled held under the finger
+  const rig = createCamRig(camera, { heightAt: (x, z) => hero.heightAt(x, z) });
+  const cam = { slide: false, hopIsSlide: false, prevSled: 'ready', stoppedAt: 0, finaleUntil: 0, anchor: new THREE.Vector3(), anchored: false, sideSign: 1, name: 'start' };
+  const PITCH_WORK = 38 * Math.PI / 180, PITCH_SLIDE = 24 * Math.PI / 180, PITCH_WIDE = 40 * Math.PI / 180;
+  const _f = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+  const incl = [];
+  function fitCamera(w, h) { rig.resize(w, h); }
+
+  // a group shot: looks at the middle of the points; the rig finds the nearest distance that keeps them all on screen
+  const fitPts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  function group(pts, dMin, dMax, out) {
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, y = 0;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); y += p.y; }
+    out.set((x0 + x1) / 2, y / pts.length + 0.3, (z0 + z1) / 2);
+    const list = [];
+    pts.forEach((p, i) => { list.push(fitPts[i * 2].set(p.x, p.y, p.z), fitPts[i * 2 + 1].set(p.x, p.y + 1.1, p.z)); });
+    return { pts: list, dMin, dMax };
   }
-  function placeCamera() {
-    camera.position.copy(LOOK).add(camOff).addScaledVector(VIEW_DIR, baseDist);
-    camera.lookAt(LOOK.x + camOff.x, LOOK.y + camOff.y, LOOK.z + camOff.z);
+  const fingerDown = () => S.mode === 'drive' || S.mode === 'sled' || S.mode === 'pendingSled' || S.mode === 'pendingTap';
+
+  function directCamera(dt, sp) {
+    // which moment is it?
+    const st = sp.state;
+    if (st === 'hop' && cam.prevSled !== 'hop') cam.hopIsSlide = cam.prevSled !== 'return';
+    if (st === 'stopped' && cam.prevSled !== 'stopped') cam.stoppedAt = S.time;
+    if ((st === 'slide' || (st === 'hop' && cam.hopIsSlide)) && !cam.slide) {
+      cam.slide = true;
+      // pick the side to watch from once per slide: the one more in front (the park is behind the field)
+      cam.sideSign = Math.cos(sp.heading + Math.PI / 2) >= Math.cos(sp.heading - Math.PI / 2) ? 1 : -1;
+    }
+    if (st === 'ready' || st === 'held' || st === 'return' || (st === 'stopped' && S.time - cam.stoppedAt > 1.4)) cam.slide = false;
+    cam.prevSled = st;
+
+    const plow = hero.getPlowPose(), f = S.friend;
+    const idle = S.time - S.lastInputT;
+    let shot;
+    if (S.time < cam.finaleUntil) {
+      // finale: the ride together is done; a short look at the whole hill with the cheering friend
+      const pk = hero.getPeak();
+      const pts = [_a.set(pk.x, pk.y * 0.5, pk.z), f ? f.animal.root.getWorldPosition(_b) : _b.set(sp.x, sp.y, sp.z)];
+      shot = { name: 'finale', focus: _f, fit: group(pts, 8.0, 10.0, _f), centerY: 0, yaw: 0, pitch: PITCH_WIDE, tPos: 1.5, tZoom: 1.6, tRot: 1.4 };
+    } else if (S.firstTouchT === null && !f) {
+      const pts = [_a.set(plow.x, plow.y, plow.z), _b.set(sp.x, sp.y, sp.z)];
+      shot = { name: 'start', focus: _f, fit: group(pts, 3.8, 7.0, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.2, tZoom: 1.2, tRot: 1.2 };
+    } else if (cam.slide) {
+      // beside the run, a little ahead of the sled; slow to swing round, quick to follow
+      const lead = Math.min(sp.speed, 5) * 0.3;
+      _f.set(sp.x + Math.sin(sp.heading) * lead, sp.y + 0.35, sp.z + Math.cos(sp.heading) * lead);
+      const side = wrapA(sp.heading + cam.sideSign * Math.PI / 2);
+      const yaw = clamp(side, -1.05, 1.05);
+      const two = !!(f && f.phase === 'riding');
+      shot = { name: 'slide', focus: _f, D: two ? 3.4 : 3.0, yaw, pitch: PITCH_SLIDE, tPos: 0.28, tZoom: 1.0, tRot: 1.1 };
+    } else if (f && (f.phase === 'joining' || ((f.phase === 'arriving' || f.phase === 'waiting') && idle > 2.5 && !plow.driving && !fingerDown()))) {
+      // a friend comes to ride (the hand-over): slowly pull back to show the friend and the sled
+      const pts = [f.animal.root.getWorldPosition(_a), _b.set(sp.x, sp.y, sp.z)];
+      shot = { name: 'guest', focus: _f, fit: group(pts, 3.8, 7.5, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.4, tZoom: 1.6, tRot: 1.4 };
+    } else if (st === 'ready' && idle > 6 && !plow.driving && !fingerDown() && !S.transitioning) {
+      // resting: after a while without touches, show the plow and the sled together again (where to go next)
+      const pts = [_a.set(plow.x, plow.y, plow.z), _b.set(sp.x, sp.y, sp.z)];
+      shot = { name: 'look', focus: _f, fit: group(pts, 3.8, 6.5, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.6, tZoom: 1.8, tRot: 1.6 };
+    } else if (st === 'held') {
+      _f.set(sp.x, sp.y + 0.3, sp.z);
+      shot = { name: 'carry', focus: _f, D: 3.2, yaw: 0, pitch: PITCH_WORK, tPos: 0.6, tZoom: 1.0, tRot: 1.0 };
+    } else {
+      // work: the plow and the snow in front of its blade
+      _f.set(plow.x + Math.sin(plow.heading) * 0.7, plow.y + 0.35, plow.z + Math.cos(plow.heading) * 0.7);
+      incl.length = 0;
+      if (st === 'ready' || st === 'stopped') incl.push(_b.set(sp.x, sp.y + 0.4, sp.z));
+      if (f && (f.phase === 'arriving' || f.phase === 'waiting')) incl.push(f.animal.root.getWorldPosition(_c).setY(_c.y + 0.5));
+      // while driving the subject stays near the middle; when the plow rests, the sled/friend may pull the view further
+      const busy = plow.driving || fingerDown() || idle < 1.5;
+      shot = { name: 'work', focus: _f, D: 3.8, yaw: 0, pitch: PITCH_WORK, include: incl, panMax: busy ? 0.3 : 0.5, tPos: busy ? 0.55 : 1.2, tZoom: 1.0, tRot: 1.0 };
+    }
+
+    // dead zone while a finger is down: the view holds still so the finger keeps pointing where it means,
+    // and only moves on when the subject walks out of the middle (then the finger point moves with it)
+    if (fingerDown() && (shot.name === 'work' || shot.name === 'carry')) {
+      if (!cam.anchored) { cam.anchor.copy(rig.focus); cam.anchored = true; }
+      const R = 0.22 * shot.D;
+      const dx = shot.focus.x - cam.anchor.x, dz = shot.focus.z - cam.anchor.z, dd = Math.hypot(dx, dz);
+      if (dd > R) { cam.anchor.x += dx * (1 - R / dd); cam.anchor.z += dz * (1 - R / dd); }
+      cam.anchor.y = shot.focus.y;
+      shot.focus = cam.anchor; shot.include = null;
+    } else cam.anchored = false;
+
+    cam.name = shot.name;
+    rig.set(shot);
+    rig.update(dt);
   }
 
   // ---------- friend / spectators ----------
@@ -130,6 +206,7 @@ export function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 })
     f.animal.root.rotation.set(0, Math.atan2(-p.x * 0.3, 8), 0);
     f.animal.setPose('spin');
     sfx.play('fanfare');
+    cam.finaleUntil = S.time + 5.2;
     const head = () => f.animal.root.position.clone().add(new THREE.Vector3(0, 0.8, 0));
     bursts.emit('heart', head(), 10, HEART_COLORS);
     after(0.8, () => bursts.emit('heart', head(), 8, HEART_COLORS));
@@ -348,7 +425,8 @@ export function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 })
     world.setPalette(S.round);
     setRider(RIDERS[S.round % RIDERS.length]);
     Object.assign(S, { firstTouchT: null, slides: 0, hillGrewSinceSlide: false, mode: null, plowTarget: null, plowDragging: false, sledHold: null, friendDone: false, hint: null, riderOverride: null });
-    camOff.set(0, 0, 0); placeCamera();
+    cam.slide = false; cam.finaleUntil = 0; cam.prevSled = 'ready'; cam.anchored = false;
+    rig.requestSnap(); directCamera(0, hero.getSledPose());
     flag.setStage(hero.getStats().hillStage);
     flag.update(0, flagTarget(flagPos), true);
   }
@@ -392,19 +470,17 @@ export function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 })
     ring.update(dt);
     sfx.continuous(hero.getPlowPose(), sp);
 
-    // camera: small, slow pan toward the sled only while it slides
-    if (sp.state === 'slide' || sp.state === 'hop') camOffTarget.set(clamp((sp.x - LOOK.x) * 0.12, -0.9, 0.9), 0, clamp((sp.z - LOOK.z) * 0.08, -0.7, 0.7));
-    else camOffTarget.set(0, 0, 0);
-    camOff.lerp(camOffTarget, 1 - Math.exp(-dt / 1.2));
-    placeCamera();
+    directCamera(dt, sp);
   }
 
   return {
-    S, handlers, pickers, update, fitCamera, onHeroEvent, onAgain, flag,
+    S, handlers, pickers, update, fitCamera, onHeroEvent, onAgain, flag, rig,
+    get camName() { return cam.name; },
     get rider() { return rider; },
     dispose() { flag.dispose(); bursts.dispose(); ring.dispose(); rider.dispose(); S.spectators.forEach((s) => s.animal.dispose()); if (S.friend) S.friend.animal.dispose(); },
   };
 }
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function wrapA(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
 function turn(h, target, step) { let d = target - h; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return h + clamp(d, -step, step); }

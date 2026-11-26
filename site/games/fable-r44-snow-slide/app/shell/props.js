@@ -6,7 +6,7 @@ export function createFlag(shadows) {
   const root = new THREE.Group(); root.name = 'shell.flag';
   const inner = new THREE.Group(); root.add(inner);
   const poleMat = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.4, 8).translate(0, 0.7, 0), poleMat);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.4, 12).translate(0, 0.7, 0), poleMat);
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8).translate(0, 1.42, 0), new THREE.MeshLambertMaterial({ color: 0xffd23f, emissive: 0xffc400, emissiveIntensity: 0.3 }));
   // triangular cloth with a few segments so it can wave
   const cloth = new THREE.BufferGeometry();

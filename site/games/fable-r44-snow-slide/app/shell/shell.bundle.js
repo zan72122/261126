@@ -38,13 +38,13 @@
   });
 
   // app/shell/main.js
-  var THREE8 = __toESM(require_three(), 1);
+  var THREE9 = __toESM(require_three(), 1);
 
   // app/shell/tier.js
   var TIERS = {
     desktop: { name: "desktop", dprMax: 2, msaa: true, shadows: true, shadowSize: 512, flakes: 360, renderScale: 1 },
     mobile: { name: "mobile", dprMax: 1, msaa: false, shadows: true, shadowSize: 512, flakes: 240, renderScale: 1 },
-    low: { name: "low", dprMax: 1, msaa: false, shadows: false, shadowSize: 512, flakes: 100, renderScale: 0.8 }
+    low: { name: "low", dprMax: 1, msaa: false, shadows: false, shadowSize: 512, flakes: 100, renderScale: 0.75 }
   };
   function detectTier(params2) {
     const forced = params2.get("tier");
@@ -52,9 +52,16 @@
     const base = TIERS[forced] || (isMobile ? TIERS.mobile : TIERS.desktop);
     return { ...base, isMobile };
   }
-  function pixelRatioFor(tier) {
+  var QUALITY_STEPS = [
+    { scale: 1, low: false },
+    { scale: 0.85, low: false },
+    { scale: 0.75, low: false },
+    { scale: 0.75, low: true }
+    // last resort: tier 'low' (no shadows, fewer flakes)
+  ];
+  function pixelRatioFor(tier, step = 0) {
     const dpr = tier.isMobile ? 1 : Math.min(window.devicePixelRatio || 1, tier.dprMax);
-    return dpr * tier.renderScale;
+    return dpr * Math.min(tier.renderScale, QUALITY_STEPS[step].scale);
   }
   var FrameMonitor = class {
     constructor() {
@@ -89,7 +96,11 @@
         const fps = this.windowFrames / this.windowT;
         this.windowT = 0;
         this.windowFrames = 0;
-        return fps < 40;
+        if (fps < 40) {
+          this.warm = 2;
+          return true;
+        }
+        return false;
       }
       return false;
     }
@@ -414,7 +425,7 @@
     group.add(ground);
     const bankParts = [];
     const makeBank = (len) => {
-      const g = new THREE2.CapsuleGeometry(0.38, len, 4, 10).rotateZ(Math.PI / 2);
+      const g = new THREE2.CapsuleGeometry(0.38, len, 6, 16).rotateZ(Math.PI / 2);
       g.scale(1, 0.75, 1);
       const p2 = g.attributes.position;
       for (let i = 0; i < p2.count; i++) {
@@ -470,7 +481,7 @@
     });
     trees.castShadow = false;
     group.add(trees);
-    const bushGeo = keep(new THREE2.IcosahedronGeometry(0.7, 1).scale(1, 0.62, 1));
+    const bushGeo = keep(new THREE2.IcosahedronGeometry(0.7, 3).scale(1, 0.62, 1));
     const bushMat = keep(new THREE2.MeshLambertMaterial({ map: tex.ground, color: 16777215 }));
     const bushSpots = [[-8.6, -5], [-8.8, 5.6], [8.7, -5.2], [9, 5.8], [-4, -8.4], [3.6, -8.6], [0.4, -9.2]];
     const bushes = new THREE2.InstancedMesh(bushGeo, bushMat, bushSpots.length);
@@ -498,6 +509,7 @@
     sc.far = 40;
     sun.shadow.bias = -8e-4;
     sun.shadow.normalBias = 0.03;
+    sun.shadow.radius = 1.6;
     scene.add(sun, sun.target);
     scene.fog = new THREE2.Fog(14675708, 34, 95);
     const flakeTex = keep(flakeTexture());
@@ -591,7 +603,7 @@
   }
 
   // app/shell/flow.js
-  var THREE5 = __toESM(require_three(), 1);
+  var THREE6 = __toESM(require_three(), 1);
 
   // app/shell/animals.js
   var THREE3 = __toESM(require_three(), 1);
@@ -619,7 +631,10 @@
     return geo.index ? geo : geo;
   }
   var M = (x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => new THREE3.Matrix4().compose(new THREE3.Vector3(x, y, z), new THREE3.Quaternion().setFromEuler(new THREE3.Euler(rx, ry, rz)), new THREE3.Vector3(sx, sy, sz));
-  var sph = (r, w = 12, h = 9) => new THREE3.SphereGeometry(r, w, h);
+  var sph = (r, w = 12, h = 9) => {
+    const k = r >= 0.06 ? 1.45 : 1;
+    return new THREE3.SphereGeometry(r, Math.round(w * k), Math.round(h * k));
+  };
   function buildParts(kind) {
     const d = DEF[kind];
     const body = [], head = [], arm = [];
@@ -835,7 +850,7 @@
     const inner = new THREE4.Group();
     root.add(inner);
     const poleMat = new THREE4.MeshLambertMaterial({ color: 15921906 });
-    const pole = new THREE4.Mesh(new THREE4.CylinderGeometry(0.035, 0.045, 1.4, 8).translate(0, 0.7, 0), poleMat);
+    const pole = new THREE4.Mesh(new THREE4.CylinderGeometry(0.035, 0.045, 1.4, 12).translate(0, 0.7, 0), poleMat);
     const knob = new THREE4.Mesh(new THREE4.SphereGeometry(0.07, 10, 8).translate(0, 1.42, 0), new THREE4.MeshLambertMaterial({ color: 16765503, emissive: 16761856, emissiveIntensity: 0.3 }));
     const cloth = new THREE4.BufferGeometry();
     const SEG = 6, pos = [], idx = [];
@@ -1025,17 +1040,247 @@
     };
   }
 
+  // app/shell/camrig.js
+  var THREE5 = __toESM(require_three(), 1);
+  var SHARE = 0.62;
+  var DEG = Math.PI / 180;
+  var PITCH_MAX = 62 * DEG;
+  var CAM_X_MAX = 9;
+  var ZOOM_SPEED = 0.55;
+  var YAW_SPEED = 1.1;
+  function createCamRig(camera, { heightAt }) {
+    const view = { w: 1, h: 1, aspect: 1, portrait: false, vfov: 40, tanV: 0.36, tanH: 0.36, tanShort: 0.36, anchorY: 0 };
+    const cur = { fx: 0, fy: 0.5, fz: 0, ld: Math.log(10), yaw: 0, pitch: 36 * DEG, v: { fx: 0, fy: 0, fz: 0, ld: 0, yaw: 0, pitch: 0 } };
+    const tgt = { fx: 0, fy: 0.5, fz: 0, ld: Math.log(10), yaw: 0, pitch: 36 * DEG, D: 3.8 };
+    let shot = { name: "none", tPos: 0.5, tZoom: 0.9, tRot: 0.9 };
+    let snapNext = true;
+    function resize(w, h) {
+      view.w = Math.max(1, w);
+      view.h = Math.max(1, h);
+      const a = view.w / view.h;
+      view.aspect = a;
+      view.portrait = a < 1;
+      let vfov;
+      if (view.portrait) {
+        vfov = clamp(2 * Math.atan(Math.tan(21 * DEG) / a), 40 * DEG, 58 * DEG);
+        view.anchorY = -0.3;
+      } else {
+        vfov = a > 1.6 ? 2 * Math.atan(Math.tan(35 * DEG) / a) : 40 * DEG;
+        view.anchorY = -0.06;
+      }
+      view.vfov = vfov / DEG;
+      view.tanV = Math.tan(vfov / 2);
+      view.tanH = view.tanV * a;
+      view.tanShort = Math.min(view.tanV, view.tanH);
+      camera.fov = view.vfov;
+      camera.aspect = a;
+      camera.near = 0.3;
+      camera.far = 200;
+      camera.setViewOffset(view.w, view.h, 0, view.anchorY / 2 * view.h, view.w, view.h);
+      camera.updateProjectionMatrix();
+      if (shot.name !== "none") set(shot);
+      place();
+    }
+    const distFor = (D) => D / (SHARE * 2 * view.tanShort);
+    const B = { dir: new THREE5.Vector3(), f: new THREE5.Vector3(), r: new THREE5.Vector3(), u: new THREE5.Vector3() };
+    function basis(yaw, pitch) {
+      const cp = Math.cos(pitch);
+      B.dir.set(Math.sin(yaw) * cp, Math.sin(pitch), Math.cos(yaw) * cp);
+      B.f.copy(B.dir).negate();
+      B.r.set(Math.cos(yaw), 0, -Math.sin(yaw));
+      B.u.crossVectors(B.r, B.f);
+      return B;
+    }
+    const _c = new THREE5.Vector3(), _v = new THREE5.Vector3();
+    function ndcOf(p, fx, fy, fz, d, out) {
+      _c.set(fx, fy, fz).addScaledVector(B.dir, d);
+      _v.set(p.x, p.y, p.z).sub(_c);
+      const z = Math.max(0.3, _v.dot(B.f));
+      out.x = _v.dot(B.r) / (z * view.tanH);
+      out.y = _v.dot(B.u) / (z * view.tanV) + view.anchorY;
+      out.z = z;
+      return out;
+    }
+    function clearPitch(fx, fy, fz, yaw, d, base) {
+      const sx = Math.sin(yaw), sz = Math.cos(yaw);
+      let need = base;
+      for (let k = 1; k <= 10; k++) {
+        const s = 0.5 + k / 10 * d * Math.cos(base) * 0.9;
+        const h = heightAt(fx + sx * s, fz + sz * s);
+        if (h > fy - 0.2) need = Math.max(need, Math.atan2(h + 0.35 - fy, s));
+      }
+      return Math.min(need, PITCH_MAX);
+    }
+    const _n = new THREE5.Vector3();
+    const FIT = 0.78;
+    function fitD(s, yaw, pitch) {
+      const pts = s.fit.pts;
+      basis(yaw, pitch);
+      const sp = Math.max(0.2, Math.sin(pitch)), gx = -Math.sin(yaw), gz = -Math.cos(yaw);
+      const d0 = distFor(s.fit.dMin), d1 = distFor(s.fit.dMax);
+      let d = d0;
+      for (; d < d1; d *= 1.03) {
+        const k = ((s.centerY ?? view.anchorY) - view.anchorY) * d * view.tanV / sp;
+        const fx = s.focus.x - gx * k, fz = s.focus.z - gz * k;
+        let ok = true;
+        for (const p of pts) {
+          ndcOf(p, fx, s.focus.y, fz, d, _n);
+          if (Math.abs(_n.x) > FIT || Math.abs(_n.y) > FIT) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) break;
+      }
+      return Math.min(d, d1) * SHARE * 2 * view.tanShort;
+    }
+    function set(s) {
+      shot = s;
+      if (s.fit) s.D = fitD(s, s.yaw || 0, s.pitch + (view.portrait ? 5 * DEG : 0));
+      const d = distFor(s.D);
+      let yaw = s.yaw || 0;
+      const basePitch = s.pitch + (view.portrait ? 5 * DEG : 0);
+      const cpb = Math.cos(basePitch);
+      const room = CAM_X_MAX - Math.sign(Math.sin(yaw) || 1) * s.focus.x;
+      if (Math.abs(Math.sin(yaw)) * d * cpb > room) yaw = Math.sign(yaw) * Math.asin(clamp(room / (d * cpb), 0, 1));
+      const pitch = clearPitch(s.focus.x, s.focus.y, s.focus.z, yaw, d, basePitch);
+      basis(yaw, pitch);
+      let fx = s.focus.x, fy = s.focus.y, fz = s.focus.z;
+      if (s.centerY != null) {
+        const k = (s.centerY - view.anchorY) * d * view.tanV / Math.max(0.2, Math.sin(pitch));
+        fx -= -Math.sin(yaw) * k;
+        fz -= -Math.cos(yaw) * k;
+      }
+      const inc = s.include || [];
+      if (inc.length && s.panMax > 0) {
+        const gx = -Math.sin(yaw), gz = -Math.cos(yaw), sp = Math.max(0.2, Math.sin(pitch));
+        const maxR = s.panMax * d * view.tanH, maxG = s.panMax * d * view.tanV / sp;
+        let pr = 0, pg = 0;
+        for (let it = 0; it < 3; it++) {
+          let ex = 0, ey = 0;
+          for (const p of inc) {
+            ndcOf(p, fx, fy, fz, d, _n);
+            if (_n.x > 0.8) ex = Math.max(ex, (_n.x - 0.8) * _n.z * view.tanH);
+            else if (_n.x < -0.8) ex = Math.min(ex, (_n.x + 0.8) * _n.z * view.tanH);
+            if (_n.y > 0.78) ey = Math.max(ey, (_n.y - 0.78) * _n.z * view.tanV / sp);
+            else if (_n.y < -0.85) ey = Math.min(ey, (_n.y + 0.85) * _n.z * view.tanV / sp);
+          }
+          const nr = clamp(pr + ex, -maxR, maxR), ng = clamp(pg + ey, -maxG, maxG);
+          const dr = nr - pr, dg = ng - pg;
+          pr = nr;
+          pg = ng;
+          fx += B.r.x * dr + gx * dg;
+          fz += B.r.z * dr + gz * dg;
+          if (Math.abs(dr) + Math.abs(dg) < 1e-3) break;
+        }
+      }
+      tgt.fx = fx;
+      tgt.fy = fy;
+      tgt.fz = fz;
+      tgt.ld = Math.log(d);
+      tgt.yaw = yaw;
+      tgt.pitch = pitch;
+      tgt.D = s.D;
+      if (snapNext) snap();
+    }
+    function snap() {
+      snapNext = false;
+      cur.fx = tgt.fx;
+      cur.fy = tgt.fy;
+      cur.fz = tgt.fz;
+      cur.ld = tgt.ld;
+      cur.yaw = tgt.yaw;
+      cur.pitch = tgt.pitch;
+      for (const k in cur.v) cur.v[k] = 0;
+      place();
+    }
+    function update(dt) {
+      if (!(dt > 0)) {
+        place();
+        return;
+      }
+      damp(cur, "fx", tgt.fx, shot.tPos, dt);
+      damp(cur, "fy", tgt.fy, shot.tPos * 1.4, dt);
+      damp(cur, "fz", tgt.fz, shot.tPos, dt);
+      damp(cur, "ld", tgt.ld, shot.tZoom, dt, ZOOM_SPEED);
+      cur.yaw = tgt.yaw + wrap(cur.yaw - tgt.yaw);
+      damp(cur, "yaw", tgt.yaw, shot.tRot, dt, YAW_SPEED);
+      damp(cur, "pitch", tgt.pitch, shot.tRot, dt, YAW_SPEED * 0.6);
+      place();
+    }
+    function place() {
+      const d = Math.exp(cur.ld);
+      basis(cur.yaw, cur.pitch);
+      camera.position.set(cur.fx, cur.fy, cur.fz).addScaledVector(B.dir, d);
+      camera.lookAt(cur.fx, cur.fy, cur.fz);
+      camera.updateMatrixWorld();
+    }
+    return {
+      view,
+      resize,
+      set,
+      snap,
+      update,
+      requestSnap() {
+        snapNext = true;
+      },
+      get focus() {
+        return { x: cur.fx, y: cur.fy, z: cur.fz };
+      },
+      distFor,
+      info() {
+        const d = Math.exp(cur.ld);
+        return {
+          shot: shot.name,
+          d,
+          share: tgt.D / (2 * d * view.tanShort),
+          shortM: 2 * d * view.tanShort,
+          fov: view.vfov,
+          portrait: view.portrait,
+          yaw: cur.yaw / DEG,
+          pitch: cur.pitch / DEG
+        };
+      }
+    };
+  }
+  function damp(s, k, target, T, dt, maxSpeed = Infinity) {
+    T = Math.max(1e-3, T);
+    const omega = 2 / T, x = omega * dt;
+    const e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const lim = maxSpeed * T;
+    const change = clamp(s[k] - target, -lim, lim);
+    const to = s[k] - change;
+    const temp = (s.v[k] + omega * change) * dt;
+    s.v[k] = (s.v[k] - omega * temp) * e;
+    let out = to + (change + temp) * e;
+    if (target - s[k] > 0 === out > target) {
+      out = target;
+      s.v[k] = 0;
+    }
+    if (!Number.isFinite(out)) {
+      out = target;
+      s.v[k] = 0;
+    }
+    s[k] = out;
+  }
+  function clamp(v, a, b) {
+    return v < a ? a : v > b ? b : v;
+  }
+  function wrap(a) {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
+
   // app/shell/flow.js
   var RIDERS = ["bear", "cat", "penguin", "rabbit", "fox"];
   var FRIENDS = ["rabbit", "fox", "penguin", "cat", "bear"];
-  var ENTRY = new THREE5.Vector3(9.8, 0, 3.4);
-  var WAIT_SPOT = new THREE5.Vector3(7.2, 0, 2.6);
-  var SPOTS = [[7.2, -0.4], [-7.2, 2.6], [-7.2, -0.4], [7.2, -3.4]].map(([x, z]) => new THREE5.Vector3(x, 0, z));
+  var ENTRY = new THREE6.Vector3(9.8, 0, 3.4);
+  var WAIT_SPOT = new THREE6.Vector3(7.2, 0, 2.6);
+  var SPOTS = [[7.2, -0.4], [-7.2, 2.6], [-7.2, -0.4], [7.2, -3.4]].map(([x, z]) => new THREE6.Vector3(x, 0, z));
   var FRIEND_AFTER_S = 60;
   var HEART_COLORS = [16735370, 16748465, 16763196, 8177919, 11832575];
   var STAR_COLORS = [16765503, 16773242, 16777215, 10477823];
-  var LOOK = new THREE5.Vector3(0, 0.3, 0.4);
-  var VIEW_DIR = new THREE5.Vector3(0, 9, 12.5).normalize();
   function createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 }) {
     const S = {
       time: 0,
@@ -1077,7 +1322,7 @@
     };
     const flag = createFlag(tier.shadows);
     scene.add(flag.root);
-    const flagPos = new THREE5.Vector3();
+    const flagPos = new THREE6.Vector3();
     function flagTarget(out) {
       const p = hero.getPeak();
       const x = p.x - 0.7, z = p.z - 0.45;
@@ -1087,32 +1332,94 @@
     flag.setStage(hero.getStats().hillStage);
     const bursts = new Bursts(scene, camera);
     const ring = createTouchRing(scene);
-    let baseDist = 24;
-    const camOff = new THREE5.Vector3(), camOffTarget = new THREE5.Vector3();
+    const rig = createCamRig(camera, { heightAt: (x, z) => hero.heightAt(x, z) });
+    const cam = { slide: false, hopIsSlide: false, prevSled: "ready", stoppedAt: 0, finaleUntil: 0, anchor: new THREE6.Vector3(), anchored: false, sideSign: 1, name: "start" };
+    const PITCH_WORK = 38 * Math.PI / 180, PITCH_SLIDE = 24 * Math.PI / 180, PITCH_WIDE = 40 * Math.PI / 180;
+    const _f = new THREE6.Vector3(), _a = new THREE6.Vector3(), _b = new THREE6.Vector3(), _c = new THREE6.Vector3();
+    const incl = [];
     function fitCamera(w, h) {
-      camera.aspect = w / h;
-      camera.fov = 42;
-      camera.near = 0.5;
-      camera.far = 200;
-      camera.updateProjectionMatrix();
-      const pts = [[-7.7, 0, -6.4], [7.7, 0, -6.4], [-7, 0, 6.6], [7, 0, 6.6], [-5, 2.6, -5.5], [5, 2.6, -5.5], [7.6, 0.8, 2.6], [-7.6, 0.8, 2.6]].map((a) => new THREE5.Vector3(...a));
-      const v = new THREE5.Vector3();
-      let d = 10;
-      for (; d < 80; d += 0.25) {
-        camera.position.copy(LOOK).addScaledVector(VIEW_DIR, d);
-        camera.lookAt(LOOK);
-        camera.updateMatrixWorld();
-        if (pts.every((p) => {
-          v.copy(p).project(camera);
-          return Math.abs(v.x) < 0.97 && Math.abs(v.y) < 0.95;
-        })) break;
-      }
-      baseDist = d;
-      placeCamera();
+      rig.resize(w, h);
     }
-    function placeCamera() {
-      camera.position.copy(LOOK).add(camOff).addScaledVector(VIEW_DIR, baseDist);
-      camera.lookAt(LOOK.x + camOff.x, LOOK.y + camOff.y, LOOK.z + camOff.z);
+    const fitPts = [new THREE6.Vector3(), new THREE6.Vector3(), new THREE6.Vector3(), new THREE6.Vector3()];
+    function group(pts, dMin, dMax, out) {
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, y = 0;
+      for (const p of pts) {
+        x0 = Math.min(x0, p.x);
+        x1 = Math.max(x1, p.x);
+        z0 = Math.min(z0, p.z);
+        z1 = Math.max(z1, p.z);
+        y += p.y;
+      }
+      out.set((x0 + x1) / 2, y / pts.length + 0.3, (z0 + z1) / 2);
+      const list = [];
+      pts.forEach((p, i) => {
+        list.push(fitPts[i * 2].set(p.x, p.y, p.z), fitPts[i * 2 + 1].set(p.x, p.y + 1.1, p.z));
+      });
+      return { pts: list, dMin, dMax };
+    }
+    const fingerDown = () => S.mode === "drive" || S.mode === "sled" || S.mode === "pendingSled" || S.mode === "pendingTap";
+    function directCamera(dt, sp) {
+      const st = sp.state;
+      if (st === "hop" && cam.prevSled !== "hop") cam.hopIsSlide = cam.prevSled !== "return";
+      if (st === "stopped" && cam.prevSled !== "stopped") cam.stoppedAt = S.time;
+      if ((st === "slide" || st === "hop" && cam.hopIsSlide) && !cam.slide) {
+        cam.slide = true;
+        cam.sideSign = Math.cos(sp.heading + Math.PI / 2) >= Math.cos(sp.heading - Math.PI / 2) ? 1 : -1;
+      }
+      if (st === "ready" || st === "held" || st === "return" || st === "stopped" && S.time - cam.stoppedAt > 1.4) cam.slide = false;
+      cam.prevSled = st;
+      const plow = hero.getPlowPose(), f = S.friend;
+      const idle = S.time - S.lastInputT;
+      let shot;
+      if (S.time < cam.finaleUntil) {
+        const pk = hero.getPeak();
+        const pts = [_a.set(pk.x, pk.y * 0.5, pk.z), f ? f.animal.root.getWorldPosition(_b) : _b.set(sp.x, sp.y, sp.z)];
+        shot = { name: "finale", focus: _f, fit: group(pts, 8, 10, _f), centerY: 0, yaw: 0, pitch: PITCH_WIDE, tPos: 1.5, tZoom: 1.6, tRot: 1.4 };
+      } else if (S.firstTouchT === null && !f) {
+        const pts = [_a.set(plow.x, plow.y, plow.z), _b.set(sp.x, sp.y, sp.z)];
+        shot = { name: "start", focus: _f, fit: group(pts, 3.8, 7, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.2, tZoom: 1.2, tRot: 1.2 };
+      } else if (cam.slide) {
+        const lead = Math.min(sp.speed, 5) * 0.3;
+        _f.set(sp.x + Math.sin(sp.heading) * lead, sp.y + 0.35, sp.z + Math.cos(sp.heading) * lead);
+        const side = wrapA(sp.heading + cam.sideSign * Math.PI / 2);
+        const yaw = clamp2(side, -1.05, 1.05);
+        const two = !!(f && f.phase === "riding");
+        shot = { name: "slide", focus: _f, D: two ? 3.4 : 3, yaw, pitch: PITCH_SLIDE, tPos: 0.28, tZoom: 1, tRot: 1.1 };
+      } else if (f && (f.phase === "joining" || (f.phase === "arriving" || f.phase === "waiting") && idle > 2.5 && !plow.driving && !fingerDown())) {
+        const pts = [f.animal.root.getWorldPosition(_a), _b.set(sp.x, sp.y, sp.z)];
+        shot = { name: "guest", focus: _f, fit: group(pts, 3.8, 7.5, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.4, tZoom: 1.6, tRot: 1.4 };
+      } else if (st === "ready" && idle > 6 && !plow.driving && !fingerDown() && !S.transitioning) {
+        const pts = [_a.set(plow.x, plow.y, plow.z), _b.set(sp.x, sp.y, sp.z)];
+        shot = { name: "look", focus: _f, fit: group(pts, 3.8, 6.5, _f), centerY: 0, yaw: 0, pitch: PITCH_WORK, tPos: 1.6, tZoom: 1.8, tRot: 1.6 };
+      } else if (st === "held") {
+        _f.set(sp.x, sp.y + 0.3, sp.z);
+        shot = { name: "carry", focus: _f, D: 3.2, yaw: 0, pitch: PITCH_WORK, tPos: 0.6, tZoom: 1, tRot: 1 };
+      } else {
+        _f.set(plow.x + Math.sin(plow.heading) * 0.7, plow.y + 0.35, plow.z + Math.cos(plow.heading) * 0.7);
+        incl.length = 0;
+        if (st === "ready" || st === "stopped") incl.push(_b.set(sp.x, sp.y + 0.4, sp.z));
+        if (f && (f.phase === "arriving" || f.phase === "waiting")) incl.push(f.animal.root.getWorldPosition(_c).setY(_c.y + 0.5));
+        const busy = plow.driving || fingerDown() || idle < 1.5;
+        shot = { name: "work", focus: _f, D: 3.8, yaw: 0, pitch: PITCH_WORK, include: incl, panMax: busy ? 0.3 : 0.5, tPos: busy ? 0.55 : 1.2, tZoom: 1, tRot: 1 };
+      }
+      if (fingerDown() && (shot.name === "work" || shot.name === "carry")) {
+        if (!cam.anchored) {
+          cam.anchor.copy(rig.focus);
+          cam.anchored = true;
+        }
+        const R = 0.22 * shot.D;
+        const dx = shot.focus.x - cam.anchor.x, dz = shot.focus.z - cam.anchor.z, dd = Math.hypot(dx, dz);
+        if (dd > R) {
+          cam.anchor.x += dx * (1 - R / dd);
+          cam.anchor.z += dz * (1 - R / dd);
+        }
+        cam.anchor.y = shot.focus.y;
+        shot.focus = cam.anchor;
+        shot.include = null;
+      } else cam.anchored = false;
+      cam.name = shot.name;
+      rig.set(shot);
+      rig.update(dt);
     }
     const groundY = (x, z) => hero.heightAt(x, z);
     function walk(ent, target, speed, dt) {
@@ -1164,12 +1471,13 @@
       scene.attach(f.animal.root);
       const p = f.animal.root.position;
       const side = p.x > 0 ? -0.9 : 0.9;
-      p.x = clamp(p.x + side, -5.4, 5.4);
+      p.x = clamp2(p.x + side, -5.4, 5.4);
       p.y = groundY(p.x, p.z);
       f.animal.root.rotation.set(0, Math.atan2(-p.x * 0.3, 8), 0);
       f.animal.setPose("spin");
       sfx.play("fanfare");
-      const head = () => f.animal.root.position.clone().add(new THREE5.Vector3(0, 0.8, 0));
+      cam.finaleUntil = S.time + 5.2;
+      const head = () => f.animal.root.position.clone().add(new THREE6.Vector3(0, 0.8, 0));
       bursts.emit("heart", head(), 10, HEART_COLORS);
       after(0.8, () => bursts.emit("heart", head(), 8, HEART_COLORS));
       after(1.4, () => {
@@ -1205,7 +1513,7 @@
             a.setPose("cheer");
             break;
           }
-          const back = hero.seats[1].getWorldPosition(new THREE5.Vector3());
+          const back = hero.seats[1].getWorldPosition(new THREE6.Vector3());
           if (walk(f, back, 3, dt) || a.root.position.distanceTo(back) < 0.5) {
             hero.seats[1].add(a.root);
             a.root.position.set(0, 0, 0);
@@ -1258,7 +1566,7 @@
           sfx.play("grow", d);
           flag.pop();
           flag.setStage(d.stage);
-          bursts.emit("star", flag.root.position.clone().add(new THREE5.Vector3(0, 1.4, 0)), 8, STAR_COLORS);
+          bursts.emit("star", flag.root.position.clone().add(new THREE6.Vector3(0, 1.4, 0)), 8, STAR_COLORS);
           riderPose("clap", 1.6);
           S.hillGrewSinceSlide = true;
           break;
@@ -1462,8 +1770,12 @@
       world.setPalette(S.round);
       setRider(RIDERS[S.round % RIDERS.length]);
       Object.assign(S, { firstTouchT: null, slides: 0, hillGrewSinceSlide: false, mode: null, plowTarget: null, plowDragging: false, sledHold: null, friendDone: false, hint: null, riderOverride: null });
-      camOff.set(0, 0, 0);
-      placeCamera();
+      cam.slide = false;
+      cam.finaleUntil = 0;
+      cam.prevSled = "ready";
+      cam.anchored = false;
+      rig.requestSnap();
+      directCamera(0, hero.getSledPose());
       flag.setStage(hero.getStats().hillStage);
       flag.update(0, flagTarget(flagPos), true);
     }
@@ -1509,10 +1821,7 @@
       bursts.update(dt);
       ring.update(dt);
       sfx.continuous(hero.getPlowPose(), sp);
-      if (sp.state === "slide" || sp.state === "hop") camOffTarget.set(clamp((sp.x - LOOK.x) * 0.12, -0.9, 0.9), 0, clamp((sp.z - LOOK.z) * 0.08, -0.7, 0.7));
-      else camOffTarget.set(0, 0, 0);
-      camOff.lerp(camOffTarget, 1 - Math.exp(-dt / 1.2));
-      placeCamera();
+      directCamera(dt, sp);
     }
     return {
       S,
@@ -1523,6 +1832,10 @@
       onHeroEvent,
       onAgain,
       flag,
+      rig,
+      get camName() {
+        return cam.name;
+      },
       get rider() {
         return rider;
       },
@@ -1536,23 +1849,28 @@
       }
     };
   }
-  function clamp(v, a, b) {
+  function clamp2(v, a, b) {
     return v < a ? a : v > b ? b : v;
+  }
+  function wrapA(a) {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
   }
   function turn(h, target, step) {
     let d = target - h;
     while (d > Math.PI) d -= 2 * Math.PI;
     while (d < -Math.PI) d += 2 * Math.PI;
-    return h + clamp(d, -step, step);
+    return h + clamp2(d, -step, step);
   }
 
   // app/shell/input.js
-  var THREE6 = __toESM(require_three(), 1);
+  var THREE7 = __toESM(require_three(), 1);
   var TAP_PX = 10;
   var TAP_MS = 350;
   function createInput(canvas, camera, getPickers, raycastGround, handlers) {
-    const ray = new THREE6.Raycaster();
-    const ndc = new THREE6.Vector2();
+    const ray = new THREE7.Raycaster();
+    const ndc = new THREE7.Vector2();
     let active = null;
     function setRay(x, y) {
       const r = canvas.getBoundingClientRect();
@@ -1580,12 +1898,14 @@
       } catch (_) {
       }
       const hit = pick(e.clientX, e.clientY);
-      active = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), hit, drag: false };
+      active = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: performance.now(), hit, drag: false };
       handlers.down(hit, ground(e.clientX, e.clientY));
     }
     function onMove(e) {
       if (!active || e.pointerId !== active.id) return;
       e.preventDefault();
+      active.x = e.clientX;
+      active.y = e.clientY;
       if (!active.drag && Math.hypot(e.clientX - active.x0, e.clientY - active.y0) >= TAP_PX) active.drag = true;
       handlers.move(ground(e.clientX, e.clientY), active.drag, active.hit);
     }
@@ -1607,6 +1927,11 @@
     return {
       get busy() {
         return !!active;
+      },
+      // once per frame, before the camera moves on: the camera may have moved under a finger that is held still,
+      // so the point under the finger is cast again with the camera as it was last drawn (what the child sees)
+      refresh() {
+        if (active) handlers.move(ground(active.x, active.y), active.drag, active.hit);
       },
       project(v, out) {
         const p = v.clone().project(camera);
@@ -1872,7 +2197,7 @@
   };
 
   // app/shell/debug.js
-  var THREE7 = __toESM(require_three(), 1);
+  var THREE8 = __toESM(require_three(), 1);
   var errors = [];
   function captureErrors() {
     const push = (m) => {
@@ -1933,7 +2258,7 @@
       for (const a of Object.values(g.attributes || {})) if (a && a.array) geoMem += a.array.byteLength;
       if (g.index) geoMem += g.index.array.byteLength;
     }
-    const db = renderer.getDrawingBufferSize(new THREE7.Vector2());
+    const db = renderer.getDrawingBufferSize(new THREE8.Vector2());
     const px = db.x * db.y;
     const fbMem = px * (4 + 4) + px * 4 + (tier.msaa ? px * 8 * 4 : 0);
     const shadowMem = renderer.shadowMap.enabled && tier.shadows ? tier.shadowSize * tier.shadowSize * 8 : 0;
@@ -1956,7 +2281,8 @@
     document.body.appendChild(el);
     return {
       show(s) {
-        el.textContent = `tier ${s.tier}  canvas ${s.m.canvas}  dpr ${s.dpr.toFixed(2)}
+        el.textContent = `tier ${s.tier}  canvas ${s.m.canvas} (css ${s.css.w}x${s.css.h})  dpr ${s.dpr.toFixed(2)}  q${s.q}
+cam ${s.cam.shot}  subject ${(s.cam.share * 100).toFixed(0)}% of short side  view ${s.cam.shortM.toFixed(1)}m  d ${s.cam.d.toFixed(1)}m  fov ${s.cam.fov.toFixed(0)}${s.cam.portrait ? " portrait" : ""}
 fps ${s.fps.avg.toFixed(0)} avg / ${s.fps.p95.toFixed(0)} p95  boot ${s.bootMs.toFixed(0)}ms
 draw ${s.calls} (shadow incl.)  tris ${s.tris} frame
 scene tris ${s.m.totalTris} = hero ${s.m.heroTris} + shell ${s.m.totalTris - s.m.heroTris}
@@ -1976,19 +2302,21 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
   async function boot() {
     const t0 = performance.now();
     let tier = detectTier(params);
+    let qStep = 0;
     const canvas = document.getElementById("c");
-    const renderer = new THREE8.WebGLRenderer({ canvas, antialias: tier.msaa, powerPreference: "high-performance", alpha: false, stencil: false });
-    renderer.setPixelRatio(pixelRatioFor(tier));
-    renderer.setSize(window.innerWidth, window.innerHeight, false);
-    renderer.outputColorSpace = THREE8.SRGBColorSpace;
-    renderer.toneMapping = THREE8.NeutralToneMapping;
+    const viewSize = () => ({ w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight });
+    const renderer = new THREE9.WebGLRenderer({ canvas, antialias: tier.msaa, powerPreference: "high-performance", alpha: false, stencil: false });
+    renderer.setPixelRatio(pixelRatioFor(tier, qStep));
+    renderer.setSize(viewSize().w, viewSize().h, false);
+    renderer.outputColorSpace = THREE9.SRGBColorSpace;
+    renderer.toneMapping = THREE9.NeutralToneMapping;
     renderer.toneMappingExposure = 1;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE8.PCFShadowMap;
+    renderer.shadowMap.type = THREE9.PCFShadowMap;
     renderer.info.autoReset = false;
-    const scene = new THREE8.Scene();
-    scene.background = new THREE8.Color(14675708);
-    const camera = new THREE8.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 200);
+    const scene = new THREE9.Scene();
+    scene.background = new THREE9.Color(14675708);
+    const camera = new THREE9.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 200);
     const tex = await loadTextures(renderer);
     const world = createWorld(scene, tex.shell, tier);
     const createHero = window.HeroModule && window.HeroModule.createHero;
@@ -1996,7 +2324,7 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
     const sfx = new Sfx();
     let flow = null;
     const seed0 = params.has("seed") ? parseInt(params.get("seed"), 10) | 0 : Date.now() & 2147483647;
-    const hero = createHero(THREE8, {
+    const hero = createHero(THREE9, {
       textures: tex.hero,
       tier: tier.name,
       shadows: tier.shadows,
@@ -2011,14 +2339,35 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
     const ui = createUI(() => flow && flow.onAgain());
     flow = createFlow({ scene, camera, hero, sfx, world, ui, tier, seed0 });
     const input = createInput(canvas, camera, flow.pickers, (ray) => hero.raycastGround(ray), flow.handlers);
-    function resize() {
-      renderer.setPixelRatio(pixelRatioFor(tier));
-      renderer.setSize(window.innerWidth, window.innerHeight, false);
-      flow.fitCamera(window.innerWidth, window.innerHeight);
+    let lastW = 0, lastH = 0, lastPR = 0, resizeQueued = false;
+    function resize(force) {
+      resizeQueued = false;
+      const { w, h } = viewSize(), pr = pixelRatioFor(tier, qStep);
+      if (!force && w === lastW && h === lastH && pr === lastPR) return;
+      lastW = w;
+      lastH = h;
+      lastPR = pr;
+      renderer.setPixelRatio(pr);
+      renderer.setSize(w, h, false);
+      flow.fitCamera(w, h);
     }
-    window.addEventListener("resize", resize);
-    window.addEventListener("orientationchange", () => setTimeout(resize, 200));
-    resize();
+    const queueResize = () => {
+      if (!resizeQueued) {
+        resizeQueued = true;
+        requestAnimationFrame(() => resize(false));
+      }
+    };
+    window.addEventListener("resize", queueResize);
+    window.addEventListener("orientationchange", () => {
+      queueResize();
+      [120, 350, 800].forEach((ms) => setTimeout(queueResize, ms));
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", queueResize);
+      window.visualViewport.addEventListener("scroll", queueResize);
+    }
+    if (window.ResizeObserver) new ResizeObserver(queueResize).observe(canvas);
+    resize(true);
     let running = true, ctxState = "ok", raf = 0;
     canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
@@ -2057,18 +2406,23 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
     const overlay = DEBUG ? createOverlay() : null;
     let last = performance.now(), bootMs = 0, frames = 0, lastOverlay = 0, lastMeasure = 0, m = null;
     let lastCalls = 0, lastTris = 0;
-    function dropTier() {
-      tier = { ...TIERS.low, isMobile: tier.isMobile };
-      world.setTier(tier);
-      hero.setTier && hero.setTier("low");
-      scene.traverse((o) => {
-        if (o.isMesh) {
-          o.castShadow = o.castShadow && tier.shadows;
-        }
-        const mats = o.material ? [].concat(o.material) : [];
-        mats.forEach((mm) => mm.needsUpdate = true);
-      });
-      resize();
+    function stepDown() {
+      if (qStep >= QUALITY_STEPS.length - 1) return;
+      qStep++;
+      if (QUALITY_STEPS[qStep].low && tier.name !== "low") {
+        tier = { ...TIERS.low, isMobile: tier.isMobile };
+        world.setTier(tier);
+        hero.setTier && hero.setTier("low");
+        scene.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = o.castShadow && tier.shadows;
+          }
+          const mats = o.material ? [].concat(o.material) : [];
+          mats.forEach((mm) => mm.needsUpdate = true);
+        });
+      }
+      console.log("[snow] quality step", qStep, "scale", QUALITY_STEPS[qStep].scale);
+      resize(true);
     }
     function frame(now) {
       if (!running) return;
@@ -2078,6 +2432,7 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
       const dt = Math.min(dtMs / 1e3, 0.05);
       if (frames > 0) mon.push(dtMs);
       try {
+        input.refresh();
         flow.update(dt);
         world.update(dt, flow.S.time);
         renderer.info.reset();
@@ -2092,14 +2447,27 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
         bootMs = now;
         document.body.classList.add("ready");
       }
-      if (!NO_ADAPT && tier.name !== "low" && mon.shouldDrop(dt)) dropTier();
+      if (!NO_ADAPT && qStep < QUALITY_STEPS.length - 1 && mon.shouldDrop(dt)) stepDown();
       if (overlay && now - lastOverlay > 500) {
         lastOverlay = now;
         if (!m || now - lastMeasure > 2e3) {
           m = measure({ renderer, scene, hero, tier });
           lastMeasure = now;
         }
-        overlay.show({ tier: tier.name, dpr: renderer.getPixelRatio(), fps: mon.stats(), bootMs, calls: lastCalls, tris: lastTris, m, scene: sceneName(), ctx: ctxState });
+        overlay.show({
+          tier: tier.name,
+          dpr: renderer.getPixelRatio(),
+          q: qStep,
+          fps: mon.stats(),
+          bootMs,
+          calls: lastCalls,
+          tris: lastTris,
+          m,
+          scene: sceneName(),
+          ctx: ctxState,
+          cam: flow.rig.info(),
+          css: viewSize()
+        });
       }
     }
     raf = requestAnimationFrame(frame);
@@ -2113,10 +2481,10 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
       if (S.firstTouchT === null) return "A start";
       return "B build";
     }
-    const tmp = new THREE8.Vector3(), out = { x: 0, y: 0 };
+    const tmp = new THREE9.Vector3(), out = { x: 0, y: 0 };
     window.__game = {
       ready: true,
-      THREE: THREE8,
+      THREE: THREE9,
       renderer,
       scene,
       camera,
@@ -2131,7 +2499,9 @@ errors ${errors.length}${errors.length ? "\n" + errors.slice(-3).join("\n") : ""
         return frames;
       },
       sceneName,
-      measure: () => ({ ...measure({ renderer, scene, hero, tier }), calls: lastCalls, tris: lastTris, fps: mon.stats(), tier: tier.name }),
+      measure: () => ({ ...measure({ renderer, scene, hero, tier }), calls: lastCalls, tris: lastTris, fps: mon.stats(), tier: tier.name, qStep, cam: flow.rig.info() }),
+      stepDown,
+      resize: () => resize(true),
       screenPos(id) {
         if (id === "plow") {
           const p = hero.getPlowPose();

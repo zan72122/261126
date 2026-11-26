@@ -8,16 +8,18 @@
 <meta name="theme-color" content="#dfeefc">
 <title>雪の滑り台</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(#8cc4ff, #eaf4ff 60%, #ffffff); overscroll-behavior: none; }
+  /* full screen: 100dvh follows the mobile toolbars; 100vh is the fallback for browsers without dvh */
+  html, body { margin: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: #dfeefc; overscroll-behavior: none; }
   body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
-  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; opacity: 0; transition: opacity .3s ease; }
+  #c { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; opacity: 0; transition: opacity .3s ease; }
   body.ready #c { opacity: 1; }
   /* loading: a slowly turning snowflake, no text */
   #load { position: fixed; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; transition: opacity .4s; animation: spin 3s linear infinite; }
   body.ready #load { opacity: 0; pointer-events: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   /* round "again" button (no text) */
-  #again { position: fixed; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); width: 112px; height: 112px; padding: 0; border: 0; border-radius: 50%;
+  /* buttons stay inside the safe area (notch, home bar, rounded corners) */
+  #again { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: 112px; height: 112px; padding: 0; border: 0; border-radius: 50%;
            background: transparent; box-shadow: 0 6px 18px rgba(40,90,160,.35), 0 0 0 6px rgba(255,255,255,.6); touch-action: none; transition: transform .35s cubic-bezier(.3,1.6,.5,1), opacity .35s; }
   #again.hidden { transform: scale(0); opacity: 0; pointer-events: none; }
   #again.show { transform: scale(1); opacity: 1; animation: glow 1.8s ease-in-out infinite; }
@@ -28,7 +30,7 @@
   #curtain { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .75s ease;
              background: radial-gradient(circle at 30% 30%, #fff 0 2px, transparent 3px) 0 0/48px 48px, radial-gradient(circle at 70% 60%, #fff 0 3px, transparent 4px) 0 0/64px 64px, linear-gradient(#f4f9ff, #ffffff); }
   #curtain.on { opacity: 1; }
-  #debug { position: fixed; left: 6px; top: 6px; margin: 0; padding: 6px 8px; font: 11px/1.35 ui-monospace, Menlo, monospace; color: #fff; background: rgba(0,0,0,.55); border-radius: 6px; pointer-events: none; z-index: 9; white-space: pre; }
+  #debug { position: fixed; left: calc(6px + env(safe-area-inset-left, 0px)); top: calc(6px + env(safe-area-inset-top, 0px)); margin: 0; padding: 6px 8px; font: 11px/1.35 ui-monospace, Menlo, monospace; color: #fff; background: rgba(0,0,0,.55); border-radius: 6px; pointer-events: none; z-index: 9; white-space: pre; }
 </style>
 </head>
 <body>

@@ -494,7 +494,9 @@ var HeroModule = (() => {
     vec3 snowF = texture2D(map, vMapUv).rgb;
     vec3 snowP = texture2D(uPackedMap, vMapUv * 0.8).rgb;
     float snowL = dot(snowF, vec3(0.3333));
-    snowPk = smoothstep(0.15, 0.75, snowPk + (snowL - 0.7) * 2.4 * snowPk * (1.0 - snowPk));
+    // a wide ramp, broken up by the snow grain: the packed value is interpolated over 12.5 cm cells and a
+    // steep threshold showed their staircase once the camera came close
+    snowPk = smoothstep(0.02, 0.98, snowPk + (snowL - 0.7) * 7.0 * snowPk * (1.0 - snowPk));
     vec3 snowC = mix(snowF * 1.16, snowP * vec3(0.74, 0.87, 1.06), snowPk);
   #else
     vec3 snowC = mix(vec3(0.95), vec3(0.72, 0.84, 1.0), snowPk);
