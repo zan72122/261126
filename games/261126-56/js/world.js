@@ -366,8 +366,8 @@ export class World {
     const lathe = new THREE.LatheGeometry(pts, 64); lathe.setAttribute('uv1', lathe.attributes.uv);
     this.tubs = [];
     const liquids = [
-      { color: new THREE.Color(0.06, 0.11, 0.13), x: -0.29, kind: 'indigo' },
-      { color: new THREE.Color(0.42, 0.04, 0.16), x: 0.29, kind: 'pink' },
+      { color: new THREE.Color(0.06, 0.11, 0.13), x: 0.29, kind: 'indigo' },
+      { color: new THREE.Color(0.42, 0.04, 0.16), x: -0.29, kind: 'pink' },
     ];
     for (const L of liquids) {
       const tub = new THREE.Group(); tub.position.set(bench.position.x + L.x, 0.24, 0.0);

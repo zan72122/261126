@@ -26,7 +26,7 @@ export class Game {
     this.windT = 0; this.wind = new V3(); this.windAmt = 0.3; this.gust = 0;
     this.camCur = { pos: new V3(-0.8, 1.0, 2.0), tgt: new V3(-1.0, 0.6, -0.4) }; this.camInit = false;
     this.focusX = null;
-    this.tasks = [];
+    this.tasks = []; this.anims = [];
     this.setupScene();
     this.bindInput();
     if (this.Q.get('skip')) this.debugSkip(this.Q.get('skip'));
@@ -43,10 +43,10 @@ export class Game {
     // props
     this.stool = buildStool(world, T, girl); this.stool.group.position.set(-1.42, PATIO, -0.32); this.stool.group.rotation.y = 0.12; scene.add(this.stool.group);
     this.sign = buildSign(world); this.sign.position.set(-1.72, PATIO, -0.98); this.sign.rotation.y = 0.32; scene.add(this.sign);
-    this.basket = buildBasket(world); this.basket.group.position.set(1.58, PATIO, -0.18); scene.add(this.basket.group);
-    this.jar = buildJar(); this.jar.group.position.set(-0.02, PATIO, 0.38); scene.add(this.jar.group);
+    this.basket = buildBasket(world); this.basket.group.position.set(1.66, PATIO, 0.4); scene.add(this.basket.group);
+    this.jar = buildJar(); this.jar.group.position.set(0.62, PATIO, 0.4); scene.add(this.jar.group);
     this.jarHome = this.jar.group.position.clone();
-    this.puddle = makePuddle(); this.puddle.position.set(0.42, PATIO + 0.002, 0.52); this.puddle.scale.setScalar(0.001); this.puddle.visible = false; scene.add(this.puddle);
+    this.puddle = makePuddle(); this.puddle.position.set(1.42, PATIO + 0.002, -0.12); this.puddle.scale.setScalar(0.001); this.puddle.visible = false; scene.add(this.puddle);
     // liquids
     this.liquids = world.tubs.map((tb) => new Liquid(tb, tb.kind));
     for (const tb of world.tubs) { tb.on = true; tb.home = tb.group.position.clone(); tb.homeRot = tb.group.rotation.clone(); }
@@ -73,7 +73,7 @@ export class Game {
   addParents(papa, mama) {
     this.papa = papa; this.mama = mama;
     papa.group.position.set(3.2, PATIO, 0.8); papa.group.visible = false;
-    mama.group.position.set(-2.75, PATIO, -1.15); mama.group.rotation.y = 0.9;
+    mama.group.position.set(-3.0, PATIO, 1.0); mama.group.rotation.y = 1.2;
     papa.undershirtMat = this.makeTop([0.6, 0.63, 0.66]);
     this.scene.add(papa.group); this.scene.add(mama.group);
     mama.setFeel('happy');
@@ -155,9 +155,9 @@ export class Game {
     let c, w, h, dir;
     if (s === 'intro') { c = new V3(-1.12, 0.62, -0.42); w = 1.05; h = 1.25; dir = new V3(0.14, 0.3, 1); }
     else if (s === 'tie') { c = new V3(-0.56, 0.72, -0.08); w = 1.18; h = 0.86; dir = new V3(0.02, 0.55, 1); }
-    else if (s === 'dye') { c = new V3(0.28, 0.72, -0.1); w = 2.8; h = 1.25; dir = new V3(0.0, 0.34, 1); }
-    else if (s === 'line') { c = new V3(0.05, 1.16, -1.8); w = 2.7; h = 1.5; dir = new V3(0.0, 0.04, 1); }
-    else { c = new V3(0.05, 1.02, -1.55); w = 3.0; h = 1.9; dir = new V3(0.0, 0.12, 1); }
+    else if (s === 'dye') { c = new V3(0.36, 0.74, -0.1); w = 2.95; h = 1.3; dir = new V3(0.0, 0.34, 1); if (this.papa && this.papa.group.visible) { c.y = 0.95; h = 1.95; c.x = 0.5; dir.set(0, 0.22, 1); } }
+    else if (s === 'line') { c = new V3(0.05, 1.12, -1.65); w = 2.75; h = 1.65; dir = new V3(0.0, 0.06, 1); }
+    else { c = new V3(0.05, 0.98, -1.3); w = 3.1; h = 2.2; dir = new V3(0.0, 0.1, 1); }
     if (P) {
       // narrow screens follow the action instead of showing everything tiny
       const maxW = s === 'tie' ? 1.05 : (s === 'intro' ? 0.95 : 1.35);
@@ -188,6 +188,15 @@ export class Game {
     cam.position.copy(this.camCur.pos).add(sway); cam.lookAt(this.camCur.tgt);
     this.R.focus = cam.position.distanceTo(this.camCur.tgt);
     this.R.aperture = 0.9;
+    // keep the sun's shadow map tight around what we're looking at (crisper, softer-edged shadows)
+    const sun = this.world.sun; const half = clamp(f.w * 0.62, 0.9, 2.6);
+    const sc = sun.shadow.camera;
+    if (Math.abs(sc.right - half) > 0.05) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.updateProjectionMatrix(); }
+    const snap = (half * 2) / 2048;
+    const tg = this.camCur.tgt.clone(); tg.x = Math.round(tg.x / snap) * snap; tg.z = Math.round(tg.z / snap) * snap;
+    sun.target.position.copy(tg); sun.position.copy(tg).addScaledVector(SUN_DIR, 10);
+    if (this.Q.get('cam')) { const v = this.Q.get('cam').split(',').map(Number); cam.position.set(v[0], v[1], v[2]); cam.lookAt(v[3], v[4], v[5]); if (v[6]) { cam.fov = v[6]; cam.updateProjectionMatrix(); } this.R.focus = cam.position.distanceTo(new V3(v[3], v[4], v[5])); }
+
   }
 
   // ---------------------------------------------------------------- input
@@ -431,8 +440,8 @@ export class Game {
   startMishap() {
     if (!this.papa || this.mishap.stage) return;
     this.mishap.stage = 1; this.mishap.t = 0;
-    const P = this.papa; P.group.visible = true; P.group.position.set(2.6, PATIO, 0.55); P.group.rotation.y = -1.4;
-    this.walkTo(P, new V3(1.05, PATIO, 0.45), 0.9);
+    const P = this.papa; P.group.visible = true; P.group.position.set(2.8, PATIO, -0.5); P.group.rotation.y = -1.4;
+    this.walkTo(P, new V3(1.48, PATIO, -0.4), 0.9);
     P.setFeel('happy');
   }
 
@@ -446,14 +455,14 @@ export class Game {
       // leans in for a closer look ... and bumps the bench
       if (M.t > 1.1 && !M.tipped) {
         M.tipped = true; M.tipT = 0; this.audio.clank(); P.setFeel('oops'); P.poseT.lean = -0.2; P.poseT.armsUp = 1;
-        P.group.position.x += 0.05;
+        P.group.position.x += 0.06;
         this.later(0.35, () => this.splash());
       }
       if (M.tipped) {
         M.tipT += dt;
         const k = ease(clamp(M.tipT / 0.5, 0, 1));
-        tub.group.position.set(tub.home.x + 0.05 * k, tub.home.y - 0.0 * k + Math.sin(k * Math.PI) * 0.03 - 0.0, tub.home.z + 0.36 * k);
-        tub.group.rotation.set(1.5 * k, 0, 0.1 * k);
+        tub.group.position.set(tub.home.x + 0.46 * k, tub.home.y + Math.sin(k * Math.PI) * 0.05, tub.home.z - 0.06 * k);
+        tub.group.rotation.set(0.08 * k, 0, -1.52 * k);
         if (k > 0.75) tub.group.position.y = tub.home.y + (0.235 - tub.home.y) * ((k - 0.75) / 0.25);
         tub.on = false; tub.level = Math.max(0, tub.level - dt * 0.6);
         if (M.tipT > 1.2) { M.stage = 3; M.t = 0; tub.level = 0; P.poseT.armsUp = 0; P.setFeel('sheepish'); P.poseT.laugh = 0.6; this.audio.laughLow(); this.later(1.6, () => (P.poseT.laugh = 0)); this.girl.setFeel('wow', 1.5); }
@@ -468,7 +477,7 @@ export class Game {
         this.walkTo(this.girl, new V3(tub.x - 0.2, PATIO, -0.36), 1);
         this.girl.handTarget.L = jar.localToWorld(new V3(0.09, 0.15, 0)); this.girl.armW.L += (M.pourK - this.girl.armW.L) * 0.2;
         if (this.pouring && M.pourK > 0.85) {
-          tub.level = Math.min(0.17, tub.level + dt * 0.055);
+          tub.level = Math.min(0.17, tub.level + dt * 0.075);
           this.audio.pour(true);
           const mouth = jar.localToWorld(new V3(0, 0.34, 0));
           for (let i = 0; i < 3; i++) this.drops.spawn(mouth.clone().add(new V3((Math.random() - 0.5) * 0.01, 0, (Math.random() - 0.5) * 0.01)), new V3(0.35 + Math.random() * 0.1, -0.2, 0), 0.004 + Math.random() * 0.004, new THREE.Color(0.03, 0.06, 0.1), { stretch: 3, onLand: (d, w) => { if (w === 'liquid') this.liquids[0].disturb(d.pos.x, d.pos.z, 0.8, 2); } });
@@ -490,11 +499,10 @@ export class Game {
   splash() {
     const tub = this.world.tubs[0]; const P = this.papa;
     this.audio.splash();
-    const origin = new V3(tub.home.x + 0.05, 0.42, tub.home.z + 0.25);
+    const origin = new V3(tub.home.x + 0.3, 0.42, tub.home.z - 0.05);
     const col = new THREE.Color(0.05, 0.11, 0.12);
     for (let i = 0; i < 160; i++) {
-      const v = new V3(0.6 + Math.random() * 1.6, 0.6 + Math.random() * 2.0, 0.6 + Math.random() * 1.6);
-      if (Math.random() < 0.5) v.x *= -0.4;
+      const v = new V3(0.8 + Math.random() * 1.8, 0.6 + Math.random() * 2.0, (Math.random() - 0.5) * 1.6);
       this.drops.spawn(origin.clone().add(new V3((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.1)), v, 0.003 + Math.random() * Math.random() * 0.012, col, { life: 2 });
     }
     // splotches on papa's shirt (they will turn from green to blue in the air)
@@ -728,7 +736,8 @@ export class Game {
       if (!this.held) this.focusX = THREE.MathUtils.lerp(this.focusX ?? 0, this.girl.group.position.x, 0.02);
       if (this.papa && !this.mishap.stage) {
         const dipped = this.cloths.some((c) => c.indigoDone);
-        if ((dipped && this.stateT > 6) || this.stateT > 40 || this.cloths.some((c) => c.state === 'basket')) this.startMishap();
+        this.dipT = dipped ? (this.dipT || 0) + dt : 0;
+        if (this.dipT > 5 || this.stateT > 70 || this.cloths.every((c) => c.state === 'basket')) this.startMishap();
       }
       if (this.mishap.stage >= 5) this.checkDyeDone();
     }
@@ -743,9 +752,9 @@ export class Game {
           this.setState('finale');
           this.audio.chime(5, 600);
           for (const p of [this.girl, this.papa, this.mama]) p && p.setFeel('happy', 2);
-          this.walkTo(this.girl, new V3(0.0, PATIO, -1.0), 0.8);
-          this.walkTo(this.mama, new V3(-0.85, PATIO, -1.05), 0.8);
-          this.walkTo(this.papa, new V3(0.85, PATIO, -1.05), 0.8);
+          this.walkTo(this.girl, new V3(0.0, PATIO, -1.25), 0.8);
+          this.walkTo(this.mama, new V3(-0.8, PATIO, -1.3), 0.8);
+          this.walkTo(this.papa, new V3(0.85, PATIO, -1.3), 0.8);
         }
       }
     }
@@ -852,6 +861,19 @@ export class Game {
     for (const p of ppl) if (p.group.visible) p.update(dt, {});
   }
 
+  // debug: soak part of a cloth (v range) in a bath for some seconds without moving it
+  virtualDip(c, idx, v0, v1, secs) {
+    const r = this.R.r, D = c.dye; const prev = r.getRenderTarget();
+    r.setRenderTarget(D.sub); r.setClearColor(0x000000, 1); r.clear(true, false, false);
+    if (idx >= 0) {
+      r.setScissorTest(true); r.setScissor(0, Math.floor(v0 * 128), 128, Math.ceil((v1 - v0) * 128));
+      r.setClearColor(idx === 0 ? 0xff0000 : 0x00ff00, 1); r.clear(true, false, false); r.setScissorTest(false);
+    }
+    r.setRenderTarget(prev);
+    for (let i = 0; i < secs * 20; i++) D.step(1 / 20, null, null, { dry: 0.0 });
+    c.wet = 1; c.dyed = true;
+  }
+
   // ---------------------------------------------------------------- debug shortcuts (?skip=...)
   debugSkip(s) {
     const go = () => {
@@ -869,9 +891,8 @@ export class Game {
       this.setState('dye');
       if (s === 'dye') return;
       // auto dye: stamp dye straight into the fields
-      const fake = (c, l, p) => { for (let i = 0; i < 40; i++) c.dye.stamp(Math.random(), Math.random() * 0.4 + (l ? 0.6 : 0), 0.25, 0.25, l, p, 1); c.wet = 1; c.dyed = true; };
-      fake(this.tee, 1.2, 0); fake(this.hanky, 0, 1.0);
-      this.later(0.2, () => { fake(this.tee, 0, 0.6); });
+      this.virtualDip(this.tee, 0, 0.0, 1.0, 5); this.virtualDip(this.tee, 1, 0.0, 0.3, 2.5); this.virtualDip(this.tee, -1, 0, 1, 6);
+      this.virtualDip(this.hanky, 1, 0.0, 1.0, 4); this.virtualDip(this.hanky, 0, 0.55, 1.0, 3); this.virtualDip(this.hanky, -1, 0, 1, 6);
       if (s === 'mishap') { this.startMishap(); return; }
       this.mishap.stage = 5; this.papa.meshes.top.material = this.papa.undershirtMat;
       for (let i = 0; i < 6; i++) this.papaShirt.dye.stamp(0.3 + Math.random() * 0.4, 0.3 + Math.random() * 0.5, 0.08, 0.06, 1.3, 0, 1);

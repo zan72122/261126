@@ -22,6 +22,7 @@ export const SHAPES = {
       return x <= 0.5 && v <= sleeveBottom;
     },
     pins: [[0.27, 0.06], [0.73, 0.06]], wear: 'top',
+    neck(u, v) { const x = u - 0.5; const d = Math.hypot(x, (v - 0.035) / 0.75); return d < 0.13 && v < 0.16 ? 1 : 0; },
   },
   square: {
     w: 0.36, h: 0.36, nx: 25, ny: 25,
@@ -59,17 +60,17 @@ void main(){
   // --- wicking along the weave (anisotropic, blocked by bindings & folds)
   vec4 sum = vec4(0.0); float wsum = 0.0;
   vec2 o[4]; o[0] = vec2(uTexel.x, 0.0); o[1] = vec2(-uTexel.x, 0.0); o[2] = vec2(0.0, uTexel.y); o[3] = vec2(0.0, -uTexel.y);
-  float cond0 = s.a * (1.0 - 0.9 * res) * (0.45 + 0.9 * nz);
+  float cond0 = s.a * (1.0 - res) * (0.45 + 0.9 * nz);
   for (int i = 0; i < 4; i++) {
     vec4 n = texture2D(tState, vUv + o[i] - uDrift * uDt);
     float rn = texture2D(tResist, vUv + o[i]).r;
-    float c = min(cond0, n.a * (1.0 - 0.9 * rn)) * (i < 2 ? 1.25 : 0.85);
+    float c = clamp(min(cond0, n.a * (1.0 - rn)) * (i < 2 ? 1.2 : 0.85), 0.0, 1.0);
     sum.rgb += (n.rgb - s.rgb) * c; wsum += c;
   }
   s.rgb += sum.rgb * uDiff;
   // gravity drift of loose dye while very wet (hanging)
   // --- uptake where submerged: indigo arrives as yellow-green leuco form, pink is direct
-  float uptake = 1.0 - 0.93 * res;
+  float uptake = (1.0 - res) * (1.0 - res);
   float capI = 1.35 - (s.r + s.g * 0.75);
   s.r += sub.r * uptake * uDt * 0.42 * max(capI, 0.0) * (0.75 + 0.5 * nz);
   s.b += sub.g * uptake * uDt * 0.34 * max(1.05 - s.b, 0.0) * (0.8 + 0.4 * nz);
@@ -82,14 +83,14 @@ void main(){
     float r = length(d);
     float edge = r + (nz - 0.5) * 0.6;
     float a = smoothstep(1.0, 0.55, edge);
-    s.r += a * uStampC[i].r; s.b += a * uStampC[i].b; s.a = max(s.a, a * uStampC[i].a);
+    s.r = max(s.r, min(s.r + a * uStampC[i].r, 1.5)); s.b = max(s.b, min(s.b + a * uStampC[i].b, 1.1)); s.a = max(s.a, a * uStampC[i].a);
   }
   // --- oxidation in air (green -> blue), slower while submerged
   float ox = s.r * uOx * uDt * (1.0 - 0.9 * wetIn);
   s.r -= ox; s.g += ox;
   // --- drying in the wind
   s.a = max(0.0, s.a - uDry * uDt * (1.0 - wetIn));
-  gl_FragColor = clamp(s, 0.0, 4.0);
+  gl_FragColor = clamp(s, 0.0, 2.0);
 }`;
 
 const SUB_VERT = /* glsl */`
@@ -149,7 +150,7 @@ export class DyeField {
     NOISE = NOISE || noiseTex();
     // resist map (CPU canvas)
     this.resCanvas = document.createElement('canvas'); this.resCanvas.width = this.resCanvas.height = 128;
-    this.resist = new THREE.CanvasTexture(this.resCanvas); this.resist.minFilter = THREE.LinearFilter; this.resist.generateMipmaps = false;
+    this.resist = new THREE.CanvasTexture(this.resCanvas); this.resist.flipY = false; this.resist.minFilter = THREE.LinearFilter; this.resist.generateMipmaps = false;
     this.clearResist();
     this.simMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -240,9 +241,9 @@ export class DyeField {
         }
         for (let k2 = 0; k2 < t.wraps; k2++) {
           const rk = t.R * (0.3 + 0.2 * k2);
-          const wob = 0.0045 + 0.002 * Math.sin(a * 5 + seed + k2);
+          const wob = 0.006 + 0.0025 * Math.sin(a * 5 + seed + k2);
           const ring = Math.exp(-Math.pow((dist - rk) / wob, 2));
-          r = Math.max(r, ring * (0.86 + 0.12 * streak2));
+          r = Math.max(r, ring * (0.94 + 0.06 * streak2));
         }
         const i = y * N + x; res[i] = Math.max(res[i], r);
       }
@@ -256,14 +257,14 @@ export class DyeField {
 // ---------------------------------------------------------------- dyed cotton material
 export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
   const m = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, roughness: 0.9, sheen: 0.6, sheenRoughness: 0.65, sheenColor: new THREE.Color(0.95, 0.95, 0.95),
+    color: 0xffffff, roughness: 0.9, sheen: 0.3, sheenRoughness: 0.7, sheenColor: new THREE.Color(0.55, 0.55, 0.55),
     side: THREE.DoubleSide, alphaTest: alphaTex ? 0.5 : 0, alphaMap: alphaTex || null,
     normalMap: T.clothN, normalScale: new THREE.Vector2(0.6, 0.6),
   });
   const U = {
     tDye: { value: dyeTex }, tWeave: { value: T.clothH }, uWeaveRep: { value: opts.rep || new THREE.Vector2(30, 30) },
     uSunDir: { value: opts.sunDir || new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1.0, 0.86, 0.7).multiplyScalar(3.0) },
-    uGlow: { value: 0 }, uBase: { value: new THREE.Color().setRGB(0.86, 0.855, 0.83) }, uPlain: { value: 0 }, uPlainCol: { value: new THREE.Color(1, 1, 1) },
+    tDetail: { value: opts.detail || null }, uHasDetail: { value: opts.detail ? 1 : 0 }, uGlow: { value: 0 }, uBase: { value: new THREE.Color().setRGB(0.86, 0.855, 0.83) }, uPlain: { value: 0 }, uPlainCol: { value: new THREE.Color(1, 1, 1) },
   };
   m.userData.dye = U;
   m.onBeforeCompile = (sh) => {
@@ -273,7 +274,7 @@ export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec2 vDyeUv; uniform sampler2D tDye; uniform sampler2D tWeave; uniform vec2 uWeaveRep;
-        uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uGlow; uniform vec3 uBase; uniform float uPlain; uniform vec3 uPlainCol;
+        uniform sampler2D tDetail; uniform float uHasDetail; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uGlow; uniform vec3 uBase; uniform float uPlain; uniform vec3 uPlainCol;
         float gWet; vec3 gDyeCol;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
@@ -282,8 +283,9 @@ export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
           float wet = clamp(s.a, 0.0, 1.0); gWet = wet;
           float dk = (0.72 + 0.42 * wet) * (0.78 + 0.44 * (1.0 - h));
           vec3 A = s.r * vec3(0.75, 0.22, 1.9) + s.g * vec3(2.9, 1.75, 0.55) + s.b * vec3(0.16, 1.55, 0.62);
-          vec3 base = mix(uBase, uPlainCol, uPlain) * (0.94 + 0.08 * h);
-          vec3 col = base * exp(-A * dk);
+          vec3 dt3 = uHasDetail > 0.5 ? texture2D(tDetail, vDyeUv).rgb : vec3(0.0);
+          vec3 base = mix(uBase, uPlainCol, uPlain) * (0.94 + 0.08 * h) * (1.0 - 0.06 * dt3.r - 0.22 * dt3.g);
+          vec3 col = base * exp(-A * dk * (1.0 - 0.18 * dt3.r));
           col *= 1.0 - 0.22 * wet;
           gDyeCol = col;
           diffuseColor.rgb *= col;
@@ -312,6 +314,29 @@ function alphaTexture(shape) {
     let s = 0; // 2x2 supersample
     for (let k = 0; k < 4; k++) s += shape.inside((x + 0.25 + (k & 1) * 0.5) / N, (y + 0.25 + (k >> 1) * 0.5) / N) ? 1 : 0;
     const i = (y * N + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = s * 63.75; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.flipY = false;
+  return t;
+}
+
+function detailTexture(shape) {
+  // hems, stitching and collar rib, from the silhouette (R: hem band, G: stitch line, B: rib)
+  const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const g = cv.getContext('2d'); const img = g.createImageData(N, N);
+  const W = shape.w, H = shape.h;
+  const dirs = []; for (let a = 0; a < 12; a++) dirs.push([Math.cos(a / 12 * Math.PI * 2), Math.sin(a / 12 * Math.PI * 2)]);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const u = (x + 0.5) / N, v = (y + 0.5) / N; const i = (y * N + x) * 4;
+    if (!shape.inside(u, v)) { img.data[i + 3] = 255; continue; }
+    // distance to the edge in metres (coarse ray march)
+    let dmin = 0.03;
+    for (const [dx, dy] of dirs) for (let r = 0.002; r < dmin; r += 0.002) { if (!shape.inside(u + dx * r / W, v + dy * r / H)) { dmin = r; break; } }
+    const hem = dmin < 0.016 ? 1 : 0;
+    const stitch = Math.abs(dmin - 0.012) < 0.0012 && (Math.floor((u * W + v * H) / 0.003) % 2 === 0) ? 1 : 0;
+    const neck = shape.neck ? shape.neck(u, v) : 0;
+    const rib = neck ? 0.5 + 0.5 * Math.sin(u * W / 0.0016) : 0;
+    img.data[i] = hem * 255; img.data[i + 1] = stitch * 255; img.data[i + 2] = neck * 255; img.data[i + 3] = 255;
   }
   g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(cv); t.flipY = false;
@@ -367,9 +392,10 @@ export class Cloth {
     this.uv = new Float32Array(uv);
     this.dye = new DyeField(renderer, 256);
     this.alpha = alphaTexture(S);
+    this.detail = detailTexture(S);
     const rep = new THREE.Vector2(S.w / 0.014, S.h / 0.014);
     T.clothN.repeat.set(1, 1);
-    this.mat = makeDyeMaterial(T, this.dye.texture, this.alpha, { rep, sunDir: opts.sunDir });
+    this.mat = makeDyeMaterial(T, this.dye.texture, this.alpha, { rep, sunDir: opts.sunDir, detail: this.detail });
     this.normalMap = T.clothN;
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
@@ -391,9 +417,9 @@ export class Cloth {
       const x = this.rest[k][0], z = this.rest[k][1] - cy;
       // slightly compressed with soft lumps, so the cotton settles into natural folds
       const n1 = Math.sin(x * 23 + z * 7 + this.n) * Math.sin(z * 19 - x * 5);
-      const xc = x * 0.97 + 0.004 * Math.sin(z * 31), zc = z * 0.975 + 0.004 * Math.sin(x * 27);
+      const xc = x * 0.95 + 0.006 * Math.sin(z * 31), zc = z * 0.96 + 0.006 * Math.sin(x * 27);
       const wx = origin.x + xc * c + zc * s, wz = origin.z - xc * s + zc * c;
-      this.pos[k * 3] = wx; this.pos[k * 3 + 1] = y + 0.002 + Math.max(0, n1) * 0.012; this.pos[k * 3 + 2] = wz;
+      this.pos[k * 3] = wx; this.pos[k * 3 + 1] = y + 0.002 + Math.max(0, n1) * 0.016; this.pos[k * 3 + 2] = wz;
     }
     this.prev.set(this.pos);
     this.layRot = rotY; this.layOrigin = origin.clone();
@@ -503,9 +529,9 @@ export class Cloth {
           const d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 1e-9;
           const wa = this.invMass[a / 3], wb = this.invMass[b / 3], ws = wa + wb; if (ws === 0) continue;
           let diff = (d - Lr[c]) / d;
-          if (St[c] < 0.5 && diff < 0) diff *= 0.15; // bending: resists folding weakly
+          // cotton barely stretches but buckles freely under compression (keeps soft folds)
+          if (diff < 0) diff *= St[c] === 1 ? 0.12 : 0.05;
           diff *= St[c];
-          if (St[c] === 1 && diff < 0) diff *= 0.7;
           const fa = diff * wa / ws, fb = diff * wb / ws;
           P[a] += dx * fa; P[a + 1] += dy * fa; P[a + 2] += dz * fa;
           P[b] -= dx * fb; P[b + 1] -= dy * fb; P[b + 2] -= dz * fb;

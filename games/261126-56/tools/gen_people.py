@@ -113,7 +113,7 @@ def arm_parts(sp, J, s, off=0.0, upto=1.0):
     H = sp['H']; r = sp['armR']
     sh, el, wr = J['shL'], J['elL'], J['wrL']
     out = []
-    out.append((ellipsoid(sh + V(0.004 * H, 0.004 * H, 0), V(r[0] * 1.25 + off, r[0] * 1.15 + off, r[0] * 1.05 + off)), 'clavL'))
+    out.append((ellipsoid(sh + V(0.002 * H, 0.002 * H, 0), V(r[0] * 1.1 + off, r[0] * 1.05 + off, r[0] * 0.98 + off)), 'clavL'))
     out.append((cone(sh, el, r[0] + off, r[1] + off), 'uarmL'))
     # biceps / triceps bulge
     mid = sh * 0.55 + el * 0.45
@@ -235,7 +235,7 @@ def head_fn(sp, J, kind):
     for sg in (1, -1):
         A(('add', sphere(C + V(sg * 0.0098 * ns, hp['noseY'] - 0.003, hp['noseZ'] - 0.0075 * ns), 0.0068 * ns), 0.005))
     # neck (head mesh carries upper neck)
-    A(('add', cone(C + V(0, -0.045, -0.022 * sp['H'] / 1.1), J['neckJ'] - V(0, 0.01, 0), sp['neckR'] * 0.98, sp['neckR']), 0.03))
+    A(('add', cone(C + V(0, -0.045, -0.022 * sp['H'] / 1.1), J['neckJ'] - V(0, 0.012 * sp['H'] / 1.1, 0), sp['neckR'] * 0.98 + 0.0016, sp['neckR'] + 0.0018), 0.03))
     # ears
     for sg in (1, -1):
         exx, eyy, ezz = hp['ear']
@@ -273,7 +273,6 @@ def hair_fn(sp, J, kind):
         def f(P):
             q = P - C
             D = outer(P)
-            D = smax(D, -(cap(0.0005)(P)), 0.002)  # shell
             # hairline: front
             n = np.array([0, -0.75, 0.66]); n /= np.linalg.norm(n)
             front = (q - V(0, 0.042, 0.05)) @ n
@@ -282,12 +281,11 @@ def hair_fn(sp, J, kind):
             side = -(q[:, 1] + 0.012 + 0.55 * np.clip(-q[:, 2] - 0.02, 0, 1))
             ear = 0.05 - np.sqrt((np.abs(q[:, 0]) - 0.07) ** 2 * 0.0 + (q[:, 1] + 0.005) ** 2 + (q[:, 2] - 0.002) ** 2)
             D = smax(D, side, 0.008)
-            D = smax(D, ear * (np.abs(q[:, 0]) > 0.04), 0.008)
+            D = smax(D, np.where(np.abs(q[:, 0]) > 0.04, ear, -1.0), 0.008)
             # bangs: thick fringe in front
             bang = ellipsoid(crc + V(0, -0.002, 0.004), crR + V(0.007, 0.006, 0.01))(P)
-            bang = smax(bang, -ellipsoid(crc, crR + 0.001)(P), 0.002)
             bang = smax(bang, -(q[:, 2] - 0.03), 0.01)
-            bang = smax(bang, 0.03 + 0.006 * np.cos(q[:, 0] * 160) - q[:, 1], 0.004)
+            bang = smax(bang, 0.03 + 0.0035 * np.cos(q[:, 0] * 120) + 0.002 * fbm(P, 90, 2, 7) - q[:, 1], 0.005)
             bang = smax(bang, np.abs(q[:, 0]) - 0.058, 0.01)
             D = smin(D, bang, 0.008)
             # strands: grooves radiating from centre part
@@ -295,7 +293,6 @@ def hair_fn(sp, J, kind):
             g = np.sin(phi * 48 + 2.5 * fbm(P, 20, 2, 3))
             D = D + 0.0006 * (0.5 + 0.5 * g) * (q[:, 1] > 0.0) + 0.0006 * np.sin(q[:, 0] * 420 + 3 * fbm(P, 30, 2, 5)) * (q[:, 2] > 0.04)
             # centre part
-            D = D + 0.0022 * np.exp(-(q[:, 0] / 0.0028) ** 2) * (q[:, 1] > 0.05) * (q[:, 2] < 0.06)
             return D
         return f
     if kind == 'papa':
@@ -304,13 +301,12 @@ def hair_fn(sp, J, kind):
             q = P - C
             bump = 0.004 * fbm(P, 55, 3, 11)
             D = outer(P) + bump - 0.003 * np.clip(q[:, 1] / 0.08, 0, 1)
-            D = smax(D, -(cap(0.0)(P)), 0.002)
             n = np.array([0, -0.68, 0.73]); n /= np.linalg.norm(n)
             D = smax(D, (q - V(0, 0.06, 0.062)) @ n, 0.008)
             side = -(q[:, 1] + 0.028 + 0.5 * np.clip(-q[:, 2] - 0.02, 0, 1))
             D = smax(D, side, 0.01)
             ear = 0.034 - np.sqrt((q[:, 1] + 0.005) ** 2 + (q[:, 2] - 0.002) ** 2)
-            D = smax(D, ear * (np.abs(q[:, 0]) > 0.04), 0.008)
+            D = smax(D, np.where(np.abs(q[:, 0]) > 0.04, ear, -1.0), 0.008)
             # side taper (short sides)
             D = D + 0.005 * np.clip((0.04 - q[:, 1]) / 0.06, 0, 1) * (np.abs(q[:, 0]) > 0.05)
             phi = np.arctan2(q[:, 0] - 0.02, q[:, 2] + 0.05)
@@ -323,14 +319,12 @@ def hair_fn(sp, J, kind):
         def f(P):
             q = P - C
             D = outer(P)
-            D = smax(D, -(cap(0.0005)(P)), 0.002)
             n = np.array([0.0, -0.7, 0.7]); n /= np.linalg.norm(n)
             D = smax(D, (q - V(0, 0.058, 0.062)) @ n, 0.01)
             side = -(q[:, 1] + 0.045 + 0.5 * np.clip(-q[:, 2] - 0.02, 0, 1))
             D = smax(D, side, 0.012)
             # side-swept fringe from a left part
             sweep = ellipsoid(crc + V(-0.004, -0.004, 0.006), crR + V(0.012, 0.008, 0.01))(P)
-            sweep = smax(sweep, -ellipsoid(crc, crR + 0.001)(P), 0.002)
             sweep = smax(sweep, -(q[:, 2] - 0.035), 0.012)
             sweep = smax(sweep, (0.045 + 0.35 * q[:, 0]) - q[:, 1], 0.01)
             D = smin(D, sweep, 0.01)
@@ -373,7 +367,7 @@ def tee_fn(sp, J, kind):
         for e in extras:
             D = smin(D, e(P), 0.03 * H)
         return D
-    arms = arm_parts(sp, J, 'L', c['off'] + 0.001 * H)
+    arms = arm_parts(sp, J, 'L', c['off'] * 0.55)
     sh, el = J['shL'], J['elL']
     sleeve_end = sh + (el - sh) * c['sleeve']
     nrm = (el - sh) / np.linalg.norm(el - sh)
@@ -381,7 +375,7 @@ def tee_fn(sp, J, kind):
     def side(P):
         D = tor(P)
         for f, _ in arms:
-            D = smin(D, f(P), 0.02 * H)
+            D = smin(D, f(P), 0.009 * H)
         D = smax(D, (P - sleeve_end) @ nrm, 0.004 * H)
         return D
     sideR = mirrored(side)
@@ -422,7 +416,13 @@ def bottoms_fn(sp, J, kind):
     tb = np.array(sp['torso'], float)
     tb = tb[tb[:, 0] <= c['top'] + 0.03 * H]
     tb[:, 1] += c['off']; tb[:, 2] += c['off']
-    tor = loft(tb, tb[0, 0], c['top'], kcap=0.006 * H)
+    tor00 = loft(tb, tb[0, 0], c['top'], kcap=0.006 * H)
+    hipx = [ellipsoid(V(*pr[0]), V(*pr[1]) + c['off']) for pr in sp.get('extraTorso', []) if pr[3] == 'hips']
+    def tor(P):
+        D = tor00(P)
+        for e in hipx:
+            D = smin(D, smax(e(P), P[:, 1] - c['top'], 0.004 * H), 0.03 * H)
+        return D
     legs = leg_parts(sp, J, c['off'])
     hp, kn, an = J['hipL'], J['kneeL'], J['ankL']
     if kind == 'skirt':
@@ -559,7 +559,7 @@ def body_fn(sp, J):
     # chest/back definition, clavicles, buttocks, belly
     for pr in sp.get('extraTorso', []):
         shp.add(ellipsoid(V(*pr[0]), V(*pr[1])), pr[2], B[pr[3]])
-    shp.add(cone(J['neckJ'] - V(0, 0.03 * H, 0), J['headJ'] + V(0, 0.0, 0.004 * H), sp['neckR'] * 0.9, sp['neckR'] * 0.8), 0.02 * H, B['neck'])
+    shp.add(cone(J['neckJ'] - V(0, 0.03 * H, 0), V(0, sp['headC'] - 0.02 * H, -0.018 * H), sp['neckR'] * 1.0, sp['neckR'] * 0.965), 0.02 * H, B['neck'])
     for f, reg in arms:
         shp.add(f, 0.012 * H if reg == 'clavL' else 0.006 * H, B[reg])
         shp.add(mirrored(f), 0.012 * H if reg == 'clavL' else 0.006 * H, B[reg.replace('L', 'R')])
@@ -733,11 +733,11 @@ def spec_girl():
               cloth=dict(off=0.0085, sleeve=0.48, hem=0.565, flare=0.011, flareY=0.72, neckDy=0.014, neckDz=0.012, neckR=(0.05, 0.03, 0.046)),
               bottom=dict(off=0.009, top=0.7, len=0.36, legFlare=0.01),
               apronZ=0.1, apronY=(0.835, 0.75, 0.43), apronTieY=0.715, torsoBackZ=0.07, scarfZ=0.05,
-              skin=srgb(0.95, 0.77, 0.66), hair=srgb(0.13, 0.085, 0.06),
+              skin=srgb(0.94, 0.73, 0.61), hair=srgb(0.16, 0.1, 0.065),
               headP=dict(crOff=(0, 0.014, -0.012), crR=(0.0715, 0.084, 0.087), faceOff=(0, -0.026, 0.016), faceR=(0.057, 0.057, 0.063),
                          kFace=0.03, cheek=(0.033, -0.03, 0.048, 0.027), kCheek=0.02, chin=(0, -0.066, 0.049, 0.016),
                          muzzle=(0.026, -0.047, 0.06), brow=(0.026, 0.021, 0.064), browS=0.7, noseS=0.72, noseY=-0.021, noseZ=0.079,
-                         eye=(0.0275, 0.003, 0.0635, 0.0128), ear=(0.07, -0.006, -0.004), earS=0.95, mouthY=-0.046))
+                         eye=(0.0275, 0.003, 0.0635, 0.0128), ear=(0.066, -0.006, -0.004), earS=0.78, mouthY=-0.046))
     return sp
 
 def spec_papa():
@@ -768,7 +768,7 @@ def spec_mama():
               shX=0.165, shY=1.322, uarm=0.275, farm=0.235, hand=0.17, hipX=0.088, hipY=0.86,
               kneeX=0.085, kneeY=0.47, ankY=0.075, foot=0.24, apose=22,
               armR=[0.04, 0.033, 0.032, 0.024], legR=[0.082, 0.05, 0.05, 0.031],
-              neckR=0.048, handS=1.45, footS=1.38, hipW=0.17, hipD=0.115,
+              neckR=0.048, handS=1.45, footS=1.38, hipW=0.175, hipD=0.145,
               torso=[[0.8, 0.13, 0.1, -0.01], [0.86, 0.168, 0.114, -0.016], [0.92, 0.172, 0.115, -0.012],
                      [1.0, 0.135, 0.095, 0.0], [1.06, 0.13, 0.092, 0.004], [1.15, 0.145, 0.1, 0.012],
                      [1.24, 0.158, 0.096, 0.0], [1.305, 0.158, 0.085, -0.008], [1.34, 0.1, 0.065, -0.01], [1.36, 0.06, 0.05, -0.01]],
@@ -802,7 +802,7 @@ def build(kind, quality=1.0):
     body = body_fn(sp, J)
     bf = body.eval
     xr = J['tipL'][0] + 0.03 * s
-    P, F, N = polygonize(bf, (-xr, J['ankL'][1] - 0.03 * s, -0.16 * s), (xr, J['neckJ'][1] + 0.06 * s, 0.16 * s), vb, int(26000 * Q), 'body')
+    P, F, N = polygonize(bf, (-xr, J['ankL'][1] - 0.03 * s, -0.16 * s), (xr, sp['headC'] + 0.01 * s, 0.16 * s), vb, int(26000 * Q), 'body')
     # cut feet below shoe top (hidden) to save tris: keep all, simple
     lab = region_labels(body, P)
     si, sw = skin_weights(P, lab, segs, sp)
@@ -819,6 +819,17 @@ def build(kind, quality=1.0):
         sock = np.clip((0.15 - P[:, 1]) / 0.01, 0, 1)
         col = col * (1 - sock[:, None]) + srgb(0.25, 0.25, 0.27) * sock[:, None]
     col = col * (ao[:, None] ** 0.8)
+    # drop skin that is always hidden under clothes / shoes (saves a lot of triangles)
+    tf_c = tee_fn(sp, J, kind); sf_c = shoe_fn(sp, J)
+    cov = (tf_c(P) < -0.004 * s) | (sf_c(P) < -0.002) | (mirrored(sf_c)(P) < -0.002)
+    if kind != 'mama':
+        bf_c = bottoms_fn(sp, J, 'pants')
+        cov |= bf_c(P) < -0.004 * s
+    keep = ~(cov[F[:, 0]] & cov[F[:, 1]] & cov[F[:, 2]])
+    F = F[keep]
+    used = np.unique(F.ravel()); remap = np.full(len(P), -1); remap[used] = np.arange(len(used))
+    P, N, col, si, sw, F = P[used], N[used], col[used], si[used], sw[used], remap[F]
+    print('  body after cull:', len(P), 'v', len(F), 't')
     pk.add('body', 'skin', P, N, F, col, si, sw)
 
     # ---- hands (hi-res), left & mirrored right
@@ -859,15 +870,15 @@ def build(kind, quality=1.0):
     # ---- head
     hf, C = head_fn(sp, J, kind)
     hp = sp['headP']
-    Ph, Fh, Nh = polygonize(hf, C - V(0.1, 0.13, 0.12) * (s ** 0.6), C + V(0.1, 0.11, 0.13) * (s ** 0.6), 0.0013 * s ** 0.5, int(16000 * Q), 'head')
-    ao = bake_ao(hf, Ph, Nh, 0.6)
+    Ph, Fh, Nh = polygonize(hf, C - V(0.1, 0.175, 0.12) * (s ** 0.6), C + V(0.1, 0.11, 0.13) * (s ** 0.6), 0.0013 * s ** 0.5, int(16000 * Q), 'head')
+    ao = np.clip(bake_ao(hf, Ph, Nh, 0.6), 0.6, 1) ** 0.6
     q = Ph - C
     col = np.tile(sp['skin'], (len(Ph), 1))
     cx, cy, cz, cr = hp['cheek']
     for sg in (1, -1):
         w = np.exp(-(length(q - V(sg * (cx + 0.004), cy - 0.002, cz + 0.02)) / (0.022 * (1.4 if kind == 'girl' else 1.0))) ** 2)
         blush = srgb(0.98, 0.55, 0.55)
-        amt = 0.32 if kind == 'girl' else 0.16
+        amt = 0.42 if kind == 'girl' else 0.2
         col = col * (1 - amt * w[:, None]) + blush * amt * w[:, None]
         we = np.exp(-(length(q - V(sg * hp['ear'][0], hp['ear'][1], hp['ear'][2])) / 0.02) ** 2)
         col = col * (1 - 0.15 * we[:, None]) + srgb(0.95, 0.55, 0.5) * 0.15 * we[:, None]
@@ -960,7 +971,7 @@ def build(kind, quality=1.0):
     si, sw = skin_weights(Pb, lab, segs, sp)
     ao = bake_ao(bf2, Pb, Nb, s)
     bcol = {'girl': srgb(0.36, 0.47, 0.62), 'papa': srgb(0.62, 0.56, 0.44), 'mama': srgb(0.83, 0.77, 0.66)}[kind]
-    colb = np.tile(bcol, (len(Pb), 1)) * (ao[:, None] ** 0.8)
+    colb = np.tile(bcol, (len(Pb), 1)) * (ao[:, None] ** 0.45)
     pk.add('bottom', 'denim' if kind == 'girl' else ('chino' if kind == 'papa' else 'linen'), Pb, Nb, Fb, colb, si, sw)
 
     # ---- shoes
@@ -1012,4 +1023,4 @@ def build(kind, quality=1.0):
 if __name__ == '__main__':
     kinds = sys.argv[1:] or ['girl', 'papa', 'mama']
     for k in kinds:
-        build(k)
+        build(k, 1.0 if k == 'girl' else 0.72)

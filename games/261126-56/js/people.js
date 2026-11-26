@@ -120,12 +120,11 @@ function eyeTexture(irisColor) {
 
 function makeEye(r, tex) {
   const geo = new THREE.SphereGeometry(r, 40, 24); geo.rotateX(Math.PI / 2);
-  const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.03, specularIntensity: 1 });
+  const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 0.6, envMapIntensity: 0.45 });
   const m = new THREE.Mesh(geo, mat);
   // cornea bulge: small transparent glossy cap gives the moving catchlight
   const cg = new THREE.SphereGeometry(r * 0.62, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5); cg.rotateX(Math.PI / 2);
   const cm = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.02, transmission: 0, transparent: true, opacity: 0.12, specularIntensity: 1, clearcoat: 1, depthWrite: false });
-  const c = new THREE.Mesh(cg, cm); c.position.z = r * 0.82; c.scale.z = 0.45; m.add(c);
   return m;
 }
 
@@ -257,7 +256,7 @@ export class Person {
     const my = new V3().crossVectors(mn, mx);
     this.mouth = { p: mp, n: mn, x: mx, y: my, R: Math.max(F.mouth[2], 0.02), w: F.mouthW };
     const lipCol = new THREE.Color().setRGB(...(opts.lip || [0.86, 0.5, 0.5]), THREE.SRGBColorSpace);
-    this.mouth.lipMat = new THREE.MeshPhysicalMaterial({ color: lipCol, roughness: 0.38, sheen: 0.4, sheenColor: new THREE.Color(1, 0.6, 0.6), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    this.mouth.lipMat = new THREE.MeshPhysicalMaterial({ color: lipCol, roughness: 0.38, sheen: 0.4, sheenColor: new THREE.Color(1, 0.6, 0.6), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
     this.mouth.inMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this.mouth.lips = new THREE.Mesh(new THREE.BufferGeometry(), this.mouth.lipMat);
     this.mouth.inner = new THREE.Mesh(new THREE.BufferGeometry(), this.mouth.inMat);
@@ -305,14 +304,14 @@ export class Person {
       const env = Math.pow(Math.max(0, 1 - t * t), 0.5 + 0.4 * e.round);
       const yu = sm + gap * 0.42 * env + (e.open > 0.05 ? 0.0006 * S : 0);
       const yd = sm - gap * 0.58 * env * (1 - 0.25 * e.smile * (1 - e.round));
-      const thU = (0.0021 + 0.0013 * (1 - Math.abs(t))) * S * (1 - 0.6 * corner);
+      const thU = (0.0026 + 0.0018 * (1 - Math.abs(t))) * S * (1 - 0.6 * corner);
       const bow = -0.0007 * S * Math.exp(-((t / 0.17) ** 2)) * (1 - e.open * 0.6);
-      const thD = (0.0032 + 0.0012 * (1 - Math.abs(t))) * S * (1 - 0.75 * corner);
+      const thD = (0.0036 + 0.0022 * (1 - Math.abs(t))) * S * (1 - 0.75 * corner);
       up.push([x, yu]); upO.push([x * 1.02, yu + thU + bow]);
       dn.push([x, yd]); dnO.push([x * 1.02, yd - thD]);
     }
     const toW = (x, y, bulge) => {
-      const z = -(x * x) / (2 * m.R) - (y * y) / (2 * 0.045) + bulge;
+      const z = -(x * x) / (2 * m.R) + Math.abs(y) * 0.3 + bulge + 0.0009 * S;
       return new V3().copy(m.p).addScaledVector(m.x, x).addScaledVector(m.y, y).addScaledVector(m.n, z);
     };
     // lips
@@ -358,7 +357,7 @@ export class Person {
   setFeel(name, dur = 0) {
     this.feel = name; this.feelTime = dur;
     const E = this.exprT;
-    const set = (o) => { Object.assign(E, { smile: 0.3, open: 0, round: 0, browUp: 0, browTilt: 0, browAsym: 0, squint: 0 }, o); };
+    const set = (o) => { Object.assign(E, { smile: 0.5, open: 0.1, round: 0, browUp: 0, browTilt: 0, browAsym: 0, squint: 0 }, o); };
     switch (name) {
       case 'happy': set({ smile: 0.9, open: 0.25, browUp: 0.3, squint: 0.3 }); break;
       case 'laugh': set({ smile: 1.0, open: 0.75, browUp: 0.5, squint: 0.6 }); break;
@@ -436,9 +435,13 @@ export class Person {
     // shrug
     B.clavL.rotation.z = 0.15 * P.shrug; B.clavR.rotation.z = -0.15 * P.shrug;
     // default relaxed arms: from A-pose bring arms closer to body
-    const relax = 0.3;
+    const relax = this.kind === 'girl' ? 0.3 : 0.36;
     B.uarmL.rotation.z = -relax; B.uarmR.rotation.z = relax;
-    B.farmL.rotation.x = -0.18; B.farmR.rotation.x = -0.18;
+    B.farmL.rotation.x = -0.3; B.farmR.rotation.x = -0.3;
+    B.handL.rotation.x = -0.1; B.handR.rotation.x = -0.1;
+    // idle weight shift
+    const ws = Math.sin(t * 0.45 + this.H) * 0.035;
+    B.hips.rotation.z = ws; B.spine.rotation.z -= ws * 0.8; B.thighL.rotation.z = -ws; B.thighR.rotation.z = -ws;
     B.uarmL.rotation.x = Math.sin(t * 1.1) * 0.02; B.uarmR.rotation.x = -Math.sin(t * 1.1) * 0.02;
     if (P.walk > 0.01) { B.uarmL.rotation.x += Math.sin(this.pose.walkPhase) * 0.35 * P.walk; B.uarmR.rotation.x -= Math.sin(this.pose.walkPhase) * 0.35 * P.walk; }
     // clap: both hands meet in front of chest
@@ -498,10 +501,10 @@ export class Person {
     for (const e of this.eyes) {
       e.ball.rotation.set(look.y + this.expr.look.y, look.x + this.expr.look.x, 0);
       // upper lid: open position tilts back
-      const openA = -0.62 - 0.22 * bu + 0.28 * sq;
+      const openA = -0.45 - 0.25 * bu + 0.3 * sq;
       const closedA = 0.32;
       e.up.rotation.x = closedA + (openA - closedA) * lidOpen;
-      e.lo.rotation.x = 0.28 - 0.22 * sq - 0.05 * (1 - lidOpen);
+      e.lo.rotation.x = 0.18 - 0.22 * sq - 0.05 * (1 - lidOpen);
     }
     this.group.updateMatrixWorld(true);
   }

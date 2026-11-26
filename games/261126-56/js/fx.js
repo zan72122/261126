@@ -53,9 +53,9 @@ export class Liquid {
     const isI = kind === 'indigo';
     const mat = new THREE.MeshPhysicalMaterial({
       color: isI ? new THREE.Color(0.012, 0.03, 0.045) : new THREE.Color(0.2, 0.018, 0.06),
-      roughness: 0.04, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, specularIntensity: 1,
+      roughness: 0.05, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.03, specularIntensity: 0.7,
       normalMap: this.normal, normalScale: new THREE.Vector2(1.6, 1.6), clearcoatNormalMap: this.normal,
-      envMapIntensity: 0.7,
+      envMapIntensity: 0.45,
     });
     if (isI) mat.map = flowerTexture();
     this.mat = mat;
@@ -154,7 +154,7 @@ export class Sparkle {
   update(dt, target, size = 0.2) {
     this.t += dt;
     const m = this.sprite.material;
-    if (target) { this.sprite.position.lerp(target, m.opacity < 0.05 ? 1 : 0.2); m.opacity += (0.55 - m.opacity) * 0.1; }
+    if (target) { this.sprite.position.lerp(target, m.opacity < 0.05 ? 1 : 0.2); m.opacity += (0.32 - m.opacity) * 0.1; }
     else m.opacity *= 0.9;
     const s = size * (1 + 0.18 * Math.sin(this.t * 4));
     this.sprite.scale.set(s, s, s);
