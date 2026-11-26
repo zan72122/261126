@@ -4,6 +4,10 @@
   var THREE = window.THREE;
   var clamp = (x, a, b) => x < a ? a : x > b ? b : x;
   var lerp = (a, b, t) => a + (b - a) * t;
+  var smooth = (t) => {
+    t = clamp(t, 0, 1);
+    return t * t * (3 - 2 * t);
+  };
   var easeOut = (t) => {
     t = clamp(t, 0, 1);
     return 1 - (1 - t) * (1 - t) * (1 - t);
@@ -164,12 +168,12 @@
       this.peak = { calls: 0, tris: 0 };
       if (!enabled) return;
       const d = document.createElement("div");
-      d.style.cssText = "position:fixed;left:6px;top:6px;z-index:9;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:auto;white-space:pre;max-width:46vw;";
+      d.style.cssText = "position:fixed;left:calc(6px + env(safe-area-inset-left));top:calc(6px + env(safe-area-inset-top));z-index:9;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw;";
       document.body.appendChild(d);
       this.el = d;
       const b = document.createElement("button");
       b.textContent = "lose ctx";
-      b.style.cssText = "position:fixed;right:6px;top:6px;z-index:9;font:11px monospace;";
+      b.style.cssText = "position:fixed;right:calc(6px + env(safe-area-inset-right));top:calc(6px + env(safe-area-inset-top));z-index:9;font:11px monospace;";
       b.onclick = () => window.__game && window.__game.simulateContextLoss();
       document.body.appendChild(b);
     }
@@ -191,8 +195,10 @@
       const s = this.stats();
       const g = info.gpu;
       const MiB = (b) => (b / 1048576).toFixed(1);
-      this.el.textContent = `tier ${info.tier}  canvas ${info.cw}x${info.ch} @${info.pr.toFixed(2)}
-fps avg ${s.avg.toFixed(0)}  p95 ${s.p95ms.toFixed(1)}ms
+      this.el.textContent = `tier ${info.tier}  canvas ${info.cw}x${info.ch} @${info.pr.toFixed(2)} x render ${info.rs.toFixed(2)}
+` + (info.css ? `screen ${info.css}
+` : "") + (info.cam ? `camera ${info.cam.mode}  cake ${(info.cam.frac * 100).toFixed(0)}% of short side  d ${info.cam.d.toFixed(1)}  pitch ${info.cam.e.toFixed(0)}\xB0
+` : "") + `fps avg ${s.avg.toFixed(0)}  p95 ${s.p95ms.toFixed(1)}ms
 draw ${info.calls} (peak ${this.peak.calls})  tris ${info.tris} (peak ${this.peak.tris})
 hero tris ${info.hero.triangles}  calls ${info.hero.drawCalls}  tex ${info.hero.textures}
 ` + (g ? `textures ${g.textures} (gl ${info.glTex})  GPU\u2248${MiB(g.total)}MiB
@@ -779,15 +785,15 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       return this.plateTop + this.spongeH;
     },
     bowls: [[-3, -1.55], [-3.35, -0.45], [-3.3, 0.65], [-2.85, 1.7]],
-    // the piping bag rests lying on the counter in front-right of the cake (tip toward the cake)
-    bagHome: new THREE.Vector3(0.75, 0.36, 2.65),
-    bagRestDir: new THREE.Vector3(1, 0.06, 0.36).normalize(),
+    // the piping bag rests lying in its tray dock (tip toward the cake). bagHome is live: tray.js moves it each frame.
+    bagHome: new THREE.Vector3(-3, 0.36, 1.5),
+    bagRestDir: new THREE.Vector3(-1, 0.06, 0.32).normalize(),
     bagScale: 0.85,
     dishes: [[2.85, 2.05], [3.5, 1.1], [3.72, 0.05], [3.55, -0.98], [2.95, -1.9]],
     // strawberry, kiwi, blueberry, mandarin, candle
-    boxHome: new THREE.Vector3(-2.35, 0, -2.95),
     boxHomeScale: 0.4,
-    custWindow: new THREE.Vector3(3.15, 0, -3.7),
+    custWindow: new THREE.Vector3(2.2, 0, -3.7),
+    // live: tray.js puts it where the customer peeks in
     custGive: new THREE.Vector3(2.75, 0, -3.55),
     // beside the boxed cake, so the face stays visible
     parcelGive: new THREE.Vector3(1.05, 0, -2.55),
@@ -812,13 +818,13 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     scene.add(hemi, sun, amb);
     const wallTex = assets.photo("kitchen_512");
     wallTex.wrapS = wallTex.wrapT = THREE.ClampToEdgeWrapping;
-    const wall = new THREE.Mesh(new THREE.PlaneGeometry(19, 10), new THREE.MeshBasicMaterial({ map: wallTex, color: 15918812 }));
-    wall.position.set(0, 3.2, L.wallZ);
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(34, 17), new THREE.MeshBasicMaterial({ map: wallTex, color: 15918812 }));
+    wall.position.set(0, 6.2, L.wallZ);
     scene.add(wall);
-    const marble = assets.photo("marble_512", { repeat: 2, aniso: true });
-    const counterGeo = new THREE.BoxGeometry(16, 0.6, 9);
+    const marble = assets.photo("marble_512", { repeat: 3, aniso: true });
+    const counterGeo = new THREE.BoxGeometry(30, 0.6, 16);
     const counter = new THREE.Mesh(counterGeo, lambert(16777215, { map: marble }));
-    counter.position.set(0, -0.3, -0.7);
+    counter.position.set(0, -0.3, 2.8);
     scene.add(counter);
     W.counter = counter;
     const shadowMat = new THREE.MeshBasicMaterial({ map: assets.tex.shadow, transparent: true, depthWrite: false, color: 5913130 });
@@ -851,8 +857,8 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       new THREE.Vector2(0.3, 0.14),
       new THREE.Vector2(0.22, 0.3),
       new THREE.Vector2(0, 0.34)
-    ], 32);
-    const plate = new THREE.CylinderGeometry(1.55, 1.5, 0.08, 56, 1).translate(0, 0.38, 0);
+    ], 48);
+    const plate = new THREE.CylinderGeometry(1.55, 1.5, 0.08, 96, 1).translate(0, 0.38, 0);
     tt.add(new THREE.Mesh(mergeGeos([pedestal, plate]), ceramic));
     W.shadow(scene, 0, 0, 2.2);
     W.shadow(scene, 0, 0, 3.6, 3.6, 4e-3);
@@ -869,11 +875,11 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     const frostTex = assets.photo("cream_512");
     const spongeMat = lambert(16777215, { map: sideTex });
     const frostMat = standard(16777215, { map: frostTex, roughness: 0.75 });
-    const spongeGeo = new THREE.CylinderGeometry(L.radius, L.radius, L.spongeH, 64, 1).translate(0, L.spongeH / 2, 0);
+    const spongeGeo = new THREE.CylinderGeometry(L.radius, L.radius, L.spongeH, 96, 1).translate(0, L.spongeH / 2, 0);
     spongeGeo.groups.length = 2;
     const sponge = new THREE.Mesh(spongeGeo, [spongeMat, frostMat]);
     cake.add(sponge);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(L.radius - 0.01, 0.055, 6, 64).rotateX(Math.PI / 2).translate(0, L.spongeH, 0), frostMat);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(L.radius - 0.01, 0.055, 10, 96).rotateX(Math.PI / 2).translate(0, L.spongeH, 0), frostMat);
     cake.add(rim);
     const cakeTop = new THREE.Group();
     cakeTop.position.y = L.spongeH;
@@ -921,8 +927,8 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       g.add(lift);
       W.shadow(g, 0, 0, 1.5);
       const halo = W.halo(g, 0, 0.01, 0, 2.2);
-      const proxy = new THREE.Mesh(new THREE.SphereGeometry(0.85, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
-      proxy.position.y = 0.3;
+      const proxy = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.6, 0.85, 12), new THREE.MeshBasicMaterial({ visible: false }));
+      proxy.position.y = 0.35;
       proxy.userData = { kind: "bowl", index: i };
       g.add(proxy);
       scene.add(g);
@@ -962,31 +968,39 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     const bagProxy = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 2.5, 8).translate(0, 1.1, 0), new THREE.MeshBasicMaterial({ visible: false }));
     bagProxy.userData = { kind: "bag" };
     bag.add(bagProxy);
-    const mid = L.bagHome.clone().addScaledVector(L.bagRestDir, 0.9 * L.bagScale);
-    W.bag = { group: bag, body: bagBody, mat: bagMat, proxy: bagProxy, restQ, workQ, halo: W.halo(scene, mid.x, 0.01, mid.z, 2.6) };
-    W.bagShadow = W.shadow(scene, mid.x, mid.z, 2, 1);
+    const bagDock = new THREE.Group();
+    scene.add(bagDock);
+    W.bag = { group: bag, body: bagBody, mat: bagMat, proxy: bagProxy, restQ, workQ, dock: bagDock, homeScale: L.bagScale, halo: W.halo(bagDock, 0, 0.01, 0, 2.6) };
+    W.bagShadow = W.shadow(bagDock, 0, 0, 2, 1);
     W.bagShadow.rotation.y = -Math.atan2(L.bagRestDir.z, L.bagRestDir.x);
-    const dishGeos = L.dishes.map(([x, z], i) => {
-      const g = new THREE.LatheGeometry([
-        new THREE.Vector2(0, 0),
-        new THREE.Vector2(0.5, 0),
-        new THREE.Vector2(0.58, 0.04),
-        new THREE.Vector2(0.66, 0.1),
-        new THREE.Vector2(0.62, 0.1),
-        new THREE.Vector2(0.48, 0.05),
-        new THREE.Vector2(0, 0.05)
-      ], 24);
-      return place(g, x, 0, z);
+    W.bag.tipLocal = new THREE.Vector3().addScaledVector(L.bagRestDir, -0.9 * L.bagScale).setY(0.36);
+    const dishGeo = new THREE.LatheGeometry([
+      new THREE.Vector2(0, 0),
+      new THREE.Vector2(0.5, 0),
+      new THREE.Vector2(0.58, 0.04),
+      new THREE.Vector2(0.66, 0.1),
+      new THREE.Vector2(0.62, 0.1),
+      new THREE.Vector2(0.48, 0.05),
+      new THREE.Vector2(0, 0.05)
+    ], 32);
+    const dishMat = standard(16776698, { roughness: 0.3 });
+    W.dishes = L.dishes.map(([x, z]) => {
+      const g = new THREE.Group();
+      g.position.set(x, 0, z);
+      g.add(new THREE.Mesh(dishGeo, dishMat));
+      W.shadow(g, 0, 0, 1.5);
+      const halo = W.halo(g, 0, 0.012, 0, 2);
+      scene.add(g);
+      return { group: g, halo };
     });
-    scene.add(new THREE.Mesh(mergeGeos(dishGeos), standard(16776698, { roughness: 0.3 })));
-    L.dishes.forEach(([x, z]) => W.shadow(scene, x, z, 1.5));
-    W.dishHalos = L.dishes.map(([x, z]) => W.halo(scene, x, 0.012, z, 2));
+    W.dishHalos = W.dishes.map((d) => d.halo);
     W.box = buildBox(assets);
-    W.box.group.position.copy(L.boxHome);
+    W.box.dock = new THREE.Group();
+    scene.add(W.box.dock);
     W.box.group.scale.setScalar(L.boxHomeScale);
-    scene.add(W.box.group);
-    W.box.halo = W.halo(scene, L.boxHome.x, 0.01, L.boxHome.z, 2.4);
-    W.box.shadow = W.shadow(scene, L.boxHome.x, L.boxHome.z, 1.8);
+    W.box.dock.add(W.box.group);
+    W.box.halo = W.halo(W.box.dock, 0, 0.01, 0, 2.4);
+    W.box.shadow = W.shadow(W.box.dock, 0, 0, 1.8);
     W.frames = L.frames.map(([x, y], i) => {
       const g = new THREE.Group();
       g.position.set(x, y, L.wallZ + 0.06);
@@ -1065,44 +1079,463 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     group.add(proxy);
     return { group, body, ribbon, bow, proxy, mats: [boxMat], size: { W, H, D } };
   }
-  function fitCamera(camera, aspect) {
-    const target = new THREE.Vector3(0, 0.9, -0.55);
-    const dir = new THREE.Vector3(0, 0.63, 0.78).normalize();
-    const pts = [];
-    L.bowls.forEach(([x, z]) => {
-      pts.push(new THREE.Vector3(x - 0.7, 0, z), new THREE.Vector3(x, 0.8, z));
-    });
-    L.dishes.forEach(([x, z]) => {
-      pts.push(new THREE.Vector3(x + 0.7, 0, z), new THREE.Vector3(x, 0, z + 0.7));
-    });
-    pts.push(new THREE.Vector3(0, 0, 1.9), L.bagHome.clone().addScaledVector(L.bagRestDir, 2.2 * L.bagScale).add(new THREE.Vector3(0.3, -0.3, 0.3)));
-    pts.push(new THREE.Vector3(L.custWindow.x, 2.6, L.custWindow.z), new THREE.Vector3(L.boxHome.x - 0.8, 1.3, L.boxHome.z));
-    camera.fov = 32;
-    camera.aspect = aspect;
-    let lo = 5, hi = 60;
-    const v = new THREE.Vector3();
-    for (let it = 0; it < 24; it++) {
-      const d = (lo + hi) / 2;
-      camera.position.copy(target).addScaledVector(dir, d);
-      camera.lookAt(target);
-      camera.updateProjectionMatrix();
-      camera.updateMatrixWorld();
-      let ok = true;
-      for (const p of pts) {
-        v.copy(p).project(camera);
-        if (Math.abs(v.x) > 0.95 || Math.abs(v.y) > 0.93) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) hi = d;
-      else lo = d;
+
+  // app/shell/camera.js
+  var DEG = Math.PI / 180;
+  var FOV = 32;
+  var TAN = Math.tan(FOV * DEG / 2);
+  var Damped = class {
+    constructor(v = 0) {
+      this.v = v;
+      this.vel = 0;
     }
-    camera.position.copy(target).addScaledVector(dir, hi);
-    camera.lookAt(target);
-    camera.updateProjectionMatrix();
-    camera.updateMatrixWorld();
-  }
+    snap(v) {
+      this.v = v;
+      this.vel = 0;
+    }
+    to(target, smoothTime, dt) {
+      const omega = 2 / Math.max(1e-3, smoothTime);
+      const x = omega * dt;
+      const k = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+      const change = this.v - target;
+      const temp = (this.vel + omega * change) * dt;
+      this.vel = (this.vel - omega * temp) * k;
+      this.v = target + (change + temp) * k;
+      return this.v;
+    }
+  };
+  var FRAMES = {
+    landscape: {
+      idle: { e: 47, frac: 0.62, fit: "short", ox: 0, oy: -0.13, smooth: 0.9 },
+      work: { e: 47, frac: 0.68, fit: "short", ox: 0, oy: -0.13, smooth: 0.8 },
+      boxing: { e: 42, frac: 0.66, fit: "short", ox: 0, oy: -0.04, smooth: 1 },
+      give: { e: 32, frac: 0.8, fit: "fit", ox: 0, oy: -0.04, smooth: 1.3 },
+      party: { e: 30, frac: 0.78, fit: "fit", ox: 0, oy: -0.02, smooth: 1.4 }
+    },
+    portrait: {
+      idle: { e: 49, frac: 0.64, fit: "short", ox: 0, oy: -0.2, smooth: 0.9 },
+      work: { e: 49, frac: 0.7, fit: "short", ox: 0, oy: -0.2, smooth: 0.8 },
+      boxing: { e: 42, frac: 0.7, fit: "short", ox: 0, oy: -0.12, smooth: 1 },
+      give: { e: 34, frac: 0.86, fit: "fit", ox: 0, oy: -0.08, smooth: 1.3 },
+      party: { e: 32, frac: 0.86, fit: "fit", ox: 0, oy: -0.06, smooth: 1.4 }
+    }
+  };
+  var CameraRig = class {
+    constructor(camera) {
+      this.camera = camera;
+      camera.fov = FOV;
+      this.w = 1;
+      this.h = 1;
+      this.aspect = 1;
+      this.portrait = false;
+      this.mode = "idle";
+      this.creamH = 0.25;
+      this.activeHold = 0;
+      this.snapNext = true;
+      this.T = [new Damped(), new Damped(), new Damped()];
+      this.D = new Damped(10);
+      this.E = new Damped(45 * DEG);
+      this.pose = { t: new THREE.Vector3(), d: 10, e: 45 * DEG };
+      this._pts = [];
+      for (let i = 0; i < 64; i++) this._pts.push(new THREE.Vector3());
+      this._n = 0;
+      this._C = new THREE.Vector3();
+      this._P = new THREE.Vector3();
+      this._T = new THREE.Vector3();
+      this._b = new THREE.Vector3();
+      this._u = new THREE.Vector3();
+      this._rel = new THREE.Vector3();
+      this.lastFrac = 0;
+    }
+    setViewport(w, h) {
+      this.w = Math.max(1, w);
+      this.h = Math.max(1, h);
+      this.aspect = this.w / this.h;
+      this.portrait = this.aspect < 1;
+      this.camera.aspect = this.aspect;
+      this.camera.updateProjectionMatrix();
+      this.snapNext = true;
+    }
+    get frames() {
+      return this.portrait ? FRAMES.portrait : FRAMES.landscape;
+    }
+    // ---------- subject point sets ----------
+    _reset() {
+      this._n = 0;
+    }
+    _add(x, y, z) {
+      if (this._n < this._pts.length) this._pts[this._n++].set(x, y, z);
+    }
+    _ring(cx, y, cz, r, n = 10) {
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        this._add(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r);
+      }
+    }
+    // the cake standing on the turntable (sponge bottom .. cream top)
+    _cake(cx, y0, cz, creamH) {
+      const R = L.radius + 0.06;
+      this._ring(cx, y0, cz, R);
+      this._ring(cx, y0 + L.spongeH, cz, R);
+      this._ring(cx, y0 + L.spongeH + Math.max(0.2, creamH * 0.7), cz, R * 0.6, 6);
+    }
+    _boxPts(cx, y0, cz) {
+      const h = 2.35 + 0.45;
+      for (const sx of [-1.5, 1.5]) for (const sz of [-1.5, 1.5]) {
+        this._add(cx + sx, y0, cz + sz);
+        this._add(cx + sx, y0 + h, cz + sz);
+      }
+    }
+    _custPts(p, top = 2.9) {
+      for (const sx of [-0.85, 0.85]) for (const sz of [-0.6, 0.6]) {
+        this._add(p.x + sx, 0, p.z + sz);
+        this._add(p.x + sx, top, p.z + sz);
+      }
+    }
+    subjectFor(mode) {
+      this._reset();
+      if (mode === "idle" || mode === "work") this._cake(0, L.plateTop, 0, this.creamH);
+      else if (mode === "boxing") {
+        this._cake(0, L.plateTop, 0, this.creamH);
+        this._boxPts(0, L.plateTop, 0);
+      } else if (mode === "give") {
+        this._boxPts(0, L.plateTop, 0);
+        this._custPts(L.custGive);
+      } else {
+        this._cake(L.parcelGive.x, 0, L.parcelGive.z, this.creamH);
+        this._custPts(L.custGive, 3.4);
+      }
+      return this._n;
+    }
+    // ---------- solver ----------
+    // camera basis for pitch e: b = from target toward camera, u = camera up, right = +X
+    _basis(e) {
+      this._b.set(0, Math.sin(e), Math.cos(e));
+      this._u.set(0, Math.cos(e), -Math.sin(e));
+    }
+    _place(C, d, ox, oy, out) {
+      const hh = d * TAN, hw = hh * this.aspect;
+      out.copy(C);
+      out.x -= ox * hw;
+      out.addScaledVector(this._u, -oy * hh);
+      return out;
+    }
+    // projected NDC bbox of the current points for (C, d, e, ox, oy) -> [minx, maxx, miny, maxy] or null if behind
+    _bbox(C, d, ox, oy, bb) {
+      const T = this._place(C, d, ox, oy, this._T);
+      const P = this._P.copy(T).addScaledVector(this._b, d);
+      bb[0] = bb[2] = Infinity;
+      bb[1] = bb[3] = -Infinity;
+      for (let i = 0; i < this._n; i++) {
+        const r = this._rel.copy(this._pts[i]).sub(P);
+        const depth = -r.dot(this._b);
+        if (depth < 0.5) return null;
+        const x = r.x / (depth * TAN * this.aspect), y = r.dot(this._u) / (depth * TAN);
+        if (x < bb[0]) bb[0] = x;
+        if (x > bb[1]) bb[1] = x;
+        if (y < bb[2]) bb[2] = y;
+        if (y > bb[3]) bb[3] = y;
+      }
+      return bb;
+    }
+    _metric(bb, fit) {
+      if (!bb) return Infinity;
+      const wN = (bb[1] - bb[0]) / 2, hN = (bb[3] - bb[2]) / 2;
+      if (fit === "fit") return Math.max(wN, hN);
+      return Math.max(wN * this.w, hN * this.h) / Math.min(this.w, this.h);
+    }
+    // Solve the pose that frames the current points. Writes {t, d, e} into out.
+    solve(f, out) {
+      const e = f.e * DEG;
+      this._basis(e);
+      const C = this._C.set(0, 0, 0);
+      let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (let i = 0; i < this._n; i++) {
+        const p = this._pts[i];
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+        minZ = Math.min(minZ, p.z);
+        maxZ = Math.max(maxZ, p.z);
+      }
+      C.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+      let ox = f.ox, oy = f.oy, d = 10;
+      const bb = [0, 0, 0, 0];
+      for (let pass = 0; pass < 3; pass++) {
+        let lo = Math.log(2.5), hi = Math.log(150);
+        for (let it = 0; it < 22; it++) {
+          const m = (lo + hi) / 2;
+          if (this._metric(this._bbox(C, Math.exp(m), ox, oy, bb), f.fit) > f.frac) lo = m;
+          else hi = m;
+        }
+        d = Math.exp(hi);
+        const b2 = this._bbox(C, d, ox, oy, bb);
+        if (!b2) break;
+        ox -= (b2[0] + b2[1]) / 2 - f.ox;
+        oy -= (b2[2] + b2[3]) / 2 - f.oy;
+      }
+      out.t.copy(this._place(C, d, ox, oy, this._T));
+      out.d = d;
+      out.e = e;
+      return out;
+    }
+    // Pose for a mode without touching the camera (used by the tray layout).
+    poseFor(mode, out = { t: new THREE.Vector3(), d: 0, e: 0 }) {
+      this.subjectFor(mode);
+      return this.solve(this.frames[mode], out);
+    }
+    // Project a world point with a pose -> pixel {x, y} (top-left origin) or null.
+    projectWith(pose, p, out = { x: 0, y: 0, depth: 0 }) {
+      this._basis(pose.e);
+      const P = this._P.copy(pose.t).addScaledVector(this._b, pose.d);
+      const r = this._rel.copy(p).sub(P);
+      const depth = -r.dot(this._b);
+      if (depth < 0.05) return null;
+      out.x = (r.x / (depth * TAN * this.aspect) * 0.5 + 0.5) * this.w;
+      out.y = (0.5 - r.dot(this._u) / (depth * TAN) * 0.5) * this.h;
+      out.depth = depth;
+      return out;
+    }
+    // Ray (world) from a pixel through a pose.
+    rayWith(pose, px, py, ray) {
+      this._basis(pose.e);
+      const P = this._P.copy(pose.t).addScaledVector(this._b, pose.d);
+      const nx = px / this.w * 2 - 1, ny = 1 - py / this.h * 2;
+      ray.origin.copy(P);
+      ray.direction.set(nx * TAN * this.aspect, 0, 0).addScaledVector(this._u, ny * TAN).addScaledVector(this._b, -1).normalize();
+      return ray;
+    }
+    // ---------- per frame ----------
+    // g: the Game. Chooses the mode from the play state and eases the camera toward its framing.
+    update(dt, g) {
+      const s = g.scene;
+      let mode;
+      const p = g.ptr;
+      const hold = !this.snapNext && p && (p.mode === "pipe" || p.mode === "bag" || p.mode === "carry");
+      if (s === "decorate") {
+        const busy = p && (p.mode === "pipe" || p.mode === "bag" || p.mode === "carry") || g.auto || g.hero.getState().phase !== "idle";
+        if (busy) this.activeHold = 2.2;
+        else this.activeHold = Math.max(0, this.activeHold - dt);
+        mode = this.activeHold > 0 ? "work" : "idle";
+      } else if (s === "boxing") mode = "boxing";
+      else if (s === "give") mode = "give";
+      else if (s === "leaving" && g.traysIn) mode = "idle";
+      else mode = "party";
+      this.mode = mode;
+      this._creamT = (this._creamT || 0) - dt;
+      if (this._creamT <= 0 && (s === "decorate" || s === "boxing")) {
+        this._creamT = 0.3;
+        let m = 0;
+        for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+          const x = i * 0.36, z = j * 0.36;
+          if (x * x + z * z < 1.3) m = Math.max(m, g.hero.heightAt(x, z));
+        }
+        this.creamH = m;
+      }
+      const f = this.frames[mode];
+      this.subjectFor(mode);
+      const goal = this.solve(f, this._goal || (this._goal = { t: new THREE.Vector3(), d: 0, e: 0 }));
+      if (hold) {
+        const k = Math.exp(-16 * dt);
+        for (const d of [this.T[0], this.T[1], this.T[2], this.D, this.E]) {
+          d.vel *= k;
+          d.v += d.vel * dt;
+        }
+      } else if (this.snapNext) {
+        this.snapNext = false;
+        this.T[0].snap(goal.t.x);
+        this.T[1].snap(goal.t.y);
+        this.T[2].snap(goal.t.z);
+        this.D.snap(goal.d);
+        this.E.snap(goal.e);
+      } else {
+        const st = f.smooth;
+        this.T[0].to(goal.t.x, st, dt);
+        this.T[1].to(goal.t.y, st, dt);
+        this.T[2].to(goal.t.z, st, dt);
+        this.D.to(goal.d, st, dt);
+        this.E.to(goal.e, st * 1.15, dt);
+      }
+      this.pose.t.set(this.T[0].v, this.T[1].v, this.T[2].v);
+      this.pose.d = this.D.v;
+      this.pose.e = this.E.v;
+      this.apply(this.pose);
+    }
+    apply(pose) {
+      const cam = this.camera;
+      this._basis(pose.e);
+      cam.position.copy(pose.t).addScaledVector(this._b, pose.d);
+      cam.up.set(0, 1, 0);
+      cam.lookAt(pose.t);
+      cam.updateMatrixWorld();
+    }
+    // Debug: how much of the short side the cake occupies with the actual camera (top+cream only, and whole cake).
+    measure() {
+      this._reset();
+      this._cake(0, L.plateTop, 0, this.creamH);
+      const v = this._rel, S2 = Math.min(this.w, this.h);
+      let a = [Infinity, -Infinity, Infinity, -Infinity];
+      for (let i = 0; i < this._n; i++) {
+        v.copy(this._pts[i]).project(this.camera);
+        a[0] = Math.min(a[0], v.x);
+        a[1] = Math.max(a[1], v.x);
+        a[2] = Math.min(a[2], v.y);
+        a[3] = Math.max(a[3], v.y);
+      }
+      const wpx = (a[1] - a[0]) / 2 * this.w, hpx = (a[3] - a[2]) / 2 * this.h;
+      return { frac: Math.max(wpx, hpx) / S2, wFrac: wpx / S2, hFrac: hpx / S2, d: this.pose.d, e: this.pose.e / DEG, mode: this.mode };
+    }
+  };
+
+  // app/shell/tray.js
+  var TAN2 = Math.tan(FOV * Math.PI / 360);
+  var DOCK_D = 6;
+  var Tray = class {
+    constructor(W, rig) {
+      this.W = W;
+      this.rig = rig;
+      const dock = (obj, w, h, cy, key) => ({ obj, w, h, cy, key, px: 0, py: 0, ppu: 0, ox: 0, oy: 0, s: 1 });
+      this.bowls = W.bowls.map((b, i) => dock(b.group, 1.32, 1, 0.3, "bowl" + i));
+      this.dishes = W.dishes.map((d, i) => dock(d.group, 1.4, 0.95, 0.18, "dish" + i));
+      this.box = dock(W.box.dock, 1.35, 1.5, 0.55, "box");
+      this.bag = dock(W.bag.dock, 2.05, 0.9, 0.36, "bag");
+      this.all = [...this.bowls, ...this.dishes, this.box, this.bag];
+      this.out = new Damped(0);
+      this.insets = { l: 0, r: 0, t: 0, b: 0 };
+      this.cakeRect = null;
+      this.custPx = null;
+      this._v = new THREE.Vector3();
+      this._ray = new THREE.Ray();
+    }
+    // ---------- layout (on resize / safe-area change) ----------
+    layout(insets) {
+      const rig = this.rig, w = rig.w, h = rig.h, S2 = Math.min(w, h);
+      if (insets) this.insets = insets;
+      const ins = this.insets;
+      const pose = rig.poseFor("idle");
+      const R = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+      const q = { x: 0, y: 0, depth: 0 };
+      for (let i = 0; i < rig._n; i++) {
+        if (!rig.projectWith(pose, rig._pts[i], q)) continue;
+        R.x0 = Math.min(R.x0, q.x);
+        R.x1 = Math.max(R.x1, q.x);
+        R.y0 = Math.min(R.y0, q.y);
+        R.y1 = Math.max(R.y1, q.y);
+      }
+      this.cakeRect = R;
+      const pad = S2 * 0.022, gap = S2 * 0.015;
+      const safe = { l: ins.l + pad, r: w - ins.r - pad, t: ins.t + pad, b: h - ins.b - pad };
+      const cap = S2 * 0.17;
+      const D = this;
+      if (!rig.portrait) {
+        const left = { x0: safe.l, x1: Math.max(safe.l + S2 * 0.14, R.x0 - gap), y0: safe.t, y1: safe.b };
+        const right = { x0: Math.min(safe.r - S2 * 0.14, R.x1 + gap), x1: safe.r, y0: safe.t, y1: safe.b };
+        const [b0, b1, b2, b3] = D.bowls, [d0, d1, d2, d3, d4] = D.dishes;
+        this._best(left, [[[b0], [b1], [b2], [b3], [D.bag]], [[b0, b1], [b2, b3], [D.bag]]], "row", cap, -(left.x1 + S2 * 0.15), 0);
+        this._best(right, [[[D.box], [d0], [d1], [d2], [d3], [d4]], [[D.box, d0], [d1, d2], [d3, d4]]], "row", cap, w - right.x0 + S2 * 0.15, 0);
+        this.custPx = { x: R.x0 + (R.x1 - R.x0) * 0.9, y: safe.t + S2 * 0.03 };
+      } else {
+        const top = { x0: safe.l, x1: safe.r, y0: safe.t, y1: Math.max(safe.t + S2 * 0.4, R.y0 - gap) };
+        const bot = { x0: safe.l, x1: safe.r, y0: Math.min(safe.b - S2 * 0.24, R.y1 + gap), y1: safe.b };
+        const [d0, d1, d2, d3, d4] = D.dishes;
+        this._best(top, [[[D.box, D.bag, null], D.bowls]], "row", cap, 0, -(top.y1 + S2 * 0.15));
+        this._best(bot, [[[d0, d1, d2, d3, d4]], [[d0, d1, d2], [d3, d4]]], "row", cap, 0, h - bot.y0 + S2 * 0.15);
+        this.custPx = { x: top.x0 + (top.x1 - top.x0) * 0.84, y: safe.t + S2 * 0.03 };
+      }
+      const r = rig.rayWith(pose, this.custPx.x, this.custPx.y, this._ray);
+      let t = (2.45 - r.origin.y) / r.direction.y;
+      let p = this._v.copy(r.origin).addScaledVector(r.direction, t);
+      const zc = clamp(p.z, -4.7, -2.4);
+      if (zc !== p.z) {
+        t = (zc - r.origin.z) / r.direction.z;
+        p = this._v.copy(r.origin).addScaledVector(r.direction, t);
+      }
+      L.custWindow.set(clamp(p.x, -4, 4.5), 0, zc);
+    }
+    // Try a few arrangements of a band and keep the one with the biggest items.
+    // lines: rows (kind 'row') or columns (kind 'col'); null = an empty cell (keeps room).
+    _best(rect, options, kind, cap, ox, oy) {
+      let best = null;
+      for (const lines of options) {
+        const ppu = this._fit(rect, lines, kind, cap);
+        if (!best || ppu > best.ppu + 1e-6) best = { lines, ppu };
+      }
+      this._place(rect, best.lines, kind, best.ppu, ox, oy);
+    }
+    _fit(rect, lines, kind, cap) {
+      const W = rect.x1 - rect.x0, H = rect.y1 - rect.y0;
+      const along = kind === "row" ? W : H, across = kind === "row" ? H : W;
+      let ppu = cap, sumAcross = 0;
+      for (const line of lines) {
+        let sumAlong = 0, maxAcross = 0;
+        for (const d of line) {
+          const a = d ? kind === "row" ? d.w : d.h : 1.4, c = d ? kind === "row" ? d.h : d.w : 0;
+          sumAlong += a;
+          maxAcross = Math.max(maxAcross, c);
+        }
+        ppu = Math.min(ppu, along * 0.94 / (sumAlong * 1.08));
+        sumAcross += maxAcross * 1.12;
+      }
+      return Math.max(1, Math.min(ppu, across * 0.96 / sumAcross));
+    }
+    _place(rect, lines, kind, ppu, ox, oy) {
+      const W = rect.x1 - rect.x0, H = rect.y1 - rect.y0;
+      const across = kind === "row" ? H : W;
+      const sizes = lines.map((line) => Math.max(...line.map((d) => d ? kind === "row" ? d.h : d.w : 0)) * 1.12 * ppu);
+      const total = sizes.reduce((a, b) => a + b, 0);
+      let c = (across - total) / 2;
+      lines.forEach((line, li) => {
+        const mid = c + sizes[li] / 2;
+        c += sizes[li];
+        const weights = line.map((d) => d ? kind === "row" ? d.w : d.h : 1.4);
+        const sum = weights.reduce((a2, b) => a2 + b, 0);
+        const along = kind === "row" ? W : H;
+        let a = 0;
+        line.forEach((d, k) => {
+          const cell = weights[k] / sum * along;
+          const centerAlong = a + cell / 2;
+          a += cell;
+          if (!d) return;
+          d.ppu = ppu;
+          if (kind === "row") {
+            d.px = rect.x0 + centerAlong;
+            d.py = rect.y0 + mid;
+          } else {
+            d.px = rect.x0 + mid;
+            d.py = rect.y0 + centerAlong;
+          }
+          d.ox = ox;
+          d.oy = oy;
+        });
+      });
+    }
+    // ---------- per frame (after the camera moved) ----------
+    update(dt, camera, traysIn, snap = false) {
+      const rig = this.rig, w = rig.w, h = rig.h;
+      const goal = traysIn ? 0 : 1;
+      if (snap) this.out.snap(goal);
+      else this.out.to(goal, goal ? 0.4 : 0.4, dt);
+      const k = clamp(this.out.v, 0, 1.05);
+      const wpp = 2 * DOCK_D * TAN2 / h;
+      const m = camera.matrixWorld;
+      for (const d of this.all) {
+        if (!d.ppu) continue;
+        const px = d.px + d.ox * k, py = d.py + d.oy * k;
+        const s = d.ppu * wpp;
+        d.s = s;
+        const o = d.obj;
+        o.position.set((px - w / 2) * wpp, (h / 2 - py) * wpp, -DOCK_D).applyMatrix4(m);
+        o.position.y -= d.cy * s;
+        o.scale.setScalar(s);
+        o.visible = k < 0.995;
+        o.updateMatrixWorld(true);
+      }
+      L.bagHome.copy(this.W.bag.tipLocal);
+      this.W.bag.dock.localToWorld(L.bagHome);
+      this.W.bag.homeScale = L.bagScale * this.bag.s;
+    }
+  };
 
   // app/shell/items.js
   var Q = { straw: [0, 0.5], kiwi: [0.5, 0.5], blue: [0, 0], orange: [0.5, 0] };
@@ -1184,21 +1617,19 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       this.flames.count = 0;
       this.flames.frustumCulled = false;
       W.cakeTop.add(this.flames);
-      this.trayGroups = L.dishes.map(([x, z], i) => {
+      this.trayGroups = W.dishes.map((dish, i) => {
         const t = this.types[i];
         const spots = t.key === "candle" ? [[-0.15, 0, 0.3], [0.15, 0, -0.2], [0.05, 0.15, 0.1], [-0.1, -0.2, -0.1]] : [[-0.2, -0.1, 0.4], [0.18, -0.12, -0.5], [0, 0.2, 1.4]];
         const geos = spots.map(([dx, dz, ry]) => place(t.geo.clone(), dx, 0.05, dz, t.key === "candle" ? 0.25 * dx : 0, ry, t.key === "candle" ? 0.25 * dz : 0, 1.15));
         const g = new THREE.Group();
-        g.position.set(x, 0, z);
         g.add(new THREE.Mesh(mergeGeos(geos), t.mat));
-        W.scene.add(g);
+        dish.group.add(g);
         return g;
       });
-      this.proxies = L.dishes.map(([x, z], i) => {
-        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.9, 10).translate(0, 0.3, 0), new THREE.MeshBasicMaterial({ visible: false }));
-        m.position.set(x, 0, z);
+      this.proxies = W.dishes.map((dish, i) => {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1, 10).translate(0, 0.35, 0), new THREE.MeshBasicMaterial({ visible: false }));
         m.userData = { kind: "tray", index: i };
-        W.scene.add(m);
+        dish.group.add(m);
         return m;
       });
       this._m = new THREE.Matrix4();
@@ -1209,8 +1640,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       this.flights = [];
     }
     dishWorld(i, out = new THREE.Vector3()) {
-      const [x, z] = L.dishes[i];
-      return out.set(x, 0.3, z);
+      return this.W.dishes[i].group.localToWorld(out.set(0, 0.3, 0));
     }
     canAdd(i) {
       const t = this.types[i];
@@ -1597,6 +2027,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       Object.assign(this, ctx);
       this.tw = new Tweens();
       this.scene = "decorate";
+      this.traysIn = true;
       this.round = 0;
       this.time = 0;
       this.colorIndex = 0;
@@ -1617,6 +2048,10 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       this.bagTarget = L.bagHome.clone();
       this.bagOverride = null;
       this.bagSquash = 0;
+      this.bagScale = this.W.bag.homeScale;
+      this._home = L.bagHome.clone();
+      this._dh = new THREE.Vector3();
+      this._bagTrail = [];
       this.parcel = null;
       this.photoSlot = 0;
       this.photoTargets = [];
@@ -1688,7 +2123,11 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
         const hits = this.raycaster.intersectObjects(this._pickables(), false);
         const heroHit = this.hero.hitTest(this.ray);
         const heroDist = heroHit ? this.hero.root.localToWorld(this._v.copy(heroHit.point)).distanceTo(this.camera.position) : Infinity;
-        const first = hits[0];
+        const tr = this._bagTrail, moved = tr.length > 1 && Math.hypot(tr[0][0] - tr[tr.length - 1][0], tr[0][1] - tr[tr.length - 1][1]) > 0.01;
+        const bagMoving = moved || this.bagPos.distanceTo(L.bagHome) > 0.04 || this.W.bag.group.quaternion.angleTo(this.W.bag.restQ) > 0.15;
+        let bagHit = bagMoving && hits.find((h) => h.object.userData.kind === "bag");
+        if (!bagHit && bagMoving && !heroHit && this._nearBag(e.clientX, e.clientY)) bagHit = { object: this.W.bag.proxy, distance: 0 };
+        const first = bagHit || hits[0];
         if (first && first.distance < heroDist && !(heroHit && first.object.userData.kind === "bag")) {
           const u = first.object.userData;
           if (u.kind === "bag") {
@@ -1763,6 +2202,29 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     bagAtHome() {
       return this.bagPos.distanceTo(L.bagHome) < 0.3;
     }
+    // Is (cx, cy) on or near where the bag was drawn in the last few frames? (it flies back to its tray after a
+    // stroke; a child taps where they saw it a moment ago)
+    _nearBag(cx, cy) {
+      const r = this.renderer.domElement.getBoundingClientRect(), lim = Math.min(r.width, r.height) * 0.12;
+      return this._bagTrail.some(([x, y]) => Math.hypot(cx - r.left - x * r.width, cy - r.top - y * r.height) < lim);
+    }
+    _trackBag() {
+      const v = this.W.bag.group.localToWorld(this._v.set(0, 0.9, 0)).project(this.camera);
+      if (this._bagTrail.length >= 6) this._bagTrail.shift();
+      this._bagTrail.push([v.x * 0.5 + 0.5, 0.5 - v.y * 0.5]);
+    }
+    // The trays (and the bag's resting place, the customer's window) moved: resize / rotation. Snap, don't fly.
+    onLayout() {
+      if (!this.ptr && this.hero.getState().phase === "idle" && !this.bagOverride) {
+        this.bagPos.copy(L.bagHome);
+        this.bagScale = this.W.bag.homeScale;
+      }
+      this._home.copy(L.bagHome);
+      if (this.scene === "decorate") {
+        this.customer.pos.copy(L.custWindow);
+        this.customer.target.copy(L.custWindow);
+      }
+    }
     // A tap on the bare counter still answers right away: a little sparkle where the finger was, and the
     // turntable gives a small nudge (it shows it can turn).
     tapCounter() {
@@ -1819,15 +2281,16 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       this.bounce(b.lift, 0.2);
       this.sfx.dip();
       if (this.hero.getState().phase === "idle") {
-        const top = new THREE.Vector3(b.group.position.x, 0.95, b.group.position.z);
+        const top = b.group.localToWorld(new THREE.Vector3(0, 0.95, 0));
+        const lift = 0.35 * b.group.scale.y;
         this.bagOverride = { pos: top.clone() };
         this.tw.add(0.42, (k) => {
-          if (this.bagOverride) this.bagOverride.pos.y = 0.95 + Math.sin(k * Math.PI) * 0.35;
+          if (this.bagOverride) this.bagOverride.pos.y = top.y + Math.sin(k * Math.PI) * lift;
         }, () => {
           this.bagOverride = null;
         });
       }
-      this.fx.emit("star", new THREE.Vector3(b.group.position.x, 0.8, b.group.position.z), { n: 5, size: 0.22, colors: [CREAM_COLORS[i].hex, 16777215], life: 0.6, speed: 1.2 });
+      this.fx.emit("star", b.group.localToWorld(new THREE.Vector3(0, 0.8, 0)), { n: 5, size: 0.22, colors: [CREAM_COLORS[i].hex, 16777215], life: 0.6, speed: 1.2 });
     }
     pokeCustomer() {
       const c = this.customer;
@@ -1947,6 +2410,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       if (this.scene !== "decorate") return;
       this.stopHint();
       this.scene = "boxing";
+      this.traysIn = false;
       this.auto = null;
       this.hero.endStroke();
       this.sfx.squeezeStop();
@@ -1958,6 +2422,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       const box = this.W.box;
       box.halo.visible = false;
       box.shadow.visible = false;
+      this.W.scene.attach(box.group);
       const from = box.group.position.clone();
       const over = new THREE.Vector3(0, L.plateTop + 3.2, 0);
       const s0 = box.group.scale.x;
@@ -2079,6 +2544,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     }
     nextSponge() {
       this.round++;
+      this.traysIn = true;
       const W = this.W;
       this.hero.reset();
       this.items.clear();
@@ -2092,9 +2558,9 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       W.scene.remove(this.parcel);
       this.parcel = null;
       const box = W.box;
-      W.scene.attach(box.group);
+      box.dock.add(box.group);
       box.group.visible = true;
-      box.group.position.copy(L.boxHome);
+      box.group.position.set(0, 0, 0);
       box.group.rotation.set(0, 0, 0);
       box.group.scale.setScalar(1e-3);
       box.bow.scale.setScalar(1);
@@ -2288,6 +2754,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       this.time += dt;
       this.tw.update(dt);
       const p = this.ptr;
+      if (p) this._setRay(p.x, p.y);
       if (p && p.mode === "carry") {
         const t = this.items.types[p.type];
         const hit = this._planeHit(L.cakeTopY + 0.55, this._v2);
@@ -2342,13 +2809,20 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       } else if (this.bagOverride) {
         this.bagPos.lerp(this.bagOverride.pos, follow(22, dt));
       } else {
+        this.bagPos.add(this._dh.copy(L.bagHome).sub(this._home));
         this._v.copy(L.bagHome);
-        this._v.y += (this.hint && this.hint.keys.includes("bag") ? this.bagHop || 0 : 0) * 0.7;
-        this.bagPos.lerp(this._v, follow(this.hint ? 20 : 7, dt));
+        this._v.y += (this.hint && this.hint.keys.includes("bag") ? this.bagHop || 0 : 0) * 0.7 * (W.bag.homeScale / L.bagScale);
+        this.bagPos.lerp(this._v, follow(this.hint ? 20 : 10, dt));
       }
+      this._home.copy(L.bagHome);
       W.bag.group.position.copy(this.bagPos);
       const working = hs.phase !== "idle" || p && p.mode === "bag" || this.bagOverride || this.bagPos.distanceTo(L.bagHome) > 0.8;
-      W.bag.group.quaternion.slerp(working ? W.bag.workQ : W.bag.restQ, follow(working ? 16 : 7, dt));
+      const away = smooth(this.bagPos.distanceTo(L.bagHome) / 1.6);
+      const sGoal = hs.phase !== "idle" || p && p.mode === "bag" ? L.bagScale : lerp(W.bag.homeScale, L.bagScale, away);
+      this.bagScale = lerp(this.bagScale, sGoal, follow(10, dt));
+      W.bag.group.scale.setScalar(this.bagScale);
+      this._trackBag();
+      W.bag.group.quaternion.slerp(working ? W.bag.workQ : W.bag.restQ, follow(working ? 16 : 11, dt));
       const squeeze = hs.flow;
       this.bagSquash = lerp(this.bagSquash, squeeze, follow(18, dt));
       const sq = this.bagSquash * (0.9 + 0.1 * Math.sin(this.time * 18));
@@ -2403,6 +2877,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
   // app/shell/main.js
   var params = new URLSearchParams(location.search);
   var DEBUG = params.get("debug") === "1";
+  var AUTOSCALE = params.get("autoscale") !== "0";
   var t0 = performance.now();
   var boot = window.__boot = { scriptStart: t0 };
   var mark = (k) => {
@@ -2433,7 +2908,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     const assets = new Assets(renderer);
     assets.build();
     const W = buildWorld(assets, tier);
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 140);
     mark("world");
     let game = null;
     const creamTex = assets.photo("cream_1024", { repeat: 1 });
@@ -2468,19 +2943,60 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     const customer = new Customer(W);
     const fx = new Fx(W.scene, assets, camera, tier.particles);
     const sfx = new Sfx();
-    game = new Game({ renderer, camera, W, assets, sfx, tier, hero, items, customer, fx });
-    mark("game");
-    let pr = 1;
-    function resize() {
-      const w = window.innerWidth, h = window.innerHeight;
-      pr = pixelRatioFor(tier, w, h);
-      renderer.setPixelRatio(pr);
-      renderer.setSize(w, h, true);
-      fitCamera(camera, w / Math.max(1, h));
+    const rig = new CameraRig(camera);
+    const tray = new Tray(W, rig);
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);";
+    document.body.appendChild(probe);
+    const RS = [1, 0.85, 0.75];
+    let pr = 1, rsIdx = 0, cw = 0, ch = 0, insetKey = "";
+    function measure() {
+      const r = canvas.getBoundingClientRect();
+      const vv = window.visualViewport;
+      const w = Math.round(r.width) || Math.round(vv ? vv.width : window.innerWidth);
+      const h = Math.round(r.height) || Math.round(vv ? vv.height : window.innerHeight);
+      return [Math.max(1, w), Math.max(1, h)];
     }
-    window.addEventListener("resize", resize);
-    window.addEventListener("orientationchange", () => setTimeout(resize, 200));
-    resize();
+    function insets() {
+      const cs = getComputedStyle(probe);
+      return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+    }
+    function applySize() {
+      pr = pixelRatioFor(tier, cw, ch);
+      renderer.setPixelRatio(pr * RS[rsIdx]);
+      renderer.setSize(cw, ch, false);
+    }
+    function relayout(force) {
+      const [w, h] = measure();
+      const ins = insets(), key = `${ins.t},${ins.r},${ins.b},${ins.l}`;
+      if (!force && w === cw && h === ch && key === insetKey) return;
+      cw = w;
+      ch = h;
+      insetKey = key;
+      applySize();
+      rig.setViewport(w, h);
+      tray.layout(ins);
+      if (game) rig.update(0, game);
+      else rig.apply(rig.poseFor("idle"));
+      tray.update(0, camera, game ? game.traysIn : true, true);
+      if (game) game.onLayout();
+    }
+    let layoutQueued = false;
+    const queueRelayout = () => {
+      layoutQueued = true;
+    };
+    window.addEventListener("resize", queueRelayout);
+    window.addEventListener("orientationchange", () => {
+      queueRelayout();
+      [120, 350, 800].forEach((ms) => setTimeout(queueRelayout, ms));
+    });
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", queueRelayout);
+    if (window.ResizeObserver) new ResizeObserver(queueRelayout).observe(canvas);
+    relayout(true);
+    game = new Game({ renderer, camera, W, assets, sfx, tier, hero, items, customer, fx });
+    game.onLayout();
+    mark("game");
+    const resize = () => relayout(true);
     let ctxLost = false, ctxState = "ok";
     canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
@@ -2512,16 +3028,34 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
     });
     const dbg = new DebugOverlay(DEBUG);
     let last = performance.now(), gpu = null, gpuT = 0, lowT = 0, firstFrame = 0;
+    let runT = 0, frameEma = 1 / 60, slowT = 0, fastT = 0, upWait = 8, pendingSize = false, pendingFull = false;
     const cpu = { update: 0, render: 0 };
-    const info = { tier: tier.name, cw: 0, ch: 0, pr: 1, calls: 0, tris: 0, glTex: 0, gpu: null, hero: {}, scene: "", round: 0, ctx: "ok" };
+    const info = { tier: tier.name, cw: 0, ch: 0, pr: 1, rs: 1, calls: 0, tris: 0, glTex: 0, gpu: null, hero: {}, scene: "", round: 0, ctx: "ok", cam: null, css: "" };
     function frame(now) {
       requestAnimationFrame(frame);
       const rawDt = (now - last) / 1e3;
       last = now;
       const dt = Math.min(0.1, Math.max(0, rawDt));
       if (ctxLost) return;
+      if (layoutQueued) {
+        layoutQueued = false;
+        relayout(false);
+      }
+      if (pendingSize) {
+        pendingSize = false;
+        if (pendingFull) {
+          pendingFull = false;
+          resize();
+        } else applySize();
+      }
       const c0 = performance.now();
       const steps = dt > 0.05 ? 2 : 1;
+      try {
+        rig.update(dt, game);
+        tray.update(dt, camera, game.traysIn);
+      } catch (e) {
+        console.error(e);
+      }
       try {
         for (let i = 0; i < steps; i++) game.update(dt / steps);
       } catch (e) {
@@ -2554,8 +3088,33 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
         lowT = rawDt > 1 / 40 ? lowT + rawDt : Math.max(0, lowT - rawDt);
         if (lowT > 3) {
           tier.pixelRatio = 1;
-          resize();
+          pendingSize = pendingFull = true;
           lowT = 0;
+        }
+      }
+      if (AUTOSCALE && !document.hidden) {
+        runT += rawDt;
+        if (runT > 3 && rawDt < 0.25) {
+          frameEma += (rawDt - frameEma) * 0.1;
+          if (frameEma > 1 / 50) {
+            slowT += rawDt;
+            fastT = 0;
+          } else {
+            slowT = Math.max(0, slowT - rawDt);
+            fastT = frameEma < 1 / 57 ? fastT + rawDt : 0;
+          }
+          if (slowT > 2 && rsIdx < RS.length - 1) {
+            rsIdx++;
+            pendingSize = true;
+            slowT = 0;
+            fastT = 0;
+            upWait = Math.min(60, upWait * 2);
+          } else if (fastT > upWait && rsIdx > 0) {
+            rsIdx--;
+            pendingSize = true;
+            fastT = 0;
+            slowT = 0;
+          }
         }
       }
       const r = renderer.info.render;
@@ -2565,6 +3124,7 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       info.cw = canvas.width;
       info.ch = canvas.height;
       info.pr = pr;
+      info.rs = RS[rsIdx];
       info.scene = game.scene;
       info.round = game.round;
       info.ctx = ctxState;
@@ -2576,6 +3136,8 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
           gpuT = 1;
         }
         info.gpu = gpu;
+        info.cam = rig.measure();
+        info.css = `${cw}x${ch} ${rig.portrait ? "portrait" : "landscape"} safe ${insetKey}`;
         dbg.update(now / 1e3, info);
       } else if (info.calls > dbg.peak.calls || info.tris > dbg.peak.tris) dbg.update(now / 1e3, info);
     }
@@ -2586,8 +3148,27 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
       const r = canvas.getBoundingClientRect();
       return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (-v.y * 0.5 + 0.5) * r.height };
     }
+    function emptySpot() {
+      const rc = new THREE.Raycaster(), ndc = new THREE.Vector2();
+      for (const deg of [200, 160, 235, 125, 270, 90, 300, 60, 330, 30]) {
+        for (const r of [1.85, 2.2, 1.7]) {
+          const a = deg * Math.PI / 180;
+          const s = screenOf(new THREE.Vector3(Math.cos(a) * r, 0.05, -Math.sin(a) * r));
+          if (s.x < cw * 0.05 || s.x > cw * 0.95 || s.y < ch * 0.05 || s.y > ch * 0.95) continue;
+          ndc.set(s.x / cw * 2 - 1, 1 - s.y / ch * 2);
+          rc.setFromCamera(ndc, camera);
+          if (rc.intersectObjects(game._pickables(), false).length || hero.hitTest(rc.ray)) continue;
+          return s;
+        }
+      }
+      return screenOf(new THREE.Vector3(-1.9, 0, 0.6));
+    }
     window.__game = {
       ready: true,
+      // framing numbers for checks: how much of the short side the cake takes, render scale, layout
+      frameInfo() {
+        return { cam: rig.measure(), rs: RS[rsIdx], css: [cw, ch], canvas: [canvas.width, canvas.height], portrait: rig.portrait, cake: tray.cakeRect, insets: insetKey };
+      },
       get scene() {
         return game.scene;
       },
@@ -2607,15 +3188,12 @@ errors ${errors.length}${errors.length ? "\n " + errors.slice(-3).join("\n ") : 
           const [dx, dz] = name.slice(5).split(",").map(Number);
           return screenOf(W.cakeTop.localToWorld(new THREE.Vector3(dx, hero.heightAt(dx, dz), dz)));
         }
-        if (name.startsWith("bowl")) return screenOf(W.bowls[+name.slice(4)].group.position.clone().setY(0.4));
-        if (name.startsWith("tray")) {
-          const [x, z] = L.dishes[+name.slice(4)];
-          return screenOf(new THREE.Vector3(x, 0.2, z));
-        }
-        if (name === "box") return screenOf(W.box.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.5, 0)));
+        if (name.startsWith("bowl")) return screenOf(W.bowls[+name.slice(4)].group.localToWorld(new THREE.Vector3(0, 0.35, 0)));
+        if (name.startsWith("tray")) return screenOf(items.dishWorld(+name.slice(4)));
+        if (name === "box") return screenOf(W.box.group.localToWorld(new THREE.Vector3(0, 1.2, 0)));
         if (name === "customer") return screenOf(customer.pos.clone().setY(1.3));
-        if (name === "bag") return screenOf(W.bag.group.position.clone().addScaledVector(L.bagRestDir, 0.9 * L.bagScale));
-        if (name === "empty") return screenOf(new THREE.Vector3(-1.6, 0, 2.4));
+        if (name === "bag") return screenOf(W.bag.group.localToWorld(new THREE.Vector3(0, 0.9, 0)));
+        if (name === "empty") return emptySpot();
         return null;
       },
       stats() {

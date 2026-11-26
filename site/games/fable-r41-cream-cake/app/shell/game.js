@@ -1,6 +1,6 @@
 // Play flow (shell): decorate -> boxing -> give -> party -> leaving -> (new sponge) decorate.
 // Input: one finger (pointer events). No text, no failure, no timers that end play.
-import { THREE, clamp, lerp, follow, wobble, easeOut, easeInOut, easeBack, Tweens } from './util.js';
+import { THREE, clamp, lerp, smooth, follow, wobble, easeOut, easeInOut, easeBack, Tweens } from './util.js';
 import { L, CREAM_COLORS, FLAVORS } from './world.js';
 
 const HINT_IDLE = 3.5;
@@ -10,6 +10,7 @@ export class Game {
     Object.assign(this, ctx); // renderer, camera, W, assets, sfx, tier, hero, items, customer, fx
     this.tw = new Tweens();
     this.scene = 'decorate';
+    this.traysIn = true; // tools on screen (decorating); false from boxing until the next sponge comes
     this.round = 0;
     this.time = 0;
     this.colorIndex = 0;
@@ -26,6 +27,8 @@ export class Game {
     this.bagTarget = L.bagHome.clone();
     this.bagOverride = null; // {pos} during the bowl dip
     this.bagSquash = 0;
+    this.bagScale = this.W.bag.homeScale;
+    this._home = L.bagHome.clone(); this._dh = new THREE.Vector3(); this._bagTrail = [];
     this.parcel = null;
     this.photoSlot = 0;
     this.photoTargets = [];
@@ -95,7 +98,13 @@ export class Game {
       const hits = this.raycaster.intersectObjects(this._pickables(), false);
       const heroHit = this.hero.hitTest(this.ray);
       const heroDist = heroHit ? this.hero.root.localToWorld(this._v.copy(heroHit.point)).distanceTo(this.camera.position) : Infinity;
-      const first = hits[0];
+      // the bag on its way back to the tray can be caught again: in front of a bowl, or just near it (it moves)
+      // ("moving" = not yet settled in its dock; bagAtHome()'s 0.3 is large next to the small tray-size bag)
+      const tr = this._bagTrail, moved = tr.length > 1 && Math.hypot(tr[0][0] - tr[tr.length - 1][0], tr[0][1] - tr[tr.length - 1][1]) > 0.01;
+      const bagMoving = moved || this.bagPos.distanceTo(L.bagHome) > 0.04 || this.W.bag.group.quaternion.angleTo(this.W.bag.restQ) > 0.15;
+      let bagHit = bagMoving && hits.find((h) => h.object.userData.kind === 'bag');
+      if (!bagHit && bagMoving && !heroHit && this._nearBag(e.clientX, e.clientY)) bagHit = { object: this.W.bag.proxy, distance: 0 };
+      const first = bagHit || hits[0];
       if (first && first.distance < heroDist && !(heroHit && first.object.userData.kind === 'bag')) {
         const u = first.object.userData;
         if (u.kind === 'bag') { p.mode = 'bag'; this.sfx.pick(); }
@@ -156,6 +165,25 @@ export class Game {
 
   bagAtHome() { return this.bagPos.distanceTo(L.bagHome) < 0.3; }
 
+  // Is (cx, cy) on or near where the bag was drawn in the last few frames? (it flies back to its tray after a
+  // stroke; a child taps where they saw it a moment ago)
+  _nearBag(cx, cy) {
+    const r = this.renderer.domElement.getBoundingClientRect(), lim = Math.min(r.width, r.height) * 0.12;
+    return this._bagTrail.some(([x, y]) => Math.hypot(cx - r.left - x * r.width, cy - r.top - y * r.height) < lim);
+  }
+  _trackBag() {
+    const v = this.W.bag.group.localToWorld(this._v.set(0, 0.9, 0)).project(this.camera);
+    if (this._bagTrail.length >= 6) this._bagTrail.shift();
+    this._bagTrail.push([v.x * 0.5 + 0.5, 0.5 - v.y * 0.5]);
+  }
+
+  // The trays (and the bag's resting place, the customer's window) moved: resize / rotation. Snap, don't fly.
+  onLayout() {
+    if (!this.ptr && this.hero.getState().phase === 'idle' && !this.bagOverride) { this.bagPos.copy(L.bagHome); this.bagScale = this.W.bag.homeScale; }
+    this._home.copy(L.bagHome);
+    if (this.scene === 'decorate') { this.customer.pos.copy(L.custWindow); this.customer.target.copy(L.custWindow); }
+  }
+
   // A tap on the bare counter still answers right away: a little sparkle where the finger was, and the
   // turntable gives a small nudge (it shows it can turn).
   tapCounter() {
@@ -210,11 +238,13 @@ export class Game {
     this.sfx.dip();
     // bag hops to the bowl, dips, and comes back
     if (this.hero.getState().phase === 'idle') {
-      const top = new THREE.Vector3(b.group.position.x, 0.95, b.group.position.z);
+      // (the bowl sits in its tray dock: positions in the dock's frame, so the dip matches its on-screen size)
+      const top = b.group.localToWorld(new THREE.Vector3(0, 0.95, 0));
+      const lift = 0.35 * b.group.scale.y;
       this.bagOverride = { pos: top.clone() };
-      this.tw.add(0.42, (k) => { if (this.bagOverride) this.bagOverride.pos.y = 0.95 + Math.sin(k * Math.PI) * 0.35; }, () => { this.bagOverride = null; });
+      this.tw.add(0.42, (k) => { if (this.bagOverride) this.bagOverride.pos.y = top.y + Math.sin(k * Math.PI) * lift; }, () => { this.bagOverride = null; });
     }
-    this.fx.emit('star', new THREE.Vector3(b.group.position.x, 0.8, b.group.position.z), { n: 5, size: 0.22, colors: [CREAM_COLORS[i].hex, 0xffffff], life: 0.6, speed: 1.2 });
+    this.fx.emit('star', b.group.localToWorld(new THREE.Vector3(0, 0.8, 0)), { n: 5, size: 0.22, colors: [CREAM_COLORS[i].hex, 0xffffff], life: 0.6, speed: 1.2 });
   }
 
   pokeCustomer() {
@@ -320,6 +350,7 @@ export class Game {
     if (this.scene !== 'decorate') return;
     this.stopHint();
     this.scene = 'boxing';
+    this.traysIn = false;
     this.auto = null;
     this.hero.endStroke();
     this.sfx.squeezeStop();
@@ -331,6 +362,7 @@ export class Game {
     this._updateFlights(0);
     const box = this.W.box;
     box.halo.visible = false; box.shadow.visible = false;
+    this.W.scene.attach(box.group); // leave the tray dock, keep where it is on screen
     const from = box.group.position.clone();
     const over = new THREE.Vector3(0, L.plateTop + 3.2, 0);
     const s0 = box.group.scale.x;
@@ -437,6 +469,7 @@ export class Game {
 
   nextSponge() {
     this.round++;
+    this.traysIn = true; // trays slide back and the camera returns while the new sponge slides in
     const W = this.W;
     // bring the cake object back onto the turntable as a fresh sponge
     this.hero.reset();
@@ -448,8 +481,8 @@ export class Game {
     W.scene.remove(this.parcel); this.parcel = null;
     // the box goes back home, folded small
     const box = W.box;
-    W.scene.attach(box.group);
-    box.group.visible = true; box.group.position.copy(L.boxHome); box.group.rotation.set(0, 0, 0);
+    box.dock.add(box.group);
+    box.group.visible = true; box.group.position.set(0, 0, 0); box.group.rotation.set(0, 0, 0);
     box.group.scale.setScalar(0.001); box.bow.scale.setScalar(1);
     box.shadow.visible = true;
     this.tw.add(0.5, (k) => box.group.scale.setScalar(Math.max(0.001, L.boxHomeScale * easeBack(k))), null, 0.4);
@@ -598,6 +631,8 @@ export class Game {
     this.time += dt;
     this.tw.update(dt);
     const p = this.ptr;
+    // the camera eases between framings: re-cast the held finger every frame so what is under it stays right
+    if (p) this._setRay(p.x, p.y);
 
     // carry follows the finger, a bit above the cake height
     if (p && p.mode === 'carry') {
@@ -649,12 +684,21 @@ export class Game {
     } else if (this.bagOverride) {
       this.bagPos.lerp(this.bagOverride.pos, follow(22, dt));
     } else {
-      this._v.copy(L.bagHome); this._v.y += (this.hint && this.hint.keys.includes('bag') ? this.bagHop || 0 : 0) * 0.7;
-      this.bagPos.lerp(this._v, follow(this.hint ? 20 : 7, dt));
+      // resting: the home is a tray dock that moves with the camera, carry the bag along with it
+      this.bagPos.add(this._dh.copy(L.bagHome).sub(this._home));
+      this._v.copy(L.bagHome); this._v.y += (this.hint && this.hint.keys.includes('bag') ? this.bagHop || 0 : 0) * 0.7 * (W.bag.homeScale / L.bagScale);
+      this.bagPos.lerp(this._v, follow(this.hint ? 20 : 10, dt));
     }
+    this._home.copy(L.bagHome);
     W.bag.group.position.copy(this.bagPos);
     const working = hs.phase !== 'idle' || (p && p.mode === 'bag') || this.bagOverride || this.bagPos.distanceTo(L.bagHome) > 0.8;
-    W.bag.group.quaternion.slerp(working ? W.bag.workQ : W.bag.restQ, follow(working ? 16 : 7, dt));
+    // tray size at home, full size while working over the cake
+    const away = smooth(this.bagPos.distanceTo(L.bagHome) / 1.6);
+    const sGoal = hs.phase !== 'idle' || (p && p.mode === 'bag') ? L.bagScale : lerp(W.bag.homeScale, L.bagScale, away);
+    this.bagScale = lerp(this.bagScale, sGoal, follow(10, dt));
+    W.bag.group.scale.setScalar(this.bagScale);
+    this._trackBag();
+    W.bag.group.quaternion.slerp(working ? W.bag.workQ : W.bag.restQ, follow(working ? 16 : 11, dt));
     const squeeze = hs.flow;
     this.bagSquash = lerp(this.bagSquash, squeeze, follow(18, dt));
     const sq = this.bagSquash * (0.9 + 0.1 * Math.sin(this.time * 18));

@@ -1,5 +1,7 @@
 // The shop: counter, back wall, turntable + cake, color bowls, piping bag, tray dishes, cake box, photo frames.
 // World units: 1.0 = 10 cm. Counter top is y = 0. Camera looks from +Z toward -Z.
+// The bowls, dishes, box and the piping bag's resting place are "docks": tray.js pins them to the screen edges
+// every frame (camera-relative), so the camera can frame the cake closely and they stay in reach.
 import { THREE, mergeGeos, place, tint } from './util.js';
 
 export const CREAM_COLORS = [
@@ -23,14 +25,13 @@ export const L = {
   radius: 1.2,
   get cakeTopY() { return this.plateTop + this.spongeH; },
   bowls: [[-3.0, -1.55], [-3.35, -0.45], [-3.3, 0.65], [-2.85, 1.7]],
-  // the piping bag rests lying on the counter in front-right of the cake (tip toward the cake)
-  bagHome: new THREE.Vector3(0.75, 0.36, 2.65),
-  bagRestDir: new THREE.Vector3(1, 0.06, 0.36).normalize(),
+  // the piping bag rests lying in its tray dock (tip toward the cake). bagHome is live: tray.js moves it each frame.
+  bagHome: new THREE.Vector3(-3, 0.36, 1.5),
+  bagRestDir: new THREE.Vector3(-1, 0.06, 0.32).normalize(),
   bagScale: 0.85,
   dishes: [[2.85, 2.05], [3.5, 1.1], [3.72, 0.05], [3.55, -0.98], [2.95, -1.9]], // strawberry, kiwi, blueberry, mandarin, candle
-  boxHome: new THREE.Vector3(-2.35, 0, -2.95),
   boxHomeScale: 0.4,
-  custWindow: new THREE.Vector3(3.15, 0, -3.7),
+  custWindow: new THREE.Vector3(2.2, 0, -3.7),      // live: tray.js puts it where the customer peeks in
   custGive: new THREE.Vector3(2.75, 0, -3.55),   // beside the boxed cake, so the face stays visible
   parcelGive: new THREE.Vector3(1.05, 0, -2.55),  // the cake ends up next to the customer, not in front of the face
   frames: [[-3.7, 1.35], [-1.85, 1.45], [0.0, 1.35], [1.85, 1.45]],
@@ -55,15 +56,15 @@ export function buildWorld(assets, tier) {
   // --- back wall: blurred kitchen photo on a plane (unlit) ---
   const wallTex = assets.photo('kitchen_512');
   wallTex.wrapS = wallTex.wrapT = THREE.ClampToEdgeWrapping;
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(19, 10), new THREE.MeshBasicMaterial({ map: wallTex, color: 0xf2e6dc }));
-  wall.position.set(0, 3.2, L.wallZ);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(34, 17), new THREE.MeshBasicMaterial({ map: wallTex, color: 0xf2e6dc }));
+  wall.position.set(0, 6.2, L.wallZ);
   scene.add(wall);
 
   // --- counter: marble slab ---
-  const marble = assets.photo('marble_512', { repeat: 2, aniso: true });
-  const counterGeo = new THREE.BoxGeometry(16, 0.6, 9);
+  const marble = assets.photo('marble_512', { repeat: 3, aniso: true });
+  const counterGeo = new THREE.BoxGeometry(30, 0.6, 16);
   const counter = new THREE.Mesh(counterGeo, lambert(0xffffff, { map: marble }));
-  counter.position.set(0, -0.3, -0.7);
+  counter.position.set(0, -0.3, 2.8);
   scene.add(counter);
   W.counter = counter;
 
@@ -91,8 +92,8 @@ export function buildWorld(assets, tier) {
   const pedestal = new THREE.LatheGeometry([
     new THREE.Vector2(0.0, 0.0), new THREE.Vector2(0.75, 0.0), new THREE.Vector2(0.72, 0.06), new THREE.Vector2(0.3, 0.14),
     new THREE.Vector2(0.22, 0.3), new THREE.Vector2(0.0, 0.34),
-  ], 32);
-  const plate = new THREE.CylinderGeometry(1.55, 1.5, 0.08, 56, 1).translate(0, 0.38, 0);
+  ], 48);
+  const plate = new THREE.CylinderGeometry(1.55, 1.5, 0.08, 96, 1).translate(0, 0.38, 0);
   tt.add(new THREE.Mesh(mergeGeos([pedestal, plate]), ceramic));
   W.shadow(scene, 0, 0, 2.2);
   W.shadow(scene, 0, 0, 3.6, 3.6, 0.004);
@@ -110,11 +111,12 @@ export function buildWorld(assets, tier) {
   const frostTex = assets.photo('cream_512');
   const spongeMat = lambert(0xffffff, { map: sideTex });
   const frostMat = standard(0xffffff, { map: frostTex, roughness: 0.75 });
-  const spongeGeo = new THREE.CylinderGeometry(L.radius, L.radius, L.spongeH, 64, 1).translate(0, L.spongeH / 2, 0);
+  // 96 sides: the cake now fills most of the screen, 64 showed corners on the silhouette
+  const spongeGeo = new THREE.CylinderGeometry(L.radius, L.radius, L.spongeH, 96, 1).translate(0, L.spongeH / 2, 0);
   spongeGeo.groups.length = 2; // side + top; the bottom cap sits on the turntable and is never seen
   const sponge = new THREE.Mesh(spongeGeo, [spongeMat, frostMat]);
   cake.add(sponge);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(L.radius - 0.01, 0.055, 6, 64).rotateX(Math.PI / 2).translate(0, L.spongeH, 0), frostMat);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(L.radius - 0.01, 0.055, 10, 96).rotateX(Math.PI / 2).translate(0, L.spongeH, 0), frostMat);
   cake.add(rim);
   const cakeTop = new THREE.Group();
   cakeTop.position.y = L.spongeH;
@@ -134,7 +136,7 @@ export function buildWorld(assets, tier) {
     new THREE.Vector2(0.6, 0.38), new THREE.Vector2(0.62, 0.44), new THREE.Vector2(0.56, 0.44), new THREE.Vector2(0.5, 0.34),
   ];
   CREAM_COLORS.forEach((c, i) => {
-    const g = new THREE.Group();
+    const g = new THREE.Group(); // dock: tray.js places it
     const [x, z] = L.bowls[i];
     g.position.set(x, 0, z);
     const col = new THREE.Color(c.hex);
@@ -151,8 +153,9 @@ export function buildWorld(assets, tier) {
     g.add(lift);
     W.shadow(g, 0, 0, 1.5);
     const halo = W.halo(g, 0, 0.01, 0, 2.2);
-    const proxy = new THREE.Mesh(new THREE.SphereGeometry(0.85, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
-    proxy.position.y = 0.3; proxy.userData = { kind: 'bowl', index: i };
+    // pick proxy hugs the bowl (the bowls stand close together in their tray column)
+    const proxy = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.6, 0.85, 12), new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.position.y = 0.35; proxy.userData = { kind: 'bowl', index: i };
     g.add(proxy);
     scene.add(g);
     W.bowls.push({ group: g, lift, halo, proxy, mats: [creamMat], color: c });
@@ -183,29 +186,39 @@ export function buildWorld(assets, tier) {
   const bagProxy = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 2.5, 8).translate(0, 1.1, 0), new THREE.MeshBasicMaterial({ visible: false }));
   bagProxy.userData = { kind: 'bag' };
   bag.add(bagProxy);
-  const mid = L.bagHome.clone().addScaledVector(L.bagRestDir, 0.9 * L.bagScale);
-  W.bag = { group: bag, body: bagBody, mat: bagMat, proxy: bagProxy, restQ, workQ, halo: W.halo(scene, mid.x, 0.01, mid.z, 2.6) };
-  W.bagShadow = W.shadow(scene, mid.x, mid.z, 2.0, 1.0);
+  // the resting place (dock): origin on the "counter" under the middle of the lying bag; holds its glow and shadow
+  const bagDock = new THREE.Group();
+  scene.add(bagDock);
+  W.bag = { group: bag, body: bagBody, mat: bagMat, proxy: bagProxy, restQ, workQ, dock: bagDock, homeScale: L.bagScale, halo: W.halo(bagDock, 0, 0.01, 0, 2.6) };
+  W.bagShadow = W.shadow(bagDock, 0, 0, 2.0, 1.0);
   W.bagShadow.rotation.y = -Math.atan2(L.bagRestDir.z, L.bagRestDir.x);
+  // tip of the resting bag in dock-local units (the dock is scaled by the tray)
+  W.bag.tipLocal = new THREE.Vector3().addScaledVector(L.bagRestDir, -0.9 * L.bagScale).setY(0.36);
 
-  // --- tray dishes (merged into one mesh) ---
-  const dishGeos = L.dishes.map(([x, z], i) => {
-    const g = new THREE.LatheGeometry([
-      new THREE.Vector2(0, 0), new THREE.Vector2(0.5, 0), new THREE.Vector2(0.58, 0.04), new THREE.Vector2(0.66, 0.1), new THREE.Vector2(0.62, 0.1), new THREE.Vector2(0.48, 0.05), new THREE.Vector2(0, 0.05),
-    ], 24);
-    return place(g, x, 0, z);
+  // --- tray dishes: one dock per dish (dish + shadow + glow; items.js adds the fruit display and pick proxy) ---
+  const dishGeo = new THREE.LatheGeometry([
+    new THREE.Vector2(0, 0), new THREE.Vector2(0.5, 0), new THREE.Vector2(0.58, 0.04), new THREE.Vector2(0.66, 0.1), new THREE.Vector2(0.62, 0.1), new THREE.Vector2(0.48, 0.05), new THREE.Vector2(0, 0.05),
+  ], 32);
+  const dishMat = standard(0xfffdfa, { roughness: 0.3 });
+  W.dishes = L.dishes.map(([x, z]) => {
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    g.add(new THREE.Mesh(dishGeo, dishMat));
+    W.shadow(g, 0, 0, 1.5);
+    const halo = W.halo(g, 0, 0.012, 0, 2.0);
+    scene.add(g);
+    return { group: g, halo };
   });
-  scene.add(new THREE.Mesh(mergeGeos(dishGeos), standard(0xfffdfa, { roughness: 0.3 })));
-  L.dishes.forEach(([x, z]) => W.shadow(scene, x, z, 1.5));
-  W.dishHalos = L.dishes.map(([x, z]) => W.halo(scene, x, 0.012, z, 2.0));
+  W.dishHalos = W.dishes.map((d) => d.halo);
 
   // --- cake box (pink, open window in front, ribbon). Origin at bottom center. ---
   W.box = buildBox(assets);
-  W.box.group.position.copy(L.boxHome);
+  W.box.dock = new THREE.Group(); // tray.js places it; the box leaves it while it is used and comes back folded
+  scene.add(W.box.dock);
   W.box.group.scale.setScalar(L.boxHomeScale);
-  scene.add(W.box.group);
-  W.box.halo = W.halo(scene, L.boxHome.x, 0.01, L.boxHome.z, 2.4);
-  W.box.shadow = W.shadow(scene, L.boxHome.x, L.boxHome.z, 1.8);
+  W.box.dock.add(W.box.group);
+  W.box.halo = W.halo(W.box.dock, 0, 0.01, 0, 2.4);
+  W.box.shadow = W.shadow(W.box.dock, 0, 0, 1.8);
 
   // --- photo frames on the wall (filled after each delivery) ---
   W.frames = L.frames.map(([x, y], i) => {
@@ -290,31 +303,4 @@ function buildBox(assets) {
   proxy.userData = { kind: 'box' };
   group.add(proxy);
   return { group, body, ribbon, bow, proxy, mats: [boxMat], size: { W, H, D } };
-}
-
-// Fit a fixed-direction camera so the listed points stay on screen for any aspect ratio.
-export function fitCamera(camera, aspect) {
-  const target = new THREE.Vector3(0, 0.9, -0.55);
-  const dir = new THREE.Vector3(0, 0.63, 0.78).normalize();
-  const pts = [];
-  L.bowls.forEach(([x, z]) => { pts.push(new THREE.Vector3(x - 0.7, 0, z), new THREE.Vector3(x, 0.8, z)); });
-  L.dishes.forEach(([x, z]) => { pts.push(new THREE.Vector3(x + 0.7, 0, z), new THREE.Vector3(x, 0, z + 0.7)); });
-  pts.push(new THREE.Vector3(0, 0, 1.9), L.bagHome.clone().addScaledVector(L.bagRestDir, 2.2 * L.bagScale).add(new THREE.Vector3(0.3, -0.3, 0.3)));
-  pts.push(new THREE.Vector3(L.custWindow.x, 2.6, L.custWindow.z), new THREE.Vector3(L.boxHome.x - 0.8, 1.3, L.boxHome.z));
-  camera.fov = 32; camera.aspect = aspect;
-  let lo = 5, hi = 60;
-  const v = new THREE.Vector3();
-  for (let it = 0; it < 24; it++) {
-    const d = (lo + hi) / 2;
-    camera.position.copy(target).addScaledVector(dir, d);
-    camera.lookAt(target);
-    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-    let ok = true;
-    for (const p of pts) { v.copy(p).project(camera); if (Math.abs(v.x) > 0.95 || Math.abs(v.y) > 0.93) { ok = false; break; } }
-    if (ok) hi = d; else lo = d;
-  }
-  camera.position.copy(target).addScaledVector(dir, hi);
-  camera.lookAt(target);
-  camera.updateProjectionMatrix();
-  camera.updateMatrixWorld();
 }

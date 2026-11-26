@@ -57,12 +57,12 @@ export class DebugOverlay {
     this.peak = { calls: 0, tris: 0 };
     if (!enabled) return;
     const d = document.createElement('div');
-    d.style.cssText = 'position:fixed;left:6px;top:6px;z-index:9;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:auto;white-space:pre;max-width:46vw;';
+    d.style.cssText = 'position:fixed;left:calc(6px + env(safe-area-inset-left));top:calc(6px + env(safe-area-inset-top));z-index:9;background:rgba(0,0,0,.62);color:#e8ffe8;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:46vw;';
     document.body.appendChild(d);
     this.el = d;
     const b = document.createElement('button');
     b.textContent = 'lose ctx';
-    b.style.cssText = 'position:fixed;right:6px;top:6px;z-index:9;font:11px monospace;';
+    b.style.cssText = 'position:fixed;right:calc(6px + env(safe-area-inset-right));top:calc(6px + env(safe-area-inset-top));z-index:9;font:11px monospace;';
     b.onclick = () => window.__game && window.__game.simulateContextLoss();
     document.body.appendChild(b);
   }
@@ -85,7 +85,9 @@ export class DebugOverlay {
     const g = info.gpu;
     const MiB = (b) => (b / 1048576).toFixed(1);
     this.el.textContent =
-      `tier ${info.tier}  canvas ${info.cw}x${info.ch} @${info.pr.toFixed(2)}\n` +
+      `tier ${info.tier}  canvas ${info.cw}x${info.ch} @${info.pr.toFixed(2)} x render ${info.rs.toFixed(2)}\n` +
+      (info.css ? `screen ${info.css}\n` : '') +
+      (info.cam ? `camera ${info.cam.mode}  cake ${(info.cam.frac * 100).toFixed(0)}% of short side  d ${info.cam.d.toFixed(1)}  pitch ${info.cam.e.toFixed(0)}°\n` : '') +
       `fps avg ${s.avg.toFixed(0)}  p95 ${s.p95ms.toFixed(1)}ms\n` +
       `draw ${info.calls} (peak ${this.peak.calls})  tris ${info.tris} (peak ${this.peak.tris})\n` +
       `hero tris ${info.hero.triangles}  calls ${info.hero.drawCalls}  tex ${info.hero.textures}\n` +

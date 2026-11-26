@@ -88,28 +88,28 @@ export class Items {
     W.cakeTop.add(this.flames);
 
     // tray displays: three of each fruit per dish, candles standing in their dish (one small mesh per dish so it can bounce)
-    this.trayGroups = L.dishes.map(([x, z], i) => {
+    // (each lives in its dish's dock, which tray.js pins to the screen edge)
+    this.trayGroups = W.dishes.map((dish, i) => {
       const t = this.types[i];
       const spots = t.key === 'candle' ? [[-0.15, 0, 0.3], [0.15, 0, -0.2], [0.05, 0.15, 0.1], [-0.1, -0.2, -0.1]] : [[-0.2, -0.1, 0.4], [0.18, -0.12, -0.5], [0.0, 0.2, 1.4]];
       const geos = spots.map(([dx, dz, ry]) => place(t.geo.clone(), dx, 0.05, dz, t.key === 'candle' ? 0.25 * dx : 0, ry, t.key === 'candle' ? 0.25 * dz : 0, 1.15));
       const g = new THREE.Group();
-      g.position.set(x, 0, z);
       g.add(new THREE.Mesh(mergeGeos(geos), t.mat));
-      W.scene.add(g);
+      dish.group.add(g);
       return g;
     });
     // tray pick proxies (generous)
-    this.proxies = L.dishes.map(([x, z], i) => {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.9, 10).translate(0, 0.3, 0), new THREE.MeshBasicMaterial({ visible: false }));
-      m.position.set(x, 0, z); m.userData = { kind: 'tray', index: i };
-      W.scene.add(m);
+    this.proxies = W.dishes.map((dish, i) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1.0, 10).translate(0, 0.35, 0), new THREE.MeshBasicMaterial({ visible: false }));
+      m.userData = { kind: 'tray', index: i };
+      dish.group.add(m);
       return m;
     });
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._s = new THREE.Vector3(); this._e = new THREE.Euler();
     this.flights = [];
   }
 
-  dishWorld(i, out = new THREE.Vector3()) { const [x, z] = L.dishes[i]; return out.set(x, 0.3, z); }
+  dishWorld(i, out = new THREE.Vector3()) { return this.W.dishes[i].group.localToWorld(out.set(0, 0.3, 0)); }
   canAdd(i) { const t = this.types[i]; return t.list.length < t.cap; }
   get placedCount() { return this.types.reduce((a, t) => a + t.list.length, 0); }
   get candleCount() { return this.candle.list.length; }

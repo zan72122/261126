@@ -1,10 +1,13 @@
-// Bootstrap: renderer + tier, first scene only, hero, loop, resize, WebGL context loss/restore, ?debug=1.
+// Bootstrap: renderer + tier, first scene only, hero, loop, full-screen sizing (dvh / visualViewport / rotation /
+// safe area), camera rig + edge trays, dynamic resolution, WebGL context loss/restore, ?debug=1.
 import { THREE } from './util.js';
 import { errors, DebugOverlay, estimateGpu, nanScan, measureFill, estimateGpuMs } from './debug.js';
 import { detectTier, pixelRatioFor } from './tier.js';
 import { Assets } from './assets.js';
 import { Sfx } from './audio.js';
-import { buildWorld, fitCamera, CREAM_COLORS, L } from './world.js';
+import { buildWorld, CREAM_COLORS, L } from './world.js';
+import { CameraRig } from './camera.js';
+import { Tray } from './tray.js';
 import { Items } from './items.js';
 import { Customer } from './customer.js';
 import { Fx } from './fx.js';
@@ -13,6 +16,7 @@ import { patchShaderChunks } from './safeshader.js';
 
 const params = new URLSearchParams(location.search);
 const DEBUG = params.get('debug') === '1';
+const AUTOSCALE = params.get('autoscale') !== '0'; // ?autoscale=0 keeps the internal resolution at 1.0
 const t0 = performance.now();
 const boot = (window.__boot = { scriptStart: t0 });
 const mark = (k) => { boot[k] = performance.now() - t0; };
@@ -42,7 +46,7 @@ function start() {
   const assets = new Assets(renderer);
   assets.build();
   const W = buildWorld(assets, tier);
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 140);
   mark('world');
 
   // hero (Fable's part). Events are forwarded to the game once it exists.
@@ -70,21 +74,58 @@ function start() {
   const customer = new Customer(W);
   const fx = new Fx(W.scene, assets, camera, tier.particles);
   const sfx = new Sfx();
-  game = new Game({ renderer, camera, W, assets, sfx, tier, hero, items, customer, fx });
-  mark('game');
+  const rig = new CameraRig(camera);
+  const tray = new Tray(W, rig);
 
-  // ---- sizing ----
-  let pr = 1;
-  function resize() {
-    const w = window.innerWidth, h = window.innerHeight;
-    pr = pixelRatioFor(tier, w, h);
-    renderer.setPixelRatio(pr);
-    renderer.setSize(w, h, true);
-    fitCamera(camera, w / Math.max(1, h));
+  // ---- sizing: the canvas is position:fixed, 100% x 100dvh (100vh fallback) in CSS; the drawing buffer follows
+  // its measured size, so there are never bars or margins. Re-measured on resize, rotation, visualViewport changes
+  // (iOS toolbars) and by a ResizeObserver. Safe-area insets (notch, home bar) only move the trays inward. ----
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);';
+  document.body.appendChild(probe);
+  const RS = [1, 0.85, 0.75]; // internal render scale steps (display size never changes)
+  let pr = 1, rsIdx = 0, cw = 0, ch = 0, insetKey = '';
+  function measure() {
+    const r = canvas.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const w = Math.round(r.width) || Math.round(vv ? vv.width : window.innerWidth);
+    const h = Math.round(r.height) || Math.round(vv ? vv.height : window.innerHeight);
+    return [Math.max(1, w), Math.max(1, h)];
   }
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-  resize();
+  function insets() {
+    const cs = getComputedStyle(probe);
+    return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  }
+  function applySize() {
+    pr = pixelRatioFor(tier, cw, ch);
+    renderer.setPixelRatio(pr * RS[rsIdx]);
+    renderer.setSize(cw, ch, false); // CSS keeps the display size; only the drawing buffer changes
+  }
+  function relayout(force) {
+    const [w, h] = measure();
+    const ins = insets(), key = `${ins.t},${ins.r},${ins.b},${ins.l}`;
+    if (!force && w === cw && h === ch && key === insetKey) return;
+    cw = w; ch = h; insetKey = key;
+    applySize();
+    rig.setViewport(w, h);
+    tray.layout(ins);
+    if (game) rig.update(0, game); else rig.apply(rig.poseFor('idle'));
+    tray.update(0, camera, game ? game.traysIn : true, true);
+    if (game) game.onLayout();
+  }
+  // events only raise a flag; the frame loop re-measures right before it draws (never a cleared canvas on screen)
+  let layoutQueued = false;
+  const queueRelayout = () => { layoutQueued = true; };
+  window.addEventListener('resize', queueRelayout);
+  window.addEventListener('orientationchange', () => { queueRelayout(); [120, 350, 800].forEach((ms) => setTimeout(queueRelayout, ms)); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', queueRelayout);
+  if (window.ResizeObserver) new ResizeObserver(queueRelayout).observe(canvas);
+  relayout(true);
+
+  game = new Game({ renderer, camera, W, assets, sfx, tier, hero, items, customer, fx });
+  game.onLayout();
+  mark('game');
+  const resize = () => relayout(true);
 
   // ---- context loss: keep game state, rebuild GPU resources on restore (three re-uploads from CPU copies) ----
   let ctxLost = false, ctxState = 'ok';
@@ -107,8 +148,9 @@ function start() {
   // ---- loop ----
   const dbg = new DebugOverlay(DEBUG);
   let last = performance.now(), gpu = null, gpuT = 0, lowT = 0, firstFrame = 0;
+  let runT = 0, frameEma = 1 / 60, slowT = 0, fastT = 0, upWait = 8, pendingSize = false, pendingFull = false;
   const cpu = { update: 0, render: 0 };
-  const info = { tier: tier.name, cw: 0, ch: 0, pr: 1, calls: 0, tris: 0, glTex: 0, gpu: null, hero: {}, scene: '', round: 0, ctx: 'ok' };
+  const info = { tier: tier.name, cw: 0, ch: 0, pr: 1, rs: 1, calls: 0, tris: 0, glTex: 0, gpu: null, hero: {}, scene: '', round: 0, ctx: 'ok', cam: null, css: '' };
   function frame(now) {
     requestAnimationFrame(frame);
     const rawDt = (now - last) / 1000;
@@ -117,8 +159,14 @@ function start() {
     // real speed; a long stall (tab switch) does not jump ahead.
     const dt = Math.min(0.1, Math.max(0, rawDt));
     if (ctxLost) return;
+    // size changes decided last frame are applied here, right before drawing: resizing the canvas clears it, and
+    // doing it after render() would show one empty frame
+    if (layoutQueued) { layoutQueued = false; relayout(false); }
+    if (pendingSize) { pendingSize = false; if (pendingFull) { pendingFull = false; resize(); } else applySize(); }
     const c0 = performance.now();
     const steps = dt > 0.05 ? 2 : 1;
+    // camera first (it follows the play state), then the trays pinned to it, then the game re-casts held fingers
+    try { rig.update(dt, game); tray.update(dt, camera, game.traysIn); } catch (e) { console.error(e); }
     try { for (let i = 0; i < steps; i++) game.update(dt / steps); } catch (e) { console.error(e); }
     const c1 = performance.now();
     renderer.render(W.scene, camera);
@@ -137,16 +185,29 @@ function start() {
     if (!firstFrame) { mark('firstFrame'); boot.firstRenderMs = c2 - c1; firstFrame = performance.now() - t0; window.__firstFrameMs = firstFrame; window.__interactiveMs = performance.now(); }
     dbg.frame(rawDt);
     // adaptive pixel ratio on desktop: if fps stays under 40 for 3 s, drop to 1.0
-    if (tier.adaptive && pr > 1) { lowT = rawDt > 1 / 40 ? lowT + rawDt : Math.max(0, lowT - rawDt); if (lowT > 3) { tier.pixelRatio = 1; resize(); lowT = 0; } }
+    if (tier.adaptive && pr > 1) { lowT = rawDt > 1 / 40 ? lowT + rawDt : Math.max(0, lowT - rawDt); if (lowT > 3) { tier.pixelRatio = 1; pendingSize = pendingFull = true; lowT = 0; } }
+    // dynamic resolution (all tiers): when frames stay slower than 50 fps, draw 0.85x then 0.75x the pixels into
+    // the same full-screen canvas (the picture stays full size, only softer). Steps back up after a calm stretch.
+    if (AUTOSCALE && !document.hidden) {
+      runT += rawDt;
+      if (runT > 3 && rawDt < 0.25) {
+        frameEma += (rawDt - frameEma) * 0.1;
+        if (frameEma > 1 / 50) { slowT += rawDt; fastT = 0; } else { slowT = Math.max(0, slowT - rawDt); fastT = frameEma < 1 / 57 ? fastT + rawDt : 0; }
+        if (slowT > 2 && rsIdx < RS.length - 1) { rsIdx++; pendingSize = true; slowT = 0; fastT = 0; upWait = Math.min(60, upWait * 2); }
+        else if (fastT > upWait && rsIdx > 0) { rsIdx--; pendingSize = true; fastT = 0; slowT = 0; }
+      }
+    }
     const r = renderer.info.render;
     info.calls = r.calls; info.tris = r.triangles; info.glTex = renderer.info.memory.textures;
-    info.cw = canvas.width; info.ch = canvas.height; info.pr = pr;
+    info.cw = canvas.width; info.ch = canvas.height; info.pr = pr; info.rs = RS[rsIdx];
     info.scene = game.scene; info.round = game.round; info.ctx = ctxState;
     if (DEBUG) {
       info.hero = hero.getStats();
       gpuT -= dt;
       if (gpuT <= 0) { gpu = estimateGpu(W.scene, renderer); gpuT = 1.0; }
       info.gpu = gpu;
+      info.cam = rig.measure();
+      info.css = `${cw}x${ch} ${rig.portrait ? 'portrait' : 'landscape'} safe ${insetKey}`;
       dbg.update(now / 1000, info);
     } else if (info.calls > dbg.peak.calls || info.tris > dbg.peak.tris) dbg.update(now / 1000, info);
   }
@@ -159,8 +220,26 @@ function start() {
     const r = canvas.getBoundingClientRect();
     return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (-v.y * 0.5 + 0.5) * r.height };
   }
+  // a spot on the bare counter / turntable rim (no tray, no cake) for tests: rotate drags and counter taps
+  function emptySpot() {
+    const rc = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    for (const deg of [200, 160, 235, 125, 270, 90, 300, 60, 330, 30]) {
+      for (const r of [1.85, 2.2, 1.7]) {
+        const a = (deg * Math.PI) / 180;
+        const s = screenOf(new THREE.Vector3(Math.cos(a) * r, 0.05, -Math.sin(a) * r));
+        if (s.x < cw * 0.05 || s.x > cw * 0.95 || s.y < ch * 0.05 || s.y > ch * 0.95) continue;
+        ndc.set((s.x / cw) * 2 - 1, 1 - (s.y / ch) * 2);
+        rc.setFromCamera(ndc, camera);
+        if (rc.intersectObjects(game._pickables(), false).length || hero.hitTest(rc.ray)) continue;
+        return s;
+      }
+    }
+    return screenOf(new THREE.Vector3(-1.9, 0, 0.6));
+  }
   window.__game = {
     ready: true,
+    // framing numbers for checks: how much of the short side the cake takes, render scale, layout
+    frameInfo() { return { cam: rig.measure(), rs: RS[rsIdx], css: [cw, ch], canvas: [canvas.width, canvas.height], portrait: rig.portrait, cake: tray.cakeRect, insets: insetKey }; },
     get scene() { return game.scene; },
     get round() { return game.round; },
     get heroState() { const s = hero.getState(); return { phase: s.phase, flow: s.flow, strokes: s.strokes, coverage: s.coverage }; },
@@ -168,12 +247,12 @@ function start() {
     screen(name) {
       if (name === 'cake') return screenOf(W.cakeTop.getWorldPosition(new THREE.Vector3()));
       if (name.startsWith('cake:')) { const [dx, dz] = name.slice(5).split(',').map(Number); return screenOf(W.cakeTop.localToWorld(new THREE.Vector3(dx, hero.heightAt(dx, dz), dz))); }
-      if (name.startsWith('bowl')) return screenOf(W.bowls[+name.slice(4)].group.position.clone().setY(0.4));
-      if (name.startsWith('tray')) { const [x, z] = L.dishes[+name.slice(4)]; return screenOf(new THREE.Vector3(x, 0.2, z)); }
-      if (name === 'box') return screenOf(W.box.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.5, 0)));
+      if (name.startsWith('bowl')) return screenOf(W.bowls[+name.slice(4)].group.localToWorld(new THREE.Vector3(0, 0.35, 0)));
+      if (name.startsWith('tray')) return screenOf(items.dishWorld(+name.slice(4)));
+      if (name === 'box') return screenOf(W.box.group.localToWorld(new THREE.Vector3(0, 1.2, 0)));
       if (name === 'customer') return screenOf(customer.pos.clone().setY(1.3));
-      if (name === 'bag') return screenOf(W.bag.group.position.clone().addScaledVector(L.bagRestDir, 0.9 * L.bagScale));
-      if (name === 'empty') return screenOf(new THREE.Vector3(-1.6, 0, 2.4));
+      if (name === 'bag') return screenOf(W.bag.group.localToWorld(new THREE.Vector3(0, 0.9, 0)));
+      if (name === 'empty') return emptySpot();
       return null;
     },
     stats() { return { calls: info.calls, tris: info.tris, peak: dbg.peak, hero: hero.getStats(), gpu: estimateGpu(W.scene, renderer), canvas: [canvas.width, canvas.height], tier: tier.name, firstFrameMs: firstFrame, errors: errors.slice() }; },
