@@ -263,7 +263,8 @@ function handGeometry(s, curl) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+  const uvs = new Float32Array(pos.length / 3 * 2); for (let i = 0; i < uvs.length; i += 2) { uvs[i] = 0.7 + (pos[i / 2 * 3] * 3) % 0.05; uvs[i + 1] = 0.5 + (pos[i / 2 * 3 + 1] * 3) % 0.05; }
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   return g;
 }
 
@@ -775,12 +776,14 @@ export class Person {
     // arms IK
     this.chest.updateMatrixWorld(true);
     const chestInv = new THREE.Matrix4().copy(this.chest.matrixWorld).invert();
+    if (!this.armT.R && !this.armT.L && this.autoLean !== false && this.kind === 'girl') this.leanT = 0;
     for (const side of ['R', 'L']) {
       const a = this.arms[side];
       let tgt;
       if (this.armT[side]) tgt = this.armT[side].clone().applyMatrix4(chestInv);
       else tgt = a.sh.clone().add(new V3(a.s * 0.03, -(cfg.upper + cfg.fore) * 0.9, 0.06));
       if (!a.cur) a.cur = tgt.clone();
+      if (this.armT[side] && this.autoLean !== false) { const far = tgt.distanceTo(a.sh) - (cfg.upper + cfg.fore) * 0.95; this.leanT = THREE.MathUtils.clamp(far * 1.6, 0, 0.35); }
       a.cur.lerp(tgt, 1 - Math.exp(-dt * (this.armT[side] ? 9 : 4)));
       this.solveArm(a, a.cur);
     }

@@ -36,14 +36,14 @@ export function buildGame() {
 
   // ------------------------------------------------------------ people
   const girl = new Person('girl');
-  girl.root.position.set(-0.4, 0.2, -0.3); girl.root.rotation.y = 0.42;
+  girl.root.position.set(-0.29, 0.2, -0.34); girl.root.rotation.y = 0.28;
   const papa = new Person('papa'); papa.root.position.set(0.7, -0.44, -0.62); papa.root.rotation.y = -0.55;
   const mama = new Person('mama'); mama.root.position.set(0.12, -0.4, -0.78); mama.root.rotation.y = -0.05;
   for (const p of [girl, papa, mama]) E.scene.add(p.root);
   girl.defaultExpr = 'smile'; papa.defaultExpr = 'smile'; mama.defaultExpr = 'smile';
   girl.setExpr('smile'); papa.setExpr('smile'); mama.setExpr('smile');
   const stool = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.28), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.8 }));
-  stool.position.set(-0.4, 0.1, -0.3); stool.castShadow = stool.receiveShadow = true; E.scene.add(stool);
+  stool.position.set(-0.29, 0.1, -0.34); stool.castShadow = stool.receiveShadow = true; E.scene.add(stool);
   const chairM = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.6 });
   const chairs = [[0.7, -0.62, -0.55], [0.12, -0.78, -0.05]].map(([x, z, ry]) => {
     const c = new THREE.Group();
@@ -132,7 +132,7 @@ export function buildGame() {
     0: { look: new V3(-0.3, 1.0, -0.02), dir: new V3(0.12, 0.16, 1), w: 1.05, h: 0.78, pw: 0.78, ph: 1.2 },
     1: { look: new V3(-0.1, 0.97, -0.1), dir: new V3(-0.04, 0.55, 1), w: 0.95, h: 0.6, pw: 0.62, ph: 1.08 },
     2: { look: new V3(0.04, 1.02, -0.2), dir: new V3(0.05, 0.2, 1), w: 1.45, h: 0.85, pw: 0.88, ph: 1.4 },
-    3: { look: new V3(-0.15, 1.22, -0.75), dir: new V3(0.5, 0.1, 1), w: 2.7, h: 1.55, pw: 1.55, ph: 2.6 },
+    3: { look: new V3(-0.25, 1.12, -0.7), dir: new V3(0.55, 0.12, 1), w: 2.1, h: 1.45, pw: 1.25, ph: 2.1 },
   };
   const shot = (k, speed) => { E.camSpeed = speed || 1.4; applyShot(shots[k]); };
 
@@ -672,6 +672,7 @@ export function buildGame() {
       handing = false; applyShot(shots[3], true);
       if (q.get('dark')) { toggleLights(); S.dark = 1; E.post.exposure = 2.4; papa.root.position.set(1.3, 0, -0.75); papa.root.rotation.y = -0.9; mama.root.position.set(-1.15, 0, -0.85); mama.root.rotation.y = 0.75; }
       if (q.get('ry')) pk.body.rotation.y = +q.get('ry');
+      if (q.get('thumb')) { G.userSpun = 1e9; applyShot({ look: new V3(-0.12, 1.02, -0.45), dir: new V3(0.75, 0.12, 1), w: 1.5, h: 1.0, pw: 1.0, ph: 1.4 }, true); }
       if (q.get('nosh')) candle.light.castShadow = false;
       if (q.get('l0')) candle.light.shadow.camera.layers.enableAll();
       if (q.get('nopk')) for (const m of pk.meshes) m.castShadow = false;
@@ -711,7 +712,7 @@ export function buildGame() {
     if (G.scene === 2 && ptr.down && stampCur && stampCur.depth < 1 && downInfo && E.t - downInfo.t > 0.35) {
       pressT += dt; if (pressT > 0.32) { pressT = 0; malletHit(stampCur); }
     }
-    if (G.scene === 3 && lightsOff && (!G.userSpun || E.t - G.userSpun > 4) && !ptr.down) pk.body.rotation.y += Math.sin(t * 0.25) * dt * 0.35;
+    if (G.scene === 3 && lightsOff && (!G.userSpun || E.t - G.userSpun > 4) && !ptr.down && !q.get('thumb')) pk.body.rotation.y += Math.sin(t * 0.25) * dt * 0.35;
     for (const p of plugs) {
       if (p.rest) continue;
       p.v.y -= 9.8 * dt; p.m.position.addScaledVector(p.v, dt);
