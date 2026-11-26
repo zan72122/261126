@@ -286,7 +286,7 @@ function shotCamera(s) {
   const fitW = (s.fitP && C.portrait) ? s.fitP[0] : s.fit[0];
   const fitH = (s.fitP && C.portrait) ? s.fitP[1] : s.fit[1];
   const dist = Math.max(fitW / Math.tan(hfov / 2), fitH / Math.tan(vfov / 2), s.minDist || 1);
-  const d = new THREE.Vector3(...s.dir).normalize();
+  const d = new THREE.Vector3(...((C.portrait && s.dirP) ? s.dirP : s.dir)).normalize();
   const tgt = new THREE.Vector3(...((C.portrait && s.targetP) ? s.targetP : s.target));
   const pos = tgt.clone().addScaledVector(d, dist);
   if (s.maxY !== undefined) pos.y = Math.min(pos.y, s.maxY);

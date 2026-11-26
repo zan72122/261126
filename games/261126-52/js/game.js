@@ -47,7 +47,7 @@ export function setupGame() {
     if (q !== 's1') { plane.iceMesh.visible = true; for (const ic of plane.icicles) ic.visible = true; }
     if (q === 's3w' || q === 's3m' || q === 's3t' || q === 's3p') { G.dadState = 'thawed'; plane.iceField.c[0].fill(0); plane.iceField.c[2].fill(0.5); plane.iceField.dirty = true; for (const ic of plane.icicles) ic.visible = false; }
     if (q !== 's1') { for (const f of [plane.fusSnow, plane.wingSnowP, plane.wingSnowS]) { f.c[0].fill(0); f.dirty = true; } capU.capSnow.value = 0; }
-    if (q === 's3m' || q === 's3t' || q === 's3p') { for (const w of plane.windows) { w.on = true; w.lit = 1; plane.setWindow(w.id, 1); } plane.setWindow(30, 1); }
+    if (q === 's3m' || q === 's3t' || q === 's3p') { for (const w of plane.windows) { w.on = true; w.lit = 1; plane.setWindow(w.id, 1); } plane.setWindow(30, 0.4); }
     enter(q);
   }
   window.__S = S; window.__enter = enter;
@@ -358,7 +358,7 @@ S.s2 = {
     place(W.worklight.g, -2.8, -3.6, 1.0);
     L.work.position.set(-2.8, 1.75, -3.6); L.work.target.position.set(1.8, 1.3, -6.0);
     aimKey(new V3(0, 0, -5), new V3(-0.55, 0.7, -0.45), 10);
-    setShot({ target: [1.5, 1.45, -5.6], targetP: [1.75, 1.5, -5.25], dir: [-1, 0.3, -0.12], fit: [1.5, 0.75], fitP: [1.0, 1.55], mm: 40 }, 0);
+    setShot({ target: [1.5, 1.45, -5.6], targetP: [1.75, 1.75, -5.3], dir: [-1, 0.3, -0.12], fit: [1.5, 0.75], fitP: [1.0, 1.4], mm: 40 }, 0);
     C.aperture = 0.035; C.exposure = 0.85; C.focusTarget = 3.0;
     G.tool = null; G.spraying = false; G.sprayTarget = null; G.dadState = 'ok'; G.wrongTries = 0;
     G.runnels = [];
@@ -637,7 +637,7 @@ S.s3w = {
     place(W.worklight.g, 7.5, -5.5, -0.6);
     L.work.position.set(7.5, 1.75, -5.5); L.work.target.position.set(1.0, 1.4, -1.2);
     aimKey(new V3(1, 0, -2), new V3(-0.55, 0.7, -0.5), 11);
-    setShot({ target: [1.6, 1.6, -1.6], targetP: [2.0, 1.5, -1.9], dir: [0.55, 0.02, -1], fit: [3.2, 1.3], fitP: [1.7, 2.3], mm: 40 }, 0);
+    setShot({ target: [1.6, 1.45, -1.6], targetP: [2.6, 1.5, -1.9], dir: [0.55, 0.02, -1], fit: [3.2, 1.45], fitP: [1.6, 2.3], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.portWins = plane.windows.filter((w) => w.side < 0);
     G.litCount = 0;
@@ -655,7 +655,7 @@ S.s3w = {
       G.done = true;
       // remaining windows (starboard + cockpit) and the beacon come on; engines start
       for (const w of plane.windows) { w.on = true; w.target = 1; }
-      plane.setWindow(30, 1);
+      plane.setWindow(30, 0.4);
       sfx.fanfare(); girl.st.cheer = 1; girl.say('laugh', 2, 'proud');
       after(1.2, () => { G.engineStart = true; });
       after(4.2, () => fadeTo(() => enter('s3m'), 0.7));
@@ -683,13 +683,13 @@ S.s3m = {
   enter() {
     setTodLighting(0.8); updateEnv(true);
     place(girl.root, 13.2, 0.4, 0); girl.root.rotation.y = -Math.PI / 2;
-    place(dad.root, 14.3, -1.4, 0); dad.root.rotation.y = -1.9;
-    place(W.worklight.g, 15.5, -3.5, -1.0);
-    L.work.position.set(15.5, 1.75, -3.5); L.work.target.position.set(12.5, 1.2, 0);
+    place(dad.root, 13.9, 1.9, 0); dad.root.rotation.y = -2.2;
+    place(W.worklight.g, 12.3, 3.2, -1.0);
+    L.work.position.set(12.3, 1.75, 3.2); L.work.target.position.set(10.0, 1.2, 0);
     for (const w of W.wands) w.visible = true;
     W.wandLight.intensity = 2.5;
     aimKey(new V3(8, 0, 0), new V3(-0.4, 0.6, -0.7), 12);
-    setShot({ target: [10.3, 1.6, -0.2], targetP: [11.9, 1.5, 0.1], dir: [-0.3, 0.08, -1], fit: [3.4, 1.6], fitP: [1.7, 2.4], mm: 40 }, 0);
+    setShot({ target: [11.6, 1.35, 0.15], targetP: [11.6, 1.75, 0.25], dir: [1, 0.1, -0.7], dirP: [1, 0.1, -0.55], fit: [3.3, 1.55], fitP: [1.5, 2.3], mm: 40 }, 0);
     C.aperture = 0.1; C.exposure = 1.0;
     G.wave = 0; G.waveV = 0; G.waves = 0; G.planeX = 0; G.dragY = null; G.armPhase = 0;
     plane.propSpeed = 40; setEngine(0.6);
