@@ -140,7 +140,7 @@ material.clearcoatRoughness = 0.04;`);
       }
       g.putImageData(id, 0, 0);
     } else if (tool === 'brush' || tool === 'rag') {
-      w = Math.round((tool === 'rag' ? 0.12 : 0.08) * PPM); h = Math.round(0.035 * PPM);
+      w = Math.round((tool === 'rag' ? 0.12 : 0.1) * PPM); h = Math.round(0.035 * PPM);
       [cv, g] = c(w, h);
       const id = g.createImageData(w, h);
       const col = []; for (let x = 0; x < w; x++) col.push(Math.random() < 0.15 ? 0.25 : 0.6 + 0.4 * Math.random());

@@ -231,8 +231,14 @@ export class World {
     };
     // ---- frame / inner sheathing (dark gap backing so gaps between boards read as depth)
     const darkM = new THREE.MeshStandardMaterial({ color: 0x1c1915, roughness: 1 });
-    const core = new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, EAVE - Y0, D - 0.04), darkM); core.position.set(0, (EAVE + Y0) / 2, 0); S.add(core);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, EAVE - Y0, D - 0.7), darkM); core.position.set(0, (EAVE + Y0) / 2, -0.33); S.add(core);
     core.castShadow = true;
+    { // dark backing behind the front boards, with the window opening cut out
+      const sh = new THREE.Shape(); sh.moveTo(-W / 2 + 0.02, Y0); sh.lineTo(W / 2 - 0.02, Y0); sh.lineTo(W / 2 - 0.02, EAVE); sh.lineTo(-W / 2 + 0.02, EAVE); sh.closePath();
+      const hole = new THREE.Path(); hole.moveTo(WIN.x0, WIN.y0); hole.lineTo(WIN.x0, WIN.y1); hole.lineTo(WIN.x1, WIN.y1); hole.lineTo(WIN.x1, WIN.y0); hole.closePath(); sh.holes.push(hole);
+      const bk = new THREE.Mesh(new THREE.ShapeGeometry(sh), darkM); bk.position.z = 0.972; bk.castShadow = true; S.add(bk);
+      for (const sx of [-1, 1]) { const sd = new THREE.Mesh(new THREE.PlaneGeometry(D - 0.04, EAVE - Y0), darkM); sd.rotation.y = sx * Math.PI / 2; sd.position.set(sx * (W / 2 - 0.025), (EAVE + Y0) / 2, 0); S.add(sd); }
+    }
     const gable = new THREE.Shape(); gable.moveTo(-D / 2 + 0.02, 0); gable.lineTo(D / 2 - 0.02, 0); gable.lineTo(0, RIDGE - EAVE - 0.03); gable.closePath();
     const gg = new THREE.ExtrudeGeometry(gable, { depth: W - 0.04, bevelEnabled: false }); gg.rotateY(Math.PI / 2); gg.translate(-(W - 0.04) / 2, EAVE, 0);
     S.add(new THREE.Mesh(gg, darkM));
@@ -312,9 +318,9 @@ export class World {
     this.trimMesh = addPaintMesh(tg, sTrim);
     this.sillTop = V3((WIN.x0 + WIN.x1) / 2, WIN.y0 + 0.0, 1.06);
     // window glass + dim interior
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), new THREE.MeshPhysicalMaterial({ color: 0x202528, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.35, envMapIntensity: 1.4, clearcoat: 1, clearcoatRoughness: 0.15 }));
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), new THREE.MeshPhysicalMaterial({ color: 0x9aa6ae, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.5, envMapIntensity: 2.2, clearcoat: 1, clearcoatRoughness: 0.05 }));
     glass.position.set((WIN.x0 + WIN.x1) / 2, (WIN.y0 + WIN.y1) / 2, 0.975); S.add(glass);
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.02, wh + 0.02, 0.6), new THREE.MeshStandardMaterial({ color: 0x2a241d, roughness: 1, side: THREE.BackSide, map: tex('wood_albedo.jpg', { srgb: true }) }));
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(ww + 0.02, wh + 0.02, 0.6), new THREE.MeshStandardMaterial({ color: 0x8a7a66, roughness: 1, side: THREE.BackSide, map: tex('wood_albedo.jpg', { srgb: true }), emissive: 0x2a241c }));
     inner.position.set((WIN.x0 + WIN.x1) / 2, (WIN.y0 + WIN.y1) / 2, 0.68); S.add(inner);
     const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 16), new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 0.6 }));
     jar.position.set(WIN.x0 + 0.18, WIN.y0 + 0.07, 0.7); S.add(jar);

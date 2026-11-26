@@ -642,7 +642,7 @@ export class Person {
     if (this.look) {
       this.headJ.parent.updateWorldMatrix(true, false);
       const l = this.look.clone().applyMatrix4(this.neckJ.matrixWorld.clone().invert());
-      const yaw = clamp(Math.atan2(l.x, l.z), -1.0, 1.0), pitch = clamp(-Math.atan2(l.y - 0.1, Math.hypot(l.x, l.z)), -0.5, 0.5);
+      const yaw = clamp(Math.atan2(l.x, l.z), -1.0, 1.0), pitch = clamp(-Math.atan2(l.y - 0.1, Math.hypot(l.x, l.z)), -0.45, 0.32);
       this.neckJ.rotation.y = damp(this.neckJ.rotation.y, yaw * 0.4, 6, dt);
       this.headJ.rotation.y = damp(this.headJ.rotation.y, yaw * 0.6, 6, dt);
       this.headJ.rotation.x = damp(this.headJ.rotation.x, pitch, 6, dt);

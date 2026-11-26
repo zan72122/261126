@@ -128,7 +128,7 @@ let stream = null;
 
 // ---------------------------------------------------------------- camera shots (fit a box at a 35-50mm-ish lens)
 const SHOTS = {
-  dress: { c: V3(-1.95, 0.72, 2.1), d: V3(0.6, 0.22, 1), w: 1.45, h: 1.3 },
+  dress: { c: V3(-1.95, 0.66, 2.1), d: V3(0.55, 0.12, 1), w: 1.35, h: 1.22 },
   walls: { c: V3(0.15, 1.2, 1.2), d: V3(0.72, 0.06, 1), w: 4.2, h: 3.0 },
   trim: { c: V3(0.25, 1.48, 1.2), d: V3(0.66, 0.05, 1), w: 4.4, h: 3.35 },
   play: { c: V3(0.15, 1.3, 1.25), d: V3(0.62, 0.08, 1), w: 4.8, h: 3.4 },
@@ -136,15 +136,17 @@ const SHOTS = {
 };
 const camS = { pos: V3(-1.2, 1.0, 4.0), look: V3(-1.9, 0.7, 2.1), tPos: V3(), tLook: V3(), k: 1.5, shot: 'dress' };
 const PORTRAIT = {
-  walls: { c: V3(-0.1, 1.15, 1.6), d: V3(0.6, 0.06, 1), w: 3.0, h: 3.0 },
-  trim: { c: V3(0.1, 1.45, 1.5), d: V3(0.55, 0.05, 1), w: 3.3, h: 3.3 },
-  play: { c: V3(0.05, 1.3, 1.5), d: V3(0.5, 0.08, 1), w: 3.5, h: 3.3 },
+  dress: { c: V3(-1.9, 0.62, 2.1), d: V3(0.45, 0.12, 1), w: 1.05, h: 1.3 },
+  walls: { c: V3(0.25, 1.15, 1.3), d: V3(0.66, 0.06, 1), w: 3.9, h: 3.0 },
+  trim: { c: V3(0.25, 1.45, 1.3), d: V3(0.62, 0.05, 1), w: 3.9, h: 3.3 },
+  play: { c: V3(0.15, 1.3, 1.3), d: V3(0.58, 0.08, 1), w: 4.1, h: 3.3 },
 };
 function shotPose(name) {
   const s = (cam.aspect < 0.8 && PORTRAIT[name]) || SHOTS[name], asp = cam.aspect, t = Math.tan(cam.fov * Math.PI / 360);
-  const dist = Math.max(s.h / 2 / t, s.w / 2 / (t * asp)) * 1.04;
+  const dist = Math.max(s.h / 2 / t, s.w * (asp < 0.6 && PORTRAIT[name] && name !== 'dress' ? 1.18 : 1) / 2 / (t * asp)) * 1.04;
   const d = s.d.clone().normalize();
-  return [s.c.clone().addScaledVector(d, dist), s.c.clone()];
+  const c = s.c.clone(); const ww = asp < 0.6 && PORTRAIT[name] && name !== 'dress' ? 1.18 : 1;
+  return [c.clone().addScaledVector(d, dist), c];
 }
 function setShot(name, k = 1.2) { camS.shot = name; camS.k = k; }
 function resize() {
@@ -167,7 +169,7 @@ const G = {
 const after = (s, fn) => G.tasks.push({ t: G.t + s, fn });
 const GOALS = {
   walls: [['front', 0.62], ['side', 0.6]],
-  trim: [['door', 0.6], ['trim', 0.5], ['roof', 0.55], ['fascia', 0.45]],
+  trim: [['door', 0.45], ['trim', 0.4], ['roof', 0.4], ['fascia', 0.35]],
 };
 function progress(stage) { const g = GOALS[stage]; if (!g) return 1; let t = 0; for (const [k, th] of g) t += Math.min(1, PA.coverage(S[k]) / th); return t / g.length; }
 function done(stage) { return GOALS[stage].every(([k, th]) => PA.coverage(S[k]) >= th); }
@@ -203,7 +205,7 @@ function enterStage(name) {
     setShot('play', 0.6);
     celebrate(V3(0.1, 1.6, 1.2));
     G.dryT = 0;
-    papaWalk(V3(1.9, 0, 2.3)); girlGo(V3(-0.6, 0, 2.5));
+    papaWalk(V3(2.2, 0, 1.6)); girlGo(V3(-0.5, 0, 2.3));
   } else if (name === 'play') {
     for (const k of stampKinds) stamps[k].visible = true;
     placeStamps();
@@ -510,7 +512,7 @@ function wipeDone() {
   G.tool = 'brush';
   after(1.6, () => {
     setShot('trim', 0.9); papa.pose.sit = 0; papa.pose.armR = papa.pose.armL = 'rest'; G.spilledActive = false;
-    papaWalk(V3(2.05, 0, 2.2), () => { papa.root.rotation.y = -0.6; papa.express('happy'); });
+    papaWalk(V3(2.25, 0, 1.0), () => { papa.express('happy'); });
     girlGo(V3(-0.6, 0, 1.8));
   });
 }
@@ -703,8 +705,9 @@ function restTool(t, r) { t.position.lerp(r.p, 0.15); t.quaternion.slerp(new THR
 
 function updateStage(dt) {
   if (G.stage === 'dress') {
-    girl.look = (Math.sin(G.t * 0.7) > 0 ? overs.position : capItem.position).clone();
-    if (G.idle > 3 && Math.sin(G.t * 0.7) > 0.95) girl.look = camS.pos.clone();
+    const ph = Math.sin(G.t * 0.6);
+    girl.look = ph > 0.2 ? camS.pos.clone() : (ph > -0.4 ? overs.position : capItem.position).clone().add(V3(0, 0.35, 0));
+    faceTowards(girl, camS.pos, 0.016, 2);
   } else if (G.stage === 'walls') {
     const pr = progress('walls');
     if (pr > (G.milestone + 1) * 0.25 && G.milestone < 3) { G.milestone++; girl.express('laugh', 1.4); A.voice('girl', 'wow'); A.sfx('sparkle'); papa.express('laugh', 1.2); }
@@ -736,7 +739,7 @@ function updatePapa(dt) {
     papa.root.position.x = damp(papa.root.position.x, 1.95, 3, dt); papa.root.position.z = damp(papa.root.position.z, 1.38, 3, dt);
     papa.look = G.handed ? V3(1.2, 2.2, 1.2) : girl.head.getWorldPosition(V3());
   } else papa.root.position.y = damp(papa.root.position.y, 0, 6, dt);
-  if (!job) { if (!G.papaOnLadder && !G.wiping && G.stage !== 'dry') papa.look = girl.head.getWorldPosition(V3()); papaTool.visible = false; return; }
+  if (!job) { if (!G.papaOnLadder && !G.wiping && G.stage !== 'dry') papa.look = girl.head.getWorldPosition(V3()); if (!G.papaOnLadder && !G.papaTarget && !papa.pose.sit && !G.tipping) faceTowards(papa, girl.root.position.clone().lerp(camS.pos, 0.4), dt, 2); papaTool.visible = false; return; }
   job.t += dt;
   papaTool.visible = true;
   // papa paints the side wall alongside the girl (columns bottom->top), using her colour
