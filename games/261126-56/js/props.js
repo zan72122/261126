@@ -31,7 +31,7 @@ export function canvasCloth(T, opts = {}) {
 // ---------------------------------------------------------------- apron worn by the girl
 export function buildApron(person, T) {
   const b = person.data.header.body; const J = person.J;
-  const [ytop, ybib, ybot] = b.apronY; const zf = b.apronZ - 0.004; const Rc = 0.15, cz = zf - Rc;
+  const [ytop, ybib, ybot] = b.apronY; const zf = b.apronZ + 0.014 * (person.H / 1.1); const Rc = 0.16, cz = zf - Rc;
   const H = person.H / 1.1;
   const hw = (y) => { const bibW = 0.068 * H, skW = 0.118 * H + 0.015 * Math.max(0, Math.min(1, (ybib - y) / 0.2)); const t = THREE.MathUtils.smoothstep(y, ybib - 0.03, ybib + 0.01); return skW * (1 - t) + bibW * t; };
   const NU = 22, NV = 40; const pos = [], uv = [], si = [], sw = [], idx = [];

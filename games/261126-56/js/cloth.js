@@ -70,10 +70,10 @@ void main(){
   s.rgb += sum.rgb * uDiff;
   // gravity drift of loose dye while very wet (hanging)
   // --- uptake where submerged: indigo arrives as yellow-green leuco form, pink is direct
-  float uptake = (1.0 - res) * (1.0 - res);
+  float uptake = (1.0 - res) * (1.0 - res) * (1.0 - res);
   float capI = 1.35 - (s.r + s.g * 0.75);
-  s.r += sub.r * uptake * uDt * 0.42 * max(capI, 0.0) * (0.75 + 0.5 * nz);
-  s.b += sub.g * uptake * uDt * 0.34 * max(1.05 - s.b, 0.0) * (0.8 + 0.4 * nz);
+  s.r += sub.r * uptake * uDt * 0.8 * max(capI, 0.0) * (0.75 + 0.5 * nz);
+  s.b += sub.g * uptake * uDt * 0.65 * max(1.05 - s.b, 0.0) * (0.8 + 0.4 * nz);
   float wetIn = max(sub.r, sub.g);
   s.a = max(s.a, wetIn);
   // --- splash stamps (papa's accident etc.)
@@ -149,7 +149,7 @@ export class DyeField {
     this.sub = new THREE.WebGLRenderTarget(128, 128, { type: THREE.UnsignedByteType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
     NOISE = NOISE || noiseTex();
     // resist map (CPU canvas)
-    this.resCanvas = document.createElement('canvas'); this.resCanvas.width = this.resCanvas.height = 128;
+    this.resCanvas = document.createElement('canvas'); this.resCanvas.width = this.resCanvas.height = 256;
     this.resist = new THREE.CanvasTexture(this.resCanvas); this.resist.flipY = false; this.resist.minFilter = THREE.LinearFilter; this.resist.generateMipmaps = false;
     this.clearResist();
     this.simMat = new THREE.ShaderMaterial({
@@ -180,7 +180,7 @@ export class DyeField {
   }
 
   clearResist() {
-    const g = this.resCanvas.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128); this.resist.needsUpdate = true;
+    const g = this.resCanvas.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); this.resist.needsUpdate = true;
   }
 
   get texture() { return this.a.texture; }
@@ -215,7 +215,7 @@ export class DyeField {
 
   // resist from ties: bound rings stay white, folds inside the bundle give radial streaks
   paintResist(ties, shape) {
-    const g = this.resCanvas.getContext('2d'); const N = 128;
+    const g = this.resCanvas.getContext('2d'); const N = 256;
     const img = g.createImageData(N, N); const d = img.data;
     const W = shape.w, H = shape.h;
     const res = new Float32Array(N * N);
@@ -241,8 +241,8 @@ export class DyeField {
         }
         for (let k2 = 0; k2 < t.wraps; k2++) {
           const rk = t.R * (0.3 + 0.2 * k2);
-          const wob = 0.006 + 0.0025 * Math.sin(a * 5 + seed + k2);
-          const ring = Math.exp(-Math.pow((dist - rk) / wob, 2));
+          const wob = 0.0085 + 0.003 * Math.sin(a * 5 + seed + k2) + 0.002 * Math.sin(a * 13 + k2 * 3);
+          const ring = Math.exp(-Math.pow((dist - rk) / wob, 4));
           r = Math.max(r, ring * (0.94 + 0.06 * streak2));
         }
         const i = y * N + x; res[i] = Math.max(res[i], r);
@@ -252,6 +252,23 @@ export class DyeField {
     g.putImageData(img, 0, 0);
     this.resist.needsUpdate = true;
   }
+}
+
+let CREASE = null;
+function creaseTex() {
+  if (CREASE) return CREASE;
+  const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N; const g = cv.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, N, N);
+  for (let i = 0; i < 70; i++) {
+    const x = Math.random() * N, y = Math.random() * N, a = Math.random() * Math.PI, L = 30 + Math.random() * 120, w = 3 + Math.random() * 9;
+    const gr = g.createLinearGradient(x - Math.sin(a) * w, y + Math.cos(a) * w, x + Math.sin(a) * w, y - Math.cos(a) * w);
+    gr.addColorStop(0, 'rgba(128,128,128,0)'); gr.addColorStop(0.5, Math.random() < 0.5 ? 'rgba(200,200,200,0.5)' : 'rgba(60,60,60,0.5)'); gr.addColorStop(1, 'rgba(128,128,128,0)');
+    g.strokeStyle = gr; g.lineWidth = w * 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x - Math.cos(a) * L / 2, y - Math.sin(a) * L / 2); g.quadraticCurveTo(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * 30, x + Math.cos(a) * L / 2, y + Math.sin(a) * L / 2); g.stroke();
+  }
+  g.filter = 'blur(3px)'; g.drawImage(cv, 0, 0);
+  CREASE = new THREE.CanvasTexture(cv); CREASE.wrapS = CREASE.wrapT = THREE.RepeatWrapping;
+  return CREASE;
 }
 
 // ---------------------------------------------------------------- dyed cotton material
@@ -264,8 +281,9 @@ export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
   const U = {
     tDye: { value: dyeTex }, tWeave: { value: T.clothH }, uWeaveRep: { value: opts.rep || new THREE.Vector2(30, 30) },
     uSunDir: { value: opts.sunDir || new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1.0, 0.86, 0.7).multiplyScalar(3.0) },
-    tDetail: { value: opts.detail || null }, uHasDetail: { value: opts.detail ? 1 : 0 }, uGlow: { value: 0 }, uBase: { value: new THREE.Color().setRGB(0.86, 0.855, 0.83) }, uPlain: { value: 0 }, uPlainCol: { value: new THREE.Color(1, 1, 1) },
+    tCrease: { value: null }, tDetail: { value: opts.detail || null }, uHasDetail: { value: opts.detail ? 1 : 0 }, uGlow: { value: 0 }, uBase: { value: new THREE.Color().setRGB(0.86, 0.855, 0.83) }, uPlain: { value: 0 }, uPlainCol: { value: new THREE.Color(1, 1, 1) },
   };
+  U.tCrease.value = creaseTex();
   m.userData.dye = U;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -274,7 +292,8 @@ export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec2 vDyeUv; uniform sampler2D tDye; uniform sampler2D tWeave; uniform vec2 uWeaveRep;
-        uniform sampler2D tDetail; uniform float uHasDetail; uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uGlow; uniform vec3 uBase; uniform float uPlain; uniform vec3 uPlainCol;
+        uniform sampler2D tDetail; uniform float uHasDetail; uniform sampler2D tCrease;
+        ${PERTURB} uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uGlow; uniform vec3 uBase; uniform float uPlain; uniform vec3 uPlainCol;
         float gWet; vec3 gDyeCol;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
@@ -289,6 +308,13 @@ export function makeDyeMaterial(T, dyeTex, alphaTex, opts = {}) {
           col *= 1.0 - 0.22 * wet;
           gDyeCol = col;
           diffuseColor.rgb *= col;
+        }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          // soft creases of handled cotton
+          float hc = texture2D(tCrease, vDyeUv * vec2(1.3, 1.6)).r * 0.6 + texture2D(tCrease, vDyeUv * vec2(3.1, 2.3) + 0.37).r * 0.4;
+          vec2 dh = vec2(dFdx(hc), dFdy(hc)) * 4.5;
+          normal = perturbN2(-vViewPosition, normal, dh, faceDirection);
         }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = mix(0.9, 0.42, gWet);`)
@@ -459,7 +485,7 @@ export class Cloth {
 
   // ---------------------------------------------------------------- ties
   addTie(k) {
-    const R = this.kind === 'shirt' ? 0.1 : 0.07;
+    const R = this.kind === 'shirt' ? 0.12 : (this.kind === 'tee' ? 0.095 : 0.085);
     const c = this.rest[k];
     // an existing tie close by gets another wrap
     for (const t of this.ties) {
@@ -593,7 +619,7 @@ export class Cloth {
         P[t.c * 3] += (want.x - P[t.c * 3]) * strength; P[t.c * 3 + 1] += (want.y - P[t.c * 3 + 1]) * strength; P[t.c * 3 + 2] += (want.z - P[t.c * 3 + 2]) * strength;
       }
       const tipNow = new V3(P[t.c * 3], P[t.c * 3 + 1], P[t.c * 3 + 2]);
-      const colR = 0.016 + 0.004 * t.wraps * 0;
+      const colR = 0.02;
       for (const [i, d, ang] of t.members) {
         const along = (d / t.R) * colH; // distance down from the tip
         const q = new V3(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
@@ -643,7 +669,7 @@ export class Cloth {
         ring.position.copy(tip).addScaledVector(t.axis, -along);
         ring.quaternion.setFromUnitVectors(new V3(0, 0, 1), t.axis);
         const grow = k === t.wraps - 1 ? t.wrapAnim : 1;
-        const s = 0.019 * (0.6 + 0.4 * grow);
+        const s = 0.023 * (0.6 + 0.4 * grow);
         ring.scale.set(s, s, 0.026 * grow + 0.004);
         ring.visible = k < t.wraps;
       }

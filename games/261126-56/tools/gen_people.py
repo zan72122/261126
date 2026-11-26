@@ -373,11 +373,11 @@ def tee_fn(sp, J, kind):
     nrm = (el - sh) / np.linalg.norm(el - sh)
     nb = J['neckJ']
     def side(P):
-        D = tor(P)
+        A = None
         for f, _ in arms:
-            D = smin(D, f(P), 0.009 * H)
-        D = smax(D, (P - sleeve_end) @ nrm, 0.004 * H)
-        return D
+            d = f(P); A = d if A is None else smin(A, d, 0.006 * H)
+        A = smax(A, (P - sleeve_end) @ nrm, 0.004 * H)
+        return smin(tor(P), A, 0.012 * H)
     sideR = mirrored(side)
     hem = c['hem']
     def f(P):
@@ -457,8 +457,8 @@ def bottoms_fn(sp, J, kind):
         return D
     legR = mirrored(legcut)
     def f(P):
-        D = smin(tor(P), legcut(P), 0.025 * H)
-        D = smin(D, legR(P), 0.025 * H)
+        D = smin(tor(P), legcut(P), 0.04 * H)
+        D = smin(D, legR(P), 0.04 * H)
         y = P[:, 1]
         D = D - 0.002 * H * fbm(P * V(1, 0.5, 1), 24 / H, 3, 47)
         # crotch folds
@@ -730,8 +730,8 @@ def spec_girl():
                      [0.66, 0.091, 0.077, 0.006], [0.71, 0.087, 0.076, 0.010], [0.76, 0.092, 0.073, 0.007],
                      [0.81, 0.1, 0.069, 0.002], [0.845, 0.104, 0.062, -0.004], [0.87, 0.08, 0.05, -0.008], [0.888, 0.04, 0.035, -0.008]],
               extraTorso=[[(0, 0.585, -0.06), (0.085, 0.05, 0.03), 0.03, 'hips']],
-              cloth=dict(off=0.0085, sleeve=0.48, hem=0.565, flare=0.011, flareY=0.72, neckDy=0.014, neckDz=0.012, neckR=(0.05, 0.03, 0.046)),
-              bottom=dict(off=0.009, top=0.7, len=0.36, legFlare=0.01),
+              cloth=dict(off=0.0095, sleeve=0.48, hem=0.575, flare=0.02, flareY=0.74, neckDy=0.014, neckDz=0.012, neckR=(0.05, 0.03, 0.046)),
+              bottom=dict(off=0.008, top=0.665, len=0.36, legFlare=0.01),
               apronZ=0.1, apronY=(0.835, 0.75, 0.43), apronTieY=0.715, torsoBackZ=0.07, scarfZ=0.05,
               skin=srgb(0.94, 0.73, 0.61), hair=srgb(0.16, 0.1, 0.065),
               headP=dict(crOff=(0, 0.014, -0.012), crR=(0.0715, 0.084, 0.087), faceOff=(0, -0.026, 0.016), faceR=(0.057, 0.057, 0.063),
@@ -943,10 +943,6 @@ def build(kind, quality=1.0):
 
     # ---- clothes: top
     tf = tee_fn(sp, J, kind)
-    if kind == 'papa':
-        col_f = shirt_collar_fn(sp, J)
-        tf0 = tf
-        tf = lambda P: smin(tf0(P), col_f(P), 0.004 * s)
     lo = V(-xr * 0.75, sp['cloth']['hem'] - 0.03 * s, -0.15 * s); hi = V(xr * 0.75, J['neckJ'][1] + 0.05 * s, 0.15 * s)
     Pt, Ft, Nt = polygonize(tf, lo, hi, vb * 0.85, int(16000 * Q), 'top')
     lab = region_labels(body, Pt)

@@ -124,7 +124,9 @@ export class Game {
         for (const tb of W.tubs) {
           if (!tb.on) continue;
           const rim = tb.baseY + tb.H + 0.01; if (y > rim) continue;
-          const dx = x - tb.x, dz = z - tb.z, d = Math.hypot(dx, dz); if (d > tb.R1 + 0.02 || d < 1e-5) continue;
+          const dx = x - tb.x, dz = z - tb.z, d = Math.hypot(dx, dz);
+          if (this.insideTub === tb && d > 1e-5) { const ir = innerR(tb, y) - 0.008; if (d > ir) { const s = ir / d; P[i] = tb.x + dx * s; P[i + 2] = tb.z + dz * s; } continue; }
+          if (d > tb.R1 + 0.02 || d < 1e-5) continue;
           const ir = innerR(tb, y);
           if (d < (ir + tb.R1) / 2 + 0.004) { if (d > ir - 0.006) { const s = (ir - 0.006) / d; P[i] = tb.x + dx * s; P[i + 2] = tb.z + dz * s; } }
           else { const s = (tb.R1 + 0.02) / d; P[i] = tb.x + dx * s; P[i + 2] = tb.z + dz * s; }
@@ -801,6 +803,13 @@ export class Game {
     if (c.settle > 0) c.settle -= dt;
     const onTable = c.state === 'table';
     const envCloth = { ...env, wind: onTable ? new V3() : (c.state === 'line' ? this.wind : this.wind.clone().multiplyScalar(0.25)), windAmt: c.state === 'line' ? this.windAmt : 0.1 };
+    // a cloth lowered from above a bath goes into it (instead of catching on the rim)
+    envCloth.insideTub = null;
+    if (c.state === 'held' && this.held && this.held.cloth === c) {
+      const ht = this.held.target;
+      for (const tb of this.world.tubs) if (tb.on && Math.hypot(ht.x - tb.x, ht.z - tb.z) < tb.R0 && ht.y < tb.baseY + tb.H + 0.35) envCloth.insideTub = tb;
+      c.damping = Math.min(c.damping, 0.965);
+    }
     c.simulate(dt, envCloth);
     // dye field (only where the cloth is really under the liquid)
     const dry = c.state === 'line' ? (c.ties.length ? 0.004 : 0.04 * (0.6 + this.windAmt)) : 0.004;

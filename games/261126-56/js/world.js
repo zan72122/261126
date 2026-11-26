@@ -333,14 +333,20 @@ export class World {
     const cs = contactShadow(W * 1.1, D * 1.2, 0.35); cs.position.y = 0.017; g.add(cs);
     this.scene.add(g);
     this.tableTop = topH;
-    // twine spool on the table
+    // a ball of cotton twine on the table
     const spool = new THREE.Group();
-    const tw = tex('twine_a.jpg', { repeat: [6, 2], srgb: true });
-    const twn = tex('twine_n.jpg', { repeat: [6, 2] });
-    this.twineMat = new THREE.MeshStandardMaterial({ map: tw, normalMap: twn, roughness: 0.9, color: 0xffffff });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.07, 32), this.twineMat); body.castShadow = true; spool.add(body);
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.072, 16), new THREE.MeshStandardMaterial({ color: 0x9a7b55, roughness: 0.8 })); spool.add(core);
-    spool.position.set(-0.56 + 0.36, topH + 0.035, 0.02 + 0.2); spool.rotation.z = Math.PI / 2; spool.rotation.y = 0.4;
+    const tw = tex('twine_a.jpg', { repeat: [3, 6], srgb: true });
+    const twn = tex('twine_n.jpg', { repeat: [3, 6] });
+    this.twineMat = new THREE.MeshStandardMaterial({ map: tw, normalMap: twn, roughness: 0.92, color: 0xffffff });
+    const bg = new THREE.SphereGeometry(0.042, 32, 20); bg.scale(1, 0.82, 1);
+    const ball = new THREE.Mesh(bg, this.twineMat); ball.castShadow = true; ball.rotation.set(0.6, 0.3, 0.9); spool.add(ball);
+    for (let i = 0; i < 5; i++) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.041, 0.0028, 6, 40), this.twineMat);
+      band.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); band.scale.y = 0.82; spool.add(band);
+    }
+    const tail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0.03, -0.02, 0.02), new THREE.Vector3(0.07, -0.033, 0.05), new THREE.Vector3(0.12, -0.034, 0.03), new THREE.Vector3(0.16, -0.034, 0.07)]), 24, 0.0018, 5), this.twineMat);
+    spool.add(tail);
+    spool.position.set(-0.17, topH + 0.034, -0.19);
     this.scene.add(spool); this.spool = spool;
   }
 

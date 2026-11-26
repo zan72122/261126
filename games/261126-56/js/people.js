@@ -340,7 +340,8 @@ export class Person {
       const x = up[i][0];
       const yu = up[i][1], yd = dn[i][1];
       const h = yu - yd;
-      const rows = [[yu, teeth], [yu - Math.min(h * 0.32, 0.0026 * S), teeth], [yu - Math.min(h * 0.36, 0.003 * S), dark], [yd + h * 0.3, dark], [yd, tongue]];
+      const th = e.open > 0.2 ? Math.min(h * 0.32, 0.0026 * S) : 0;
+      const rows = [[yu, th > 0 ? teeth : dark], [yu - th, th > 0 ? teeth : dark], [yu - th - Math.min(h * 0.04, 0.0004 * S), dark], [yd + h * 0.3, dark], [yd, tongue]];
       for (const [y, c] of rows) {
         const p = toW(x * 0.98, y, -0.0012 * S);
         ip.push(p.x, p.y, p.z); ic.push(...c);
@@ -357,7 +358,7 @@ export class Person {
   setFeel(name, dur = 0) {
     this.feel = name; this.feelTime = dur;
     const E = this.exprT;
-    const set = (o) => { Object.assign(E, { smile: 0.5, open: 0.1, round: 0, browUp: 0, browTilt: 0, browAsym: 0, squint: 0 }, o); };
+    const set = (o) => { Object.assign(E, { smile: 0.5, open: 0.03, round: 0, browUp: 0, browTilt: 0, browAsym: 0, squint: 0 }, o); };
     switch (name) {
       case 'happy': set({ smile: 0.9, open: 0.25, browUp: 0.3, squint: 0.3 }); break;
       case 'laugh': set({ smile: 1.0, open: 0.75, browUp: 0.5, squint: 0.6 }); break;
@@ -501,7 +502,7 @@ export class Person {
     for (const e of this.eyes) {
       e.ball.rotation.set(look.y + this.expr.look.y, look.x + this.expr.look.x, 0);
       // upper lid: open position tilts back
-      const openA = -0.45 - 0.25 * bu + 0.3 * sq;
+      const openA = -0.53 - 0.25 * bu + 0.3 * sq;
       const closedA = 0.32;
       e.up.rotation.x = closedA + (openA - closedA) * lidOpen;
       e.lo.rotation.x = 0.18 - 0.22 * sq - 0.05 * (1 - lidOpen);
